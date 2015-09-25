@@ -88,7 +88,7 @@ func reset(index int) {
 	if index < 0 || index > len(puzzleValues) {
 		index = defaultIndex
 	}
-	currentIndex = defaultIndex
+	currentIndex = index
 	p, e := puzzle.New(puzzleValues[index])
 	if e != nil {
 		log.Fatal(e)
