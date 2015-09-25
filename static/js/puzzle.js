@@ -4,10 +4,10 @@ var guessHints;
 var puzzleContent = null;
 var guessContent = null;
 var puzzleSideLength = 9;
-var squaresURL = "http://localhost:8080/api/squares/";
-var assignURL = "http://localhost:8080/api/assign/";
-var backURL = "http://localhost:8080/api/back/";
-var resetURL = "http://localhost:8080/api/reset/";
+var squaresURL = "/api/squares/";
+var assignURL = "/api/assign/";
+var backURL = "/api/back/";
+var resetURL = "/api/reset/";
 
 function receivePuzzleSquares() {
     if (this.readyState == 4) {

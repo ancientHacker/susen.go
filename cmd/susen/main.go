@@ -4,6 +4,7 @@ import (
 	"github.com/ancientHacker/susen.go/puzzle"
 	"log"
 	"net/http"
+	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -159,6 +160,20 @@ func main() {
 		}
 		http.Redirect(w, r, "/static/html/puzzle.html", http.StatusFound)
 	})
-	log.Print("Listening on localhost:8080...")
-	log.Fatal(http.ListenAndServe("127.0.0.1:8080", nil))
+
+	// Heroku environment port sensing
+	port := os.Getenv("PORT")
+	if port == "" {
+		// running locally in dev mode
+		port = "localhost:8080"
+	} else {
+		// running as a true server
+		port = ":" + port
+	}
+
+	log.Printf("Listening on %s...", port)
+	err := http.ListenAndServe(port, nil)
+	if err != nil {
+		log.Fatal("Listener failure: ", err)
+	}
 }
