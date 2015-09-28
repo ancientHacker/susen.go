@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"github.com/ancientHacker/susen.go/puzzle"
 	"log"
 	"net/http"
@@ -8,7 +9,18 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
+	"time"
 )
+
+const cookieName = "susenID"
+const cookiePath = "/api"
+
+type susenSession struct {
+	id       time.Duration
+	steps    []puzzle.Puzzle
+	puzzleID int
+}
 
 var (
 	puzzleValues = [][]int{
@@ -79,84 +91,121 @@ var (
 			0, 2, 0, 0, 0, 0, 0, 0, 4,
 		},
 	}
-	defaultIndex = 0
-	currentIndex = defaultIndex
-	steps        = []puzzle.Puzzle{}
+	defaultPuzzleID = 0
+	startTime       = time.Now()
+	sessions        = make(map[time.Duration]*susenSession)
+	sessionMutex    sync.RWMutex
 )
 
-func reset(index int) {
-	if index < 0 || index > len(puzzleValues) {
-		index = defaultIndex
+// since session selection can happen concurrently from
+// simultaneous goroutines, it has to be interlocked
+func sessionSelect(w http.ResponseWriter, r *http.Request) *susenSession {
+	var sessionID time.Duration
+	sc, err := r.Cookie(cookieName)
+	if err == nil {
+		sessionID, err = time.ParseDuration(sc.Value + "ns")
 	}
-	currentIndex = index
-	p, e := puzzle.New(puzzleValues[index])
+	if err != nil {
+		// no session cookie or not a valid session cookie,
+		// start a new session with a new cookie
+		sessionID = time.Now().Sub(startTime)
+		cookieVal := fmt.Sprint(int64(sessionID))
+		sc := &http.Cookie{Name: cookieName, Value: cookieVal, Path: cookiePath}
+		http.SetCookie(w, sc)
+	}
+	// we have a valid sessionID, make sure we have a valid session
+	sessionMutex.RLock()
+	session, ok := sessions[sessionID]
+	sessionMutex.RUnlock()
+	if ok && session != nil && len(session.steps) > 0 {
+		return session
+	}
+	// initialize and save the new session
+	session = &susenSession{id: sessionID}
+	session.reset(defaultPuzzleID)
+	sessionMutex.Lock()
+	sessions[sessionID] = session
+	sessionMutex.Unlock()
+	return session
+}
+
+func (session *susenSession) reset(id int) {
+	if id < 0 || id > len(puzzleValues) {
+		id = defaultPuzzleID
+	}
+	session.puzzleID = id
+	p, e := puzzle.New(puzzleValues[id])
 	if e != nil {
 		log.Fatal(e)
 	}
-	steps = []puzzle.Puzzle{p}
-	log.Printf("Initialized solution from puzzle %d.", index)
+	session.steps = []puzzle.Puzzle{p}
+	log.Printf("Initialized session %v steps from puzzle %d.", session.id, id+1)
 }
 
-func addStep(next puzzle.Puzzle) {
-	steps = append(steps, next)
-	log.Printf("Added solution step %d.", len(steps))
+func (session *susenSession) addStep(next puzzle.Puzzle) {
+	session.steps = append(session.steps, next)
+	log.Printf("Added session %v step %d.", session.id, len(session.steps))
 }
 
-func undoStep() {
-	if len(steps) > 1 {
-		steps[len(steps)-1] = nil // release current step
-		steps = steps[:len(steps)-1]
-		log.Printf("Reverted to solution step %d.", len(steps))
+func (session *susenSession) undoStep() {
+	if len(session.steps) > 1 {
+		session.steps[len(session.steps)-1] = nil // release current step
+		session.steps = session.steps[:len(session.steps)-1]
+		log.Printf("Reverted session %v to step %d.", session, len(session.steps))
+	} else {
+		log.Printf("No steps to undo in session %v.", session)
+	}
+}
+
+func (session *susenSession) apiHandler(w http.ResponseWriter, r *http.Request) {
+	if strings.Contains(r.URL.Path, "/reset/") {
+		re := regexp.MustCompile("/reset/([0-9]+)(/.*)?$")
+		if matches := re.FindStringSubmatch(r.URL.Path); matches != nil {
+			i, e := strconv.Atoi(matches[1])
+			if e != nil {
+				// can't happen!
+				log.Printf("Atoi failure on %s in %s", matches[1], r.URL.Path)
+				session.reset(defaultPuzzleID)
+			} else {
+				session.reset(i - 1)
+			}
+		} else {
+			session.reset(session.puzzleID)
+		}
+	}
+	if strings.Contains(r.URL.Path, "/back/") {
+		session.undoStep()
+	}
+	switch method := r.Method; method {
+	case "GET":
+		puzzle.SquaresHandler(session.steps[len(session.steps)-1], w, r)
+		log.Printf("Returned current state.")
+	case "POST":
+		next := session.steps[len(session.steps)-1].Copy()
+		_, e := puzzle.AssignHandler(next, w, r)
+		if e != nil {
+			log.Printf("Assign failed, returned error, no session change.")
+		} else {
+			log.Printf("Assign succeeded, returned update.")
+			session.addStep(next)
+		}
+	default:
+		log.Printf("%s unexpected; no action taken.", method)
 	}
 }
 
 func main() {
 	http.Handle("/static/", http.StripPrefix("/", http.FileServer(http.Dir("."))))
 	http.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) {
-		log.Printf("Received %s %s: /api handler.", r.Method, r.URL.Path)
-		if len(steps) == 0 || strings.Contains(r.URL.Path, "/reset/") {
-			re := regexp.MustCompile("/reset/([0-9]+)(/.*)?$")
-			if matches := re.FindStringSubmatch(r.URL.Path); matches != nil {
-				i, e := strconv.Atoi(matches[1])
-				if e != nil {
-					// can't happen!
-					log.Printf("Atoi failure on %s in %s", matches[1], r.URL.Path)
-					reset(defaultIndex)
-				} else {
-					reset(i - 1)
-				}
-			} else {
-				reset(currentIndex)
-			}
-		}
-		if strings.Contains(r.URL.Path, "/back/") {
-			undoStep()
-		}
-		switch method := r.Method; method {
-		case "GET":
-			puzzle.SquaresHandler(steps[len(steps)-1], w, r)
-			log.Printf("Returned current state.")
-		case "POST":
-			next := steps[len(steps)-1].Copy()
-			_, e := puzzle.AssignHandler(next, w, r)
-			if e != nil {
-				log.Printf("Assign failed, returning error.")
-			} else {
-				log.Printf("Assign succeeded, returning update.")
-				addStep(next)
-			}
-		default:
-			log.Printf("%s unexpected; no action taken.", method)
-		}
+		log.Printf("Received %s %s - invoke /api/ handler in session.", r.Method, r.URL.Path)
+		session := sessionSelect(w, r)
+		session.apiHandler(w, r)
 	})
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		log.Printf("Received %s %s: root handler.", r.Method, r.URL.Path)
+		log.Printf("Received %s %s - handle external to session.", r.Method, r.URL.Path)
 		if r.URL.Path == "/favicon.ico" {
 			http.Error(w, "No custom icon.", http.StatusNotFound)
 			return
-		}
-		if r.URL.Path == "/restart" || r.URL.Path == "/reset" {
-			reset(defaultIndex)
 		}
 		http.Redirect(w, r, "/static/html/puzzle.html", http.StatusFound)
 	})
