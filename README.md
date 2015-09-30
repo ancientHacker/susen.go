@@ -1,4 +1,4 @@
-# susen
+# susen &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[![Build Status](https://travis-ci.org/ancientHacker/susen.go.svg)](https://travis-ci.org/ancientHacker/susen.go)
 
 susen is a simple Sudoku game built as a learning experience in
 Sudoku, golang, and web services.  The name susen is an (English)
