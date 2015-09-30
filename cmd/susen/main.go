@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"github.com/ancientHacker/susen.go/puzzle"
 	"log"
 	"net/http"
@@ -17,7 +16,7 @@ const cookieName = "susenID"
 const cookiePath = "/api"
 
 type susenSession struct {
-	id       time.Duration
+	id       int64
 	steps    []puzzle.Puzzle
 	puzzleID int
 }
@@ -93,23 +92,23 @@ var (
 	}
 	defaultPuzzleID = 0
 	startTime       = time.Now()
-	sessions        = make(map[time.Duration]*susenSession)
+	sessions        = make(map[int64]*susenSession)
 	sessionMutex    sync.RWMutex
 )
 
 // since session selection can happen concurrently from
 // simultaneous goroutines, it has to be interlocked
 func sessionSelect(w http.ResponseWriter, r *http.Request) *susenSession {
-	var sessionID time.Duration
+	var sessionID int64
 	sc, err := r.Cookie(cookieName)
 	if err == nil {
-		sessionID, err = time.ParseDuration(sc.Value + "ns")
+		sessionID, err = strconv.ParseInt(sc.Value, 10, 64)
 	}
-	if err != nil {
+	if err != nil || sessionID == 0 {
 		// no session cookie or not a valid session cookie,
 		// start a new session with a new cookie
-		sessionID = time.Now().Sub(startTime)
-		cookieVal := fmt.Sprint(int64(sessionID))
+		sessionID = int64(time.Now().Sub(startTime))
+		cookieVal := strconv.FormatInt(sessionID, 10)
 		sc := &http.Cookie{Name: cookieName, Value: cookieVal, Path: cookiePath}
 		http.SetCookie(w, sc)
 	}
@@ -121,7 +120,7 @@ func sessionSelect(w http.ResponseWriter, r *http.Request) *susenSession {
 		return session
 	}
 	// initialize and save the new session
-	session = &susenSession{id: sessionID}
+	session = &susenSession{id: int64(sessionID)}
 	session.reset(defaultPuzzleID)
 	sessionMutex.Lock()
 	sessions[sessionID] = session
@@ -139,21 +138,21 @@ func (session *susenSession) reset(id int) {
 		log.Fatal(e)
 	}
 	session.steps = []puzzle.Puzzle{p}
-	log.Printf("Initialized session %v steps from puzzle %d.", session.id, id+1)
+	log.Printf("Initialized session %d steps from puzzle %d.", session.id, id+1)
 }
 
 func (session *susenSession) addStep(next puzzle.Puzzle) {
 	session.steps = append(session.steps, next)
-	log.Printf("Added session %v step %d.", session.id, len(session.steps))
+	log.Printf("Added session %d step %d.", session.id, len(session.steps))
 }
 
 func (session *susenSession) undoStep() {
 	if len(session.steps) > 1 {
 		session.steps[len(session.steps)-1] = nil // release current step
 		session.steps = session.steps[:len(session.steps)-1]
-		log.Printf("Reverted session %v to step %d.", session, len(session.steps))
+		log.Printf("Reverted session %d to step %d.", session.id, len(session.steps))
 	} else {
-		log.Printf("No steps to undo in session %v.", session)
+		log.Printf("No steps to undo in session %d.", session.id)
 	}
 }
 

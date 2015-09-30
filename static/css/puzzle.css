@@ -1,6 +1,8 @@
 .puzzle table {
     float: left;
-    border-collapse: collapse; 
+    border-collapse: collapse;
+    font-size: large;
+    // font-family: sans-serif;
 }
 tr {
     background: #b8d1f3;
@@ -63,7 +65,7 @@ td[selected="opaque"] {
 
 .puzzle div.controls {
     float: left;
-    width: 400px;
+    width: 500px;
     margin-left: 10px;
 }
 
@@ -96,8 +98,9 @@ td[selected="opaque"] {
 
 .guess {
     display: inline-block;
+    cursor: pointer;
     width: 24px;
-    margin: 6px;
+    margin: 6px 3px;
     padding: 6px 8px;
     border: #4e95f4 1px solid;
     border-radius: 6px;
@@ -111,6 +114,24 @@ div[guess="no"] {
 }
 div[guess="maybe"] {
     background: #ffff99;
+}
+
+.why {
+    display: none;
+}
+
+.why[show="yes"] {
+    display: inline-block;
+    cursor: pointer;
+    background: #99ff99;
+    margin: 6px;
+    padding: 6px 8px;
+    border: #4e95f4 1px solid;
+    border-radius: 6px;
+}
+
+.why[show="no"] {
+    display: none;
 }
 
 .stepcontrol p{
@@ -146,4 +167,8 @@ div[guess="maybe"] {
     display: inline-block;
     cursor: pointer;
     padding: 6px 6px;
+}
+
+.puzzleButton[current="yes"] {
+    background: #99ff99;
 }

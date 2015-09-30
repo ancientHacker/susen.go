@@ -6,7 +6,7 @@
     <script src="../js/puzzle.js"></script>
   </head>
   <body id="body" onload="initializePage()"  onclick="clickNowhere(event);">
-    <h1>Susen web v0.2</h1>
+    <h1>Susen web v0.5</h1>
     <div class="puzzle">
       <table>
 	<tr>
@@ -112,16 +112,16 @@
       <div class="controls">
 	<div class="options">
 	  <div>Hover hints:
-	    <input id="hoverOn" type="radio" onclick="setHoverHints(true)">On
-	    <input id="hoverOff" type="radio" onclick="setHoverHints(false)">Off
+	    <input id="hoverOn" type="radio" onclick="clickHoverHints(true)">On
+	    <input id="hoverOff" type="radio" onclick="clickHoverHints(false)">Off
 	  </div>
 	  <div>Select hints:
-	    <input id="selectOn" type="radio" onclick="setSelectHints(true)">On
-	    <input id="selectOff" type="radio" onclick="setSelectHints(false)">Off
+	    <input id="selectOn" type="radio" onclick="clickSelectHints(true)">On
+	    <input id="selectOff" type="radio" onclick="clickSelectHints(false)">Off
 	  </div>
 	  <div>Guess hints:
-	    <input id="guessOn" type="radio" onclick="setGuessHints(true)">On
-	    <input id="guessOff" type="radio" onclick="setGuessHints(false)">Off
+	    <input id="guessOn" type="radio" onclick="clickGuessHints(true)">On
+	    <input id="guessOff" type="radio" onclick="clickGuessHints(false)">Off
 	  </div>
 	</div>
 	<div class="feedback" id="guessFeedback"></div>
@@ -135,6 +135,7 @@
 	    <div id="guess7" class="guess" hint="maybe" onclick="clickGuess(7)">7</div>
 	    <div id="guess8" class="guess" hint="maybe" onclick="clickGuess(8)">8</div>
 	    <div id="guess9" class="guess" hint="maybe" onclick="clickGuess(9)">9</div>
+	    <div id="why" class="why" show="no" onclick="clickWhy(event)">Why?</div>
 	</div>
 	<div class="puzzlecontrol">
 	  <p>Solving this puzzle:
@@ -145,12 +146,12 @@
 	</div>
 	<div class="puzzlecontrol">
 	  <p>Start new puzzle:
-	    <div class="puzzleButton" onclick="newPuzzle(1)">1-star</div>
-	    <div class="puzzleButton" onclick="newPuzzle(2)">2-star</div>
-	    <div class="puzzleButton" onclick="newPuzzle(3)">3-star</div>
-	    <div class="puzzleButton" onclick="newPuzzle(4)">4-star</div>
-	    <div class="puzzleButton" onclick="newPuzzle(5)">5-star</div>
-	    <div class="puzzleButton" onclick="newPuzzle(6)">6-star</div></p>
+	    <div class="puzzleButton" id="pb1" onclick="newPuzzle(1)">1-star</div>
+	    <div class="puzzleButton" id="pb2" onclick="newPuzzle(2)">2-star</div>
+	    <div class="puzzleButton" id="pb3" onclick="newPuzzle(3)">3-star</div>
+	    <div class="puzzleButton" id="pb4" onclick="newPuzzle(4)">4-star</div>
+	    <div class="puzzleButton" id="pb5" onclick="newPuzzle(5)">5-star</div>
+	    <div class="puzzleButton" id="pb6" onclick="newPuzzle(6)">6-star</div></p>
 	</div>
       </div>
     </div>

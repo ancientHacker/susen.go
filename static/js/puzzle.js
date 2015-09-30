@@ -1,6 +1,7 @@
 var hoverHints;
 var selectHints;
 var guessHints;
+var puzzleIndex = 0;
 var puzzleContent = null;
 var guessContent = null;
 var puzzleSideLength = 9;
@@ -15,7 +16,6 @@ function receivePuzzleSquares() {
         var squares = JSON.parse(this.responseText);
 	fillPuzzle(squares);
 	setFeedback("Puzzle received.");
-	selectCell(null)
     }
 }
 
@@ -24,7 +24,6 @@ getPuzzleRequest.onreadystatechange = receivePuzzleSquares;
 
 function receivePuzzleUpdate() {
     if (this.readyState == 4) {
-	selectCell(null)
 	console.log("Got puzzle update:", this.responseText);
         var result = JSON.parse(this.responseText);
 	if (this.status == 200) {
@@ -67,15 +66,16 @@ function AssignPuzzle(cell, val) {
 }
 
 function fillPuzzle(squares) {
+    selectCell(null)
     if (squares)
 	puzzleContent = squares;
     else
 	puzzleContent = null;
     refillPuzzle();
-    fillGuess();
 };
 
 function updatePuzzle(squares) {
+    selectCell(null)
     if (squares && puzzleContent) {
 	for (i = 0; i < squares.length; i++) {
 	    if (squares[i].index > 0 && squares[i].index < puzzleContent.length) {
@@ -84,7 +84,6 @@ function updatePuzzle(squares) {
 	}
     }
     refillPuzzle();
-    fillGuess();
 };
 
 function refillPuzzle() {
@@ -115,9 +114,15 @@ function refillPuzzle() {
     }
 };
 
-function fillGuess(guesses, index) {
+function fillGuess(guesses, idx, bval, bsrc) {
     if (guesses)
-	guessContent = { "guesses": guesses, "max": puzzleSideLength, "index": index };
+	guessContent = {
+	    "guesses": guesses,
+	    "max": puzzleSideLength,
+	    "index" : idx,
+	    "bval": bval,
+	    "bsrc": bsrc
+	};
     else
 	guessContent = null;
     refillGuess();
@@ -140,6 +145,12 @@ function refillGuess() {
 	}
 	var guessbox = document.getElementById("guessbox");
 	guessbox.className = "filled";
+	var whybox = document.getElementById("why")
+	if (guessHints && guessContent.bsrc) {
+	    whybox.setAttribute("show", "yes")
+	} else {
+	    whybox.setAttribute("show", "no")
+	}
 	document.addEventListener('keypress', keyGuess);
     } else {
 	var guessbox = document.getElementById("guessbox");
@@ -153,23 +164,30 @@ function setFeedback(message) {
 }
 
 function selectCell(idx) {
+    if (idx == -1) {
+	// reselect currently selected cell
+	idx = arguments.callee.selectedIdx
+    }
     // deselect currently selected cell
-    if (arguments.callee.selectedCell) {
-	cell = arguments.callee.selectedCell
+    if (arguments.callee.selectedIdx && idx != arguments.callee.selectedIdx) {
+	var idstr = "c" + arguments.callee.selectedIdx;
+	var cell = document.getElementById(idstr);
 	cell.setAttribute("selected", "")
 	if (hoverHints) {
 	    cell.setAttribute("hover", cell.getAttribute("hint"))
 	} else {
 	    cell.setAttribute("hover", "opaque")
 	}
-	arguments.callee.selectedCell = null
+	arguments.callee.selectedIdx = null
+	fillGuess();
+	setFeedback("No cell selected.");
     }
     // find and select sell with given index
     if (idx) {
+	arguments.callee.selectedIdx = idx
 	var idstr = "c" + idx;
 	var cell = document.getElementById(idstr);
 	if (cell) {
-	    arguments.callee.selectedCell = cell
 	    if (selectHints) {
 		cell.setAttribute("selected", cell.getAttribute("hint"));
 		cell.setAttribute("hover", cell.getAttribute("hint"))
@@ -177,6 +195,20 @@ function selectCell(idx) {
 		cell.setAttribute("selected", "opaque");
 	    }
 	}
+	// fill the guess for the cell
+	if (puzzleContent) {
+	    console.log(puzzleContent);
+	    if ('aval' in puzzleContent[idx]) {
+		fillGuess();
+	    } else if ('bval' in puzzleContent[idx]) {
+		var val = puzzleContent[idx].bval
+		fillGuess([ val ], idx, val, puzzleContent[idx].bsrc);
+	    } else
+		fillGuess(puzzleContent[idx].pvals, idx);
+	} else {
+	    fillGuess();
+	}
+	setFeedback("Cell " + (idx + 1));
     }
 }
 
@@ -184,70 +216,106 @@ function clickGuess(guess) {
     if (guessContent.guesses.indexOf(guess) >= 0) {
 	setFeedback("Submitting guess...");
 	AssignPuzzle(guessContent.index + 1, guess);
-    } else
+    } else {
 	setFeedback("Guess not allowed!");
+    }
     event.stopPropagation();
 }
 
 function keyGuess(event) {
     if(event.keyCode >= '1'.charCodeAt(0) && event.keyCode <= '9'.charCodeAt(0)) {
 	console.log("Key pressed: ", event.keyCode - '0'.charCodeAt(0));
-	clickGuess(event.keyCode - '0'.charCodeAt(0))
+	clickGuess(event.keyCode - '0'.charCodeAt(0));
+    }
+}
+
+function clickWhy(event) {
+    event.stopPropagation();
+    if (guessContent.bsrc) {
+	var reasons = "Cell " + (guessContent.index + 1);
+	reasons += " is the only cell that can contain " + guessContent.bval;
+	for (i = 0; i < guessContent.bsrc.length; i++) {
+	    if (i == 0) {
+		reasons += " in ";
+	    } else {
+		reasons += " and ";
+	    }
+	    reasons += guessContent.bsrc[i].gtype + " " + guessContent.bsrc[i].index;
+	}
+	setFeedback(reasons + ".");
     }
 }
 
 function clickCell(idx) {
-    if (puzzleContent) {
-	if ('aval' in puzzleContent[idx]) {
-	    fillGuess()
-	} else if ('bval' in puzzleContent[idx]) {
-	    fillGuess([ puzzleContent[idx].bval ], idx)
-	} else
-	    fillGuess(puzzleContent[idx].pvals, idx);
-    }
-    setFeedback("Cell " + (idx + 1));
     selectCell(idx)
     event.stopPropagation();
 };
 
 function clickNowhere(event) {
-    fillGuess();
-    setFeedback("No cell selected");
     selectCell(null)
+    event.stopPropagation();
+}
+
+function clickHoverHints(val) {
+    setHoverHints(val);
+    refillPuzzle();
+    selectCell(-1);
+    event.stopPropagation();
 }
 
 function setHoverHints(val) {
-    if (val) hoverHints = true; else hoverHints = false;
-    document.getElementById("hoverOn").checked = hoverHints;
-    document.getElementById("hoverOff").checked = ! hoverHints;
-    if (hoverHints) {
+    if (val) {
+	hoverHints = true;
+	sessionStorage.hoverHints = "yes";
 	// turning on hoverHints requires turning on selectHints
 	// otherwise your selected color is not your hover color
-	setSelectHints(hoverHints)
+	setSelectHints(true);
     } else {
-	refillPuzzle();
+	hoverHints = false;
+	sessionStorage.hoverHints = "no";
     }
+    document.getElementById("hoverOn").checked = hoverHints;
+    document.getElementById("hoverOff").checked = ! hoverHints;
 };
 
+function clickSelectHints(val) {
+    setSelectHints(val);
+    refillPuzzle();
+    selectCell(-1);
+    event.stopPropagation();
+}
+
 function setSelectHints(val) {
-    if (val) selectHints = true; else selectHints = false;
-    document.getElementById("selectOn").checked = selectHints;
-    document.getElementById("selectOff").checked = ! selectHints;
-    if (selectHints) {
-	refillPuzzle();
+    if (val) {
+	selectHints = true;
+	sessionStorage.selectHints = "yes";
     } else {
+	selectHints = false;
+	sessionStorage.selectHints = "no";
 	// turning off selectHints requires turning off hoverHints
 	// otherwise your selected color is not your hover color
 	setHoverHints(selectHints)
     }
-    refillPuzzle();
+    document.getElementById("selectOn").checked = selectHints;
+    document.getElementById("selectOff").checked = ! selectHints;
 };
 
+function clickGuessHints(val) {
+    setGuessHints(val);
+    refillGuess();
+    event.stopPropagation();
+}
+
 function setGuessHints(val) {
-    if (val) guessHints = true; else guessHints = false;
+    if (val) {
+	guessHints = true;
+	sessionStorage.guessHints = "yes";
+    } else {
+	guessHints = false;
+	sessionStorage.guessHints = "no";
+    }
     document.getElementById("guessOn").checked = guessHints;
     document.getElementById("guessOff").checked = ! guessHints;
-    refillGuess();
 };
 
 function undoGuess() {
@@ -258,15 +326,46 @@ function resetPuzzle() {
     LoadPuzzle(resetURL);
 }
 
-function newPuzzle(index) {
-    if (index) {
-	LoadPuzzle(resetURL + index);
+function clickPuzzleButton(index) {
+    newPuzzle(index);
+    event.stopPropagation();
+}
+
+function setPuzzle(index) {
+    if (!index) {
+	index = 1;
     }
+    // deselect current puzzle button
+    if (puzzleIndex && index != puzzleIndex) {
+	idstr = "pb" + puzzleIndex;
+	button = document.getElementById(idstr);
+	if (button) {
+	    button.setAttribute("current", "no")
+	}
+    }
+    idstr = "pb" + index;
+    button = document.getElementById(idstr);
+    if (button) {
+	button.setAttribute("current", "yes");
+    }
+    puzzleIndex = index;
+    sessionStorage.puzzleIndex = puzzleIndex;
+}
+
+function newPuzzle(index) {
+    setPuzzle(index)
+    LoadPuzzle(resetURL + puzzleIndex);
 }
 
 function initializePage() {
-    LoadPuzzle();
-    setHoverHints(hoverHints)
-    setSelectHints(selectHints)
-    setGuessHints(guessHints)
-};
+    // sessionStorage often can only contain strings
+    setHoverHints(sessionStorage.hoverHints == "yes")
+    setSelectHints(sessionStorage.selectHints != "no")
+    setGuessHints(sessionStorage.guessHints == "yes")
+    if (sessionStorage.puzzleIndex) {
+	setPuzzle(sessionStorage.puzzleIndex)
+	LoadPuzzle();
+    } else {
+	newPuzzle();
+    }
+}
