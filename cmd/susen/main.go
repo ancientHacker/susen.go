@@ -16,7 +16,7 @@ const cookieName = "susenID"
 const cookiePath = "/api"
 
 type susenSession struct {
-	id       int64
+	id       string
 	steps    []puzzle.Puzzle
 	puzzleID int
 }
@@ -92,27 +92,65 @@ var (
 	}
 	defaultPuzzleID = 0
 	startTime       = time.Now()
-	sessions        = make(map[int64]*susenSession)
+	sessions        = make(map[string]*susenSession)
 	sessionMutex    sync.RWMutex
 )
+
+// getCookie gets the session cookie, or sets a new one.  It
+// returns the session ID associated with the cookie.
+//
+// The logic here was meant to be very simple, because it was
+// designed for only one server instance (which is all we support
+// right now), so each browser was given a cookie based on the
+// time (to the nanosecond) of the first request we received from
+// that browser.  Then the browser's notion of session cookie
+// lifetime would control the extent of that session: if it
+// thought it was in a different session it would not send the
+// cookie.
+//
+// Unfortunately, this breaks down for Heroku-served instances,
+// because the same server instance gets both HTTP and HTTP
+// traffic, which look to the browser like different sessions
+// even though they have the same endpoint.  Since HTTP cookies
+// can be given to HTTPS connections to the same endpoint,
+// browsers that start in HTTP and move to HTTPS will give the
+// HTTP cookie to the HTTPS endpoint and thus be using the same
+// puzzle as they had in HTTP, but they will have established a
+// different local session and thus the client will think he can
+// change puzzles etc. without affecting the HTTP session.
+//
+// The solution to this problem is to notice when we are running
+// under Heroku and make sure that browser tabs which use
+// different source protocols get different sessions, even if
+// they try submitting an existing cookie from the other tab.
+func getCookie(w http.ResponseWriter, r *http.Request) string {
+	proto := "httpx" // absent other indicators, protocol is unknown
+
+	// Issue #1: Heroku-transported protocols are specified in a header
+	if herokuProtocol := r.Header.Get("X-Forwarded-Proto"); herokuProtocol != "" {
+		proto = herokuProtocol
+	}
+
+	// check for an existing cookie whose value matches the protocol
+	if sc, e := r.Cookie(cookieName); e == nil {
+		if m, e := regexp.MatchString(proto+"-[0-9a-z]{3,}", sc.Value); e == nil && m {
+			return sc.Value
+		}
+	}
+
+	// no session cookie or not a valid session cookie,
+	// start a new session with a new cookie
+	sid := proto + "-" + strconv.FormatInt(int64(time.Now().Sub(startTime)), 36)
+	sc := &http.Cookie{Name: cookieName, Value: sid, Path: cookiePath}
+	http.SetCookie(w, sc)
+	return sid
+}
 
 // since session selection can happen concurrently from
 // simultaneous goroutines, it has to be interlocked
 func sessionSelect(w http.ResponseWriter, r *http.Request) *susenSession {
-	var sessionID int64
-	sc, err := r.Cookie(cookieName)
-	if err == nil {
-		sessionID, err = strconv.ParseInt(sc.Value, 10, 64)
-	}
-	if err != nil || sessionID == 0 {
-		// no session cookie or not a valid session cookie,
-		// start a new session with a new cookie
-		sessionID = int64(time.Now().Sub(startTime))
-		cookieVal := strconv.FormatInt(sessionID, 10)
-		sc := &http.Cookie{Name: cookieName, Value: cookieVal, Path: cookiePath}
-		http.SetCookie(w, sc)
-	}
-	// we have a valid sessionID, make sure we have a valid session
+	sessionID := getCookie(w, r)
+	// look up the session for the cookie
 	sessionMutex.RLock()
 	session, ok := sessions[sessionID]
 	sessionMutex.RUnlock()
@@ -120,7 +158,7 @@ func sessionSelect(w http.ResponseWriter, r *http.Request) *susenSession {
 		return session
 	}
 	// initialize and save the new session
-	session = &susenSession{id: int64(sessionID)}
+	session = &susenSession{id: sessionID}
 	session.reset(defaultPuzzleID)
 	sessionMutex.Lock()
 	sessions[sessionID] = session
@@ -138,21 +176,21 @@ func (session *susenSession) reset(id int) {
 		log.Fatal(e)
 	}
 	session.steps = []puzzle.Puzzle{p}
-	log.Printf("Initialized session %d steps from puzzle %d.", session.id, id+1)
+	log.Printf("Initialized session %v steps from puzzle %d.", session.id, id+1)
 }
 
 func (session *susenSession) addStep(next puzzle.Puzzle) {
 	session.steps = append(session.steps, next)
-	log.Printf("Added session %d step %d.", session.id, len(session.steps))
+	log.Printf("Added session %v step %d.", session.id, len(session.steps))
 }
 
 func (session *susenSession) undoStep() {
 	if len(session.steps) > 1 {
 		session.steps[len(session.steps)-1] = nil // release current step
 		session.steps = session.steps[:len(session.steps)-1]
-		log.Printf("Reverted session %d to step %d.", session.id, len(session.steps))
+		log.Printf("Reverted session %v to step %d.", session.id, len(session.steps))
 	} else {
-		log.Printf("No steps to undo in session %d.", session.id)
+		log.Printf("No steps to undo in session %v.", session.id)
 	}
 }
 

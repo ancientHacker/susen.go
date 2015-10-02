@@ -15,8 +15,8 @@ import (
 )
 
 const (
-	clientCount = 10
-	runCount    = 20
+	clientCount = 0
+	runCount    = 0
 )
 
 type sessionClient struct {
@@ -202,5 +202,78 @@ func TestSessionSelect(t *testing.T) {
 	}
 	if len(sessions) != clientCount {
 		t.Errorf("At end of run, there were %d sessions: %v", len(sessions), sessions)
+	}
+}
+
+func TestIssue1(t *testing.T) {
+	// helper - log cookies
+	logCookies := func(jar http.CookieJar, target string) {
+		url, e := url.Parse(target)
+		if e != nil {
+			panic(e)
+		}
+		cookies := jar.Cookies(url)
+		if len(cookies) == 0 {
+			t.Logf("No target cookies.\n")
+		} else if len(cookies) == 1 {
+			t.Logf("Target cookie: %v\n", *cookies[0])
+		} else {
+			t.Logf("%d target cookies are:\n", len(cookies))
+			for i, c := range cookies {
+				t.Logf("\tcookie %d: %v\n", i, *c)
+			}
+		}
+	}
+
+	// server
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		session := sessionSelect(w, r)
+		t.Logf("Session %v handling %s %s.", session.id, r.Method, r.URL.Path)
+		http.Error(w, "This is a test", http.StatusOK)
+	}))
+	defer srv.Close()
+	target := srv.URL + "/api/test" // need /api/ for the cookie path
+
+	// client
+	jar, e := cookiejar.New(nil)
+	if e != nil {
+		t.Fatalf("Failed to create cookie jar: %v", e)
+	}
+	c := http.Client{Jar: jar}
+
+	// for each heroku protocol indicator, do two pairs of
+	// requests, one to get the cookie set, one to use it.  We
+	// also handle the case where there is no heroku protocol
+	// indicator, which is a bit of overkill, since no server
+	// should get both Heroku and non-Heroku requests, but you
+	// never know :).
+	for i, herokuProtocol := range []string{"", "http", "https", "http", "", "https"} {
+		for j, expectSetCookie := range []bool{true, false} {
+			req, e := http.NewRequest("GET", target, nil)
+			if e != nil {
+				t.Fatalf("Failed to create request %d: %v", 2*i+j, e)
+			}
+			if herokuProtocol != "" {
+				req.Header.Add("X-Forwarded-Proto", herokuProtocol)
+			}
+			t.Logf("Created request %d: herokuProtocol = %q", 2*i+j, herokuProtocol)
+			logCookies(c.Jar, target)
+			r, e := c.Do(req)
+			if e != nil {
+				t.Fatalf("Request error: %v", e)
+			}
+			// t.Logf("request 1: %q\n", r.Status)
+			// t.Logf("request 1: %v\n", r.Header)
+			r.Body.Close()
+			if expectSetCookie {
+				if h := r.Header.Get("Set-Cookie"); h == "" {
+					t.Errorf("No Set-Cookie received on request %d.", 2*i+j)
+				}
+			} else {
+				if h := r.Header.Get("Set-Cookie"); h != "" {
+					t.Errorf("Set-Cookie received on request %d.", 2*i+j)
+				}
+			}
+		}
 	}
 }
