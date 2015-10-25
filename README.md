@@ -6,7 +6,7 @@ contraction of "sudoku sensei" (sudoku teacher).
 
 ## Usage
 
-To try susen out on your local system, set up a go 1.5 (or higher) environment, and do:
+To give susen a try on your local system, set up a go 1.5 (or higher) environment, and do:
 
 	go get -u github.com/ancientHacker/susen.go/
 	cd $GOPATH/src/github.com/ancientHacker/susen.go
