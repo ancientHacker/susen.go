@@ -1,0 +1,138 @@
+<html>
+  <head>
+    <meta http-equiv="content-type" content="text/html; charset=utf-8">
+    <title>Sudoku on the Web</title>
+    <link rel="stylesheet" type="text/css" href="../css/puzzle.css">
+    <script src="../js/puzzle.js"></script>
+  </head>
+  <body id="body" onload="initializePage()"  onclick="clickNowhere(event);">
+    <h1>Solver Page v0.5</h1>
+    <div class="puzzle">
+      <table>
+	<tr>
+	  <td class="darker top left"
+	      id="c1"
+	      onclick="clickCell( 1 )"
+	      hint="none">1</td>
+	  <td class="darker top right"
+	      id="c2"
+	      onclick="clickCell( 2 )"
+	      hint="none">&nbsp;</td>
+	  <td class="lighter top left"
+	      id="c3"
+	      onclick="clickCell( 3 )"
+	      hint="none">3</td>
+	  <td class="lighter top right"
+	      id="c4"
+	      onclick="clickCell( 4 )"
+	      hint="none">&nbsp;</td>
+	</tr>
+	<tr>
+	  <td class="darker bottom left"
+	      id="c5"
+	      onclick="clickCell( 5 )"
+	      hint="none">&nbsp;</td>
+	  <td class="darker bottom right"
+	      id="c6"
+	      onclick="clickCell( 6 )"
+	      hint="none">3</td>
+	  <td class="lighter bottom left"
+	      id="c7"
+	      onclick="clickCell( 7 )"
+	      hint="none">&nbsp;</td>
+	  <td class="lighter bottom right"
+	      id="c8"
+	      onclick="clickCell( 8 )"
+	      hint="none">1</td>
+	</tr>
+	<tr>
+	  <td class="lighter top left"
+	      id="c9"
+	      onclick="clickCell( 9 )"
+	      hint="none">3</td>
+	  <td class="lighter top right"
+	      id="c10"
+	      onclick="clickCell( 10 )"
+	      hint="none">&nbsp;</td>
+	  <td class="darker top left"
+	      id="c11"
+	      onclick="clickCell( 11 )"
+	      hint="none">1</td>
+	  <td class="darker top right"
+	      id="c12"
+	      onclick="clickCell( 12 )"
+	      hint="none">&nbsp;</td>
+	</tr>
+	<tr>
+	  <td class="lighter bottom left"
+	      id="c13"
+	      onclick="clickCell( 13 )"
+	      hint="none">&nbsp;</td>
+	  <td class="lighter bottom right"
+	      id="c14"
+	      onclick="clickCell( 14 )"
+	      hint="none">1</td>
+	  <td class="darker bottom left"
+	      id="c15"
+	      onclick="clickCell( 15 )"
+	      hint="none">&nbsp;</td>
+	  <td class="darker bottom right"
+	      id="c16"
+	      onclick="clickCell( 16 )"
+	      hint="none">3</td>
+	</tr>
+      </table>
+      <div class="controls">
+	<div class="options">
+	  <div>Hover hints:
+	    <input id="hoverOn" type="radio" onclick="clickHoverHints(true)">On
+	    <input id="hoverOff" type="radio" onclick="clickHoverHints(false)">Off
+	  </div>
+	  <div>Select hints:
+	    <input id="selectOn" type="radio" onclick="clickSelectHints(true)">On
+	    <input id="selectOff" type="radio" onclick="clickSelectHints(false)">Off
+	  </div>
+	  <div>Guess hints:
+	    <input id="guessOn" type="radio" onclick="clickGuessHints(true)">On
+	    <input id="guessOff" type="radio" onclick="clickGuessHints(false)">Off
+	  </div>
+	</div>
+	<div class="feedback" id="guessFeedback"></div>
+	<div id="guessbox" class="empty">
+	  <div id="guess1"
+	       class="guess"
+	       hint="maybe"
+	       onclick="clickGuess( 1 )">1</div>
+	  <div id="guess2"
+	       class="guess"
+	       hint="maybe"
+	       onclick="clickGuess( 2 )">2</div>
+	  <div id="guess3"
+	       class="guess"
+	       hint="maybe"
+	       onclick="clickGuess( 3 )">3</div>
+	  <div id="guess4"
+	       class="guess"
+	       hint="maybe"
+	       onclick="clickGuess( 4 )">4</div>
+	</div>
+	<div class="puzzlecontrol">
+	  <p>Solving this puzzle:
+	    <div class="stepButton" onclick="undoGuess()">Undo last guess</div>
+	    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+	    <div class="stepButton warning" onclick="resetPuzzle()">Discard all guesses</div>
+	  </p>
+	</div>
+	<div class="puzzlecontrol">
+	  <p>Start new puzzle:
+	    <div class="puzzleButton" id="pb1" onclick="newPuzzle(1)">1-star</div>
+	    <div class="puzzleButton" id="pb2" onclick="newPuzzle(2)">2-star</div>
+	    <div class="puzzleButton" id="pb3" onclick="newPuzzle(3)">3-star</div>
+	    <div class="puzzleButton" id="pb4" onclick="newPuzzle(4)">4-star</div>
+	    <div class="puzzleButton" id="pb5" onclick="newPuzzle(5)">5-star</div>
+	    <div class="puzzleButton" id="pb6" onclick="newPuzzle(6)">6-star</div></p>
+	</div>
+      </div>
+    </div>
+  </body>
+</html>
