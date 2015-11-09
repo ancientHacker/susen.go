@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"github.com/ancientHacker/susen.go/puzzle"
 	"html/template"
-	"os"
-	"path/filepath"
 )
 
 /*
@@ -43,34 +41,35 @@ type templatePuzzleCell struct {
 // solverPage executes the solverPageTemplate over the passed
 // puzzle state, and returns the solver page content as a string.
 func solverPage(state puzzle.State) string {
-	if solverPageTemplate == nil {
-		solverPageTemplate = template.Must(template.ParseFiles(findSolverPageTemplate()))
-	}
-
 	var tp templatePuzzle
-	var e error
+	var err error
 	if state.Geometry == puzzle.SudokuGeometryCode {
-		tp, e = sudokuTemplatePuzzle(state.Values)
+		tp, err = sudokuTemplatePuzzle(state.Values)
 	} else if state.Geometry == puzzle.DudokuGeometryCode {
-		tp, e = dudokuTemplatePuzzle(state.Values)
+		tp, err = dudokuTemplatePuzzle(state.Values)
 	} else {
-		e = fmt.Errorf("Can't generate puzzle grid for Geometry Code %v", state.Geometry)
+		err = fmt.Errorf("Can't generate puzzle grid for Geometry Code %v", state.Geometry)
 	}
-	if e != nil {
-		return errorPage(e)
+	if err != nil {
+		return errorPage(err)
 	}
 
 	tsp := templateSolverPage{
-		Title:   "Sudoku on the Web",
+		Title:   fmt.Sprintf("%s v%s", applicationName, applicationVersion),
 		CssFile: "../css/puzzle.css",
 		JsFile:  "../js/puzzle.js",
-		TopHead: "Solver Page v0.5",
+		TopHead: solverPageHead,
 		Puzzle:  tp,
 	}
+
+	tmpl, err := loadPageTemplate("solver")
+	if err != nil {
+		return errorPage(fmt.Errorf("Couldn't load the %q template: %v", "solver", err))
+	}
 	buf := new(bytes.Buffer)
-	e = solverPageTemplate.Execute(buf, tsp)
-	if e != nil {
-		return errorPage(e)
+	err = tmpl.Execute(buf, tsp)
+	if err != nil {
+		return errorPage(err)
 	}
 	return buf.String()
 }
@@ -228,51 +227,24 @@ type templateErrorPage struct {
 	Title, TopHead, Message, ReportBugPage string
 }
 
-var errorPageTemplate *template.Template
-
 // return error page content
 func errorPage(e error) string {
-	if errorPageTemplate == nil {
-		errorPageTemplate = template.Must(template.ParseFiles(findErrorPageTemplate()))
-	}
-
 	tep := templateErrorPage{
-		Title:         "Sudoku on the Web: Error",
-		TopHead:       "Error Page v0.5",
+		Title:         fmt.Sprintf("%s: %s", applicationName, "Error"),
+		TopHead:       errorPageHead,
 		Message:       e.Error(),
 		ReportBugPage: "/report_bug.html",
 	}
+
+	tmpl, err := loadPageTemplate("error")
+	if err != nil {
+		return fmt.Sprintf("Couldn't load the %q template: %v", "error", err)
+	}
+
 	buf := new(bytes.Buffer)
-	err := errorPageTemplate.Execute(buf, tep)
+	err = tmpl.Execute(buf, tep)
 	if err != nil {
 		return fmt.Sprintf("A templating error has occurred: %v", err)
 	}
 	return buf.String()
-}
-
-/*
-
-template location
-
-*/
-
-const defaultTemplateDirectoryEnvVar = "TEMPLATE_DIRECTORY"
-
-var defaultTemplateDirectory = filepath.Join("static", "tmpl")
-
-func findTemplateDirectory() string {
-	if dir := os.Getenv(defaultTemplateDirectoryEnvVar); dir != "" {
-		return dir
-	}
-	return defaultTemplateDirectory
-}
-
-// Find the solverPage template file
-func findSolverPageTemplate() string {
-	return filepath.Join(findTemplateDirectory(), "solverPage.tmpl.html")
-}
-
-// Find the errorPage template file
-func findErrorPageTemplate() string {
-	return filepath.Join(findTemplateDirectory(), "errorPage.tmpl.html")
 }

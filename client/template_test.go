@@ -8,10 +8,6 @@ import (
 	"testing"
 )
 
-func init() {
-	os.Setenv(defaultTemplateDirectoryEnvVar, filepath.Join("..", "static", "tmpl"))
-}
-
 var (
 	rotation4Puzzle1PartialValues = []int{0,
 		1, 0, 3, 0,
