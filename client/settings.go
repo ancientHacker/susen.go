@@ -19,6 +19,9 @@ const (
 	errorPageHead                  = "Error Encountered"
 	templatePageSuffix             = "Page.tmpl.html"
 	defaultTemplateDirectoryEnvVar = "TEMPLATE_DIRECTORY"
+	staticDirPrefix                = "/static/"
+	iconPath                       = "img/susen.ico"
+	reportBugPath                  = "html/report_bug.html"
 )
 
 var (

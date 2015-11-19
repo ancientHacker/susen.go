@@ -21,8 +21,10 @@ var solverPageTemplate *template.Template
 // A templateSolverPage contains the values to file the solver
 // page template.
 type templateSolverPage struct {
-	Title, CssFile, JsFile, TopHead string
-	Puzzle                          templatePuzzle
+	SessionID, PuzzleID       string
+	Title, TopHead            string
+	IconFile, CssFile, JsFile string
+	Puzzle                    templatePuzzle
 }
 
 // templatePuzzle is the structure expected by the puzzle grid
@@ -38,9 +40,10 @@ type templatePuzzleCell struct {
 	Shade, HBorder, VBorder string
 }
 
-// solverPage executes the solverPageTemplate over the passed
-// puzzle state, and returns the solver page content as a string.
-func solverPage(state puzzle.State) string {
+// SolverPage executes the solver page template over the passed
+// session and puzzle info, and returns the solver page content as a
+// string.
+func SolverPage(sessionID string, puzzleID string, state puzzle.State) string {
 	var tp templatePuzzle
 	var err error
 	if state.Geometry == puzzle.SudokuGeometryCode {
@@ -55,11 +58,14 @@ func solverPage(state puzzle.State) string {
 	}
 
 	tsp := templateSolverPage{
-		Title:   fmt.Sprintf("%s v%s", applicationName, applicationVersion),
-		CssFile: "../css/puzzle.css",
-		JsFile:  "../js/puzzle.js",
-		TopHead: solverPageHead,
-		Puzzle:  tp,
+		SessionID: sessionID,
+		PuzzleID:  puzzleID,
+		Title:     fmt.Sprintf("%s v%s", applicationName, applicationVersion),
+		TopHead:   solverPageHead,
+		IconFile:  staticDirPrefix + iconPath,
+		CssFile:   staticDirPrefix + "css/puzzle.css",
+		JsFile:    staticDirPrefix + "js/puzzle.js",
+		Puzzle:    tp,
 	}
 
 	tmpl, err := loadPageTemplate("solver")
@@ -224,7 +230,8 @@ error pages
 // A templateErrorPage contains the values to fill the error page
 // template.
 type templateErrorPage struct {
-	Title, TopHead, Message, ReportBugPage string
+	Title, TopHead, Message string
+	IconFile, ReportBugPage string
 }
 
 // return error page content
@@ -233,7 +240,8 @@ func errorPage(e error) string {
 		Title:         fmt.Sprintf("%s: %s", applicationName, "Error"),
 		TopHead:       errorPageHead,
 		Message:       e.Error(),
-		ReportBugPage: "/report_bug.html",
+		ReportBugPage: staticDirPrefix + reportBugPath,
+		IconFile:      staticDirPrefix + iconPath,
 	}
 
 	tmpl, err := loadPageTemplate("error")

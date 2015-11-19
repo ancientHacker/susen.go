@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/ancientHacker/susen.go/client"
 	"github.com/ancientHacker/susen.go/puzzle"
 	"log"
 	"net/http"
@@ -13,17 +14,17 @@ import (
 )
 
 const cookieName = "susenID"
-const cookiePath = "/api"
+const cookiePath = "/"
 
 type susenSession struct {
-	id       string
-	steps    []puzzle.Puzzle
-	puzzleID int
+	sessionID string
+	puzzleID  string
+	steps     []puzzle.Puzzle
 }
 
 var (
-	puzzleValues = [][]int{
-		[]int{0,
+	puzzleValues = map[string][]int{
+		"1-star": []int{0,
 			4, 0, 0, 0, 0, 3, 5, 0, 2,
 			0, 0, 9, 5, 0, 6, 3, 4, 0,
 			0, 0, 0, 0, 0, 0, 0, 0, 8,
@@ -34,7 +35,7 @@ var (
 			0, 8, 7, 3, 0, 2, 9, 0, 0,
 			5, 0, 2, 9, 0, 0, 0, 0, 6,
 		},
-		[]int{0,
+		"2-star": []int{0,
 			0, 1, 0, 5, 0, 6, 0, 2, 0,
 			0, 0, 0, 0, 0, 3, 0, 1, 8,
 			0, 0, 0, 0, 7, 0, 0, 0, 6,
@@ -45,7 +46,7 @@ var (
 			6, 4, 0, 2, 0, 0, 0, 0, 0,
 			0, 3, 0, 9, 0, 1, 0, 8, 0,
 		},
-		[]int{0,
+		"3-star": []int{0,
 			9, 0, 0, 4, 5, 0, 0, 0, 8,
 			0, 2, 0, 0, 0, 0, 0, 0, 0,
 			0, 0, 0, 1, 7, 2, 4, 0, 0,
@@ -56,7 +57,7 @@ var (
 			0, 0, 0, 0, 0, 0, 0, 6, 0,
 			4, 0, 0, 0, 1, 6, 0, 0, 3,
 		},
-		[]int{0,
+		"4-star": []int{0,
 			9, 4, 8, 0, 5, 0, 2, 0, 0,
 			0, 0, 7, 8, 0, 3, 0, 0, 1,
 			0, 5, 0, 0, 7, 0, 0, 0, 0,
@@ -67,7 +68,7 @@ var (
 			3, 0, 0, 5, 0, 9, 7, 0, 0,
 			0, 0, 6, 0, 1, 0, 4, 2, 3,
 		},
-		[]int{0,
+		"5-star": []int{0,
 			0, 0, 0, 0, 0, 0, 0, 0, 0,
 			9, 0, 0, 5, 0, 7, 0, 3, 0,
 			0, 0, 0, 1, 0, 0, 6, 0, 7,
@@ -78,7 +79,7 @@ var (
 			0, 2, 0, 3, 0, 9, 0, 0, 8,
 			0, 0, 0, 0, 0, 0, 0, 0, 0,
 		},
-		[]int{0,
+		"6-star": []int{0,
 			2, 0, 0, 8, 0, 0, 0, 5, 0,
 			0, 8, 5, 0, 0, 0, 0, 0, 0,
 			0, 3, 6, 7, 5, 0, 0, 0, 1,
@@ -90,7 +91,7 @@ var (
 			0, 2, 0, 0, 0, 0, 0, 0, 4,
 		},
 	}
-	defaultPuzzleID = 0
+	defaultPuzzleID = "1-star"
 	startTime       = time.Now()
 	sessions        = make(map[string]*susenSession)
 	sessionMutex    sync.RWMutex
@@ -158,7 +159,7 @@ func sessionSelect(w http.ResponseWriter, r *http.Request) *susenSession {
 		return session
 	}
 	// initialize and save the new session
-	session = &susenSession{id: sessionID}
+	session = &susenSession{sessionID: sessionID}
 	session.reset(defaultPuzzleID)
 	sessionMutex.Lock()
 	sessions[sessionID] = session
@@ -166,49 +167,39 @@ func sessionSelect(w http.ResponseWriter, r *http.Request) *susenSession {
 	return session
 }
 
-func (session *susenSession) reset(id int) {
-	if id < 0 || id > len(puzzleValues) {
-		id = defaultPuzzleID
+func (session *susenSession) reset(puzzleID string) {
+	vals, ok := puzzleValues[puzzleID]
+	if ok {
+		session.puzzleID = puzzleID
+	} else {
+		session.puzzleID, vals = defaultPuzzleID, puzzleValues[defaultPuzzleID]
 	}
-	session.puzzleID = id
-	p, e := puzzle.New(puzzleValues[id])
+	p, e := puzzle.New(vals)
 	if e != nil {
 		log.Fatal(e)
 	}
 	session.steps = []puzzle.Puzzle{p}
-	log.Printf("Initialized session %v steps from puzzle %d.", session.id, id+1)
+	log.Printf("Initialized session %v from puzzle %q.", session.sessionID, session.puzzleID)
 }
 
 func (session *susenSession) addStep(next puzzle.Puzzle) {
 	session.steps = append(session.steps, next)
-	log.Printf("Added session %v step %d.", session.id, len(session.steps))
+	log.Printf("Added session %v step %d.", session.sessionID, len(session.steps))
 }
 
 func (session *susenSession) undoStep() {
 	if len(session.steps) > 1 {
 		session.steps[len(session.steps)-1] = nil // release current step
 		session.steps = session.steps[:len(session.steps)-1]
-		log.Printf("Reverted session %v to step %d.", session.id, len(session.steps))
+		log.Printf("Reverted session %v to step %d.", session.sessionID, len(session.steps))
 	} else {
-		log.Printf("No steps to undo in session %v.", session.id)
+		log.Printf("No steps to undo in session %v.", session.sessionID)
 	}
 }
 
 func (session *susenSession) apiHandler(w http.ResponseWriter, r *http.Request) {
 	if strings.Contains(r.URL.Path, "/reset/") {
-		re := regexp.MustCompile("/reset/([0-9]+)(/.*)?$")
-		if matches := re.FindStringSubmatch(r.URL.Path); matches != nil {
-			i, e := strconv.Atoi(matches[1])
-			if e != nil {
-				// can't happen!
-				log.Printf("Atoi failure on %s in %s", matches[1], r.URL.Path)
-				session.reset(defaultPuzzleID)
-			} else {
-				session.reset(i - 1)
-			}
-		} else {
-			session.reset(session.puzzleID)
-		}
+		session.reset(session.puzzleID)
 	}
 	if strings.Contains(r.URL.Path, "/back/") {
 		session.undoStep()
@@ -231,20 +222,41 @@ func (session *susenSession) apiHandler(w http.ResponseWriter, r *http.Request) 
 	}
 }
 
+func (session *susenSession) solverHandler(w http.ResponseWriter, r *http.Request) {
+	curpuz := session.steps[len(session.steps)-1]
+	state := curpuz.State()
+	body := client.SolverPage(session.sessionID, session.puzzleID, state)
+	hs := w.Header()
+	hs.Add("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(body))
+}
+
 func main() {
 	http.Handle("/static/", http.StripPrefix("/", http.FileServer(http.Dir("."))))
-	http.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) {
-		log.Printf("Received %s %s - invoke /api/ handler in session.", r.Method, r.URL.Path)
-		session := sessionSelect(w, r)
-		session.apiHandler(w, r)
-	})
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		log.Printf("Received %s %s - handle external to session.", r.Method, r.URL.Path)
 		if r.URL.Path == "/favicon.ico" {
-			http.Error(w, "No custom icon.", http.StatusNotFound)
+			log.Printf("Received site icon request.")
+			http.ServeFile(w, r, "static/img/susen.ico")
 			return
 		}
-		http.Redirect(w, r, "/static/html/puzzle.html", http.StatusFound)
+		log.Printf("Handling %s %s...", r.Method, r.URL.Path)
+		session := sessionSelect(w, r)
+		switch {
+		case strings.HasPrefix(r.URL.Path, "/reset/"):
+			if len(r.URL.Path) > len("/reset/") {
+				session.reset(r.URL.Path[len("/reset/"):])
+			} else {
+				session.reset(session.puzzleID)
+			}
+		case strings.HasPrefix(r.URL.Path, "/api/"):
+			session.apiHandler(w, r)
+			return
+		case strings.HasPrefix(r.URL.Path, "/solver/"):
+			session.solverHandler(w, r)
+			return
+		}
+		http.Redirect(w, r, "/solver/", http.StatusFound)
 	})
 
 	// Heroku environment port sensing

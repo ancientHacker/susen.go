@@ -40,7 +40,8 @@ func TestSolverPage(t *testing.T) {
 	if e != nil {
 		t.Fatalf("Failed to create p0: %v", e)
 	}
-	body0 := solverPage(p0.State())
+	session0, puzzle0 := "httpx-Test0", "test-0"
+	body0 := SolverPage(session0, puzzle0, p0.State())
 	if !sameAsResultFile(body0, "TestSolverPage0.html") {
 		t.Errorf("Test Solver 0: got unexpected result body:\n%v\n", body0)
 	}
@@ -49,7 +50,8 @@ func TestSolverPage(t *testing.T) {
 	if e != nil {
 		t.Fatalf("Failed to create p1: %v", e)
 	}
-	body1 := solverPage(p1.State())
+	session1, puzzle1 := "https-Test1", "test-1"
+	body1 := SolverPage(session1, puzzle1, p1.State())
 	if !sameAsResultFile(body1, "TestSolverPage1.html") {
 		t.Errorf("Test Solver 1: got unexpected result body:\n%v\n", body1)
 	}

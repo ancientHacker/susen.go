@@ -2,10 +2,12 @@
   <head>
     <meta http-equiv="content-type" content="text/html; charset=utf-8">
     <title>{{.Title}}</title>
+    <link rel="shortcut icon" type="image/vnd.microsoft.icon" href="{{.IconFile}}" />
     <link rel="stylesheet" type="text/css" href="{{.CssFile}}">
     <script src="{{.JsFile}}"></script>
   </head>
-  <body id="body" onload="initializePage()"  onclick="clickNowhere(event);">
+  <body sessionID="{{.SessionID}}" puzzleID="{{.PuzzleID}}"
+	onload="initializePage({{len .Puzzle}})" onclick="clickNowhere(event);">
     <h1>{{.TopHead}}</h1>
     <div class="puzzle">
       <table>{{range .Puzzle}}
@@ -37,6 +39,7 @@
 	       class="guess"
 	       hint="maybe"
 	       onclick="clickGuess({{.Index}})">{{.Index}}</div>{{end}}
+	  <div id="why" class="why" show="no" onclick="clickWhy(event)">Why?</div>
 	</div>
 	<div class="puzzlecontrol">
 	  <p>Solving this puzzle:
@@ -47,12 +50,12 @@
 	</div>
 	<div class="puzzlecontrol">
 	  <p>Start new puzzle:
-	    <div class="puzzleButton" id="pb1" onclick="newPuzzle(1)">1-star</div>
-	    <div class="puzzleButton" id="pb2" onclick="newPuzzle(2)">2-star</div>
-	    <div class="puzzleButton" id="pb3" onclick="newPuzzle(3)">3-star</div>
-	    <div class="puzzleButton" id="pb4" onclick="newPuzzle(4)">4-star</div>
-	    <div class="puzzleButton" id="pb5" onclick="newPuzzle(5)">5-star</div>
-	    <div class="puzzleButton" id="pb6" onclick="newPuzzle(6)">6-star</div></p>
+	    <div class="puzzleButton" id="1-star" onclick="newPuzzle('1-star')">1-star</div>
+	    <div class="puzzleButton" id="2-star" onclick="newPuzzle('2-star')">2-star</div>
+	    <div class="puzzleButton" id="3-star" onclick="newPuzzle('3-star')">3-star</div>
+	    <div class="puzzleButton" id="4-star" onclick="newPuzzle('4-star')">4-star</div>
+	    <div class="puzzleButton" id="5-star" onclick="newPuzzle('5-star')">5-star</div>
+	    <div class="puzzleButton" id="6-star" onclick="newPuzzle('6-star')">6-star</div></p>
 	</div>
       </div>
     </div>
