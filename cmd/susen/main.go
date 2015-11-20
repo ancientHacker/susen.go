@@ -232,6 +232,24 @@ func (session *susenSession) solverHandler(w http.ResponseWriter, r *http.Reques
 	w.Write([]byte(body))
 }
 
+func (session *susenSession) rootHandler(w http.ResponseWriter, r *http.Request) {
+	switch {
+	case strings.HasPrefix(r.URL.Path, "/reset/"):
+		if len(r.URL.Path) > len("/reset/") {
+			session.reset(r.URL.Path[len("/reset/"):])
+		} else {
+			session.reset(session.puzzleID)
+		}
+	case strings.HasPrefix(r.URL.Path, "/api/"):
+		session.apiHandler(w, r)
+		return
+	case strings.HasPrefix(r.URL.Path, "/solver/"):
+		session.solverHandler(w, r)
+		return
+	}
+	http.Redirect(w, r, "/solver/", http.StatusFound)
+}
+
 func main() {
 	http.Handle("/static/", http.StripPrefix("/", http.FileServer(http.Dir("."))))
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -242,21 +260,7 @@ func main() {
 		}
 		log.Printf("Handling %s %s...", r.Method, r.URL.Path)
 		session := sessionSelect(w, r)
-		switch {
-		case strings.HasPrefix(r.URL.Path, "/reset/"):
-			if len(r.URL.Path) > len("/reset/") {
-				session.reset(r.URL.Path[len("/reset/"):])
-			} else {
-				session.reset(session.puzzleID)
-			}
-		case strings.HasPrefix(r.URL.Path, "/api/"):
-			session.apiHandler(w, r)
-			return
-		case strings.HasPrefix(r.URL.Path, "/solver/"):
-			session.solverHandler(w, r)
-			return
-		}
-		http.Redirect(w, r, "/solver/", http.StatusFound)
+		session.rootHandler(w, r)
 	})
 
 	// Heroku environment port sensing
