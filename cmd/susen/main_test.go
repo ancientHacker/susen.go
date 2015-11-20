@@ -15,14 +15,14 @@ import (
 )
 
 const (
-	clientCount = 0
-	runCount    = 0
+	clientCount = 5
+	runCount    = 3
 )
 
 type sessionClient struct {
 	id       int           // which client this is
 	client   *http.Client  // the http client, with cookies
-	puzzleID int           // the puzzle this client works on
+	puzzleID string        // the puzzle this client works on
 	interval int           // the interval, in msec, between calls
 	vals     []int         // the expected values of the puzzle
 	choice   puzzle.Choice // the first choice to try in this puzzle
@@ -32,8 +32,8 @@ func TestSessionSelect(t *testing.T) {
 	// one server
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		session := sessionSelect(w, r)
-		t.Logf("Session %v handling %s %s.", session.id, r.Method, r.URL.Path)
-		session.apiHandler(w, r)
+		t.Logf("Session %v handling %s %s.", session.sessionID, r.Method, r.URL.Path)
+		session.rootHandler(w, r)
 	}))
 	defer srv.Close()
 
@@ -65,7 +65,37 @@ func TestSessionSelect(t *testing.T) {
 			}
 		}
 	}
-	// helper - make a squares-returning action call, return false on fatal error
+	// helper - prevent redirects in a known way
+	redirectCount := 0
+	redirectFn := func(*http.Request, []*http.Request) error {
+		redirectCount++
+		return fmt.Errorf("%d", redirectCount)
+	}
+	// helper - make a call setting the current session puzzle, return false on error
+	setPuzzle := func(c *sessionClient, puzzleID string) bool {
+		target := fmt.Sprintf("%s/reset/%s", srv.URL, puzzleID)
+		t.Logf("Client %d: getting %s", c.id, target)
+		logCookies(c, target)
+		r, e := c.client.Get(target)
+		if e != nil && e.(*url.Error).Err.Error() != fmt.Sprintf("%d", redirectCount) {
+			t.Errorf("client %d: Request error: %v", c.id, e)
+			return false
+		}
+		t.Logf("client %d: %q\n", c.id, r.Status)
+		t.Logf("client %d: %v\n", c.id, r.Header)
+		if r.StatusCode != http.StatusFound {
+			t.Errorf("client %d: Reset request did not return redirect status: %v",
+				c.id, r.StatusCode)
+			return false
+		}
+		if r.Header.Get("Location") != "/solver/" {
+			t.Errorf("client %d: Reset request redirected to incorrect location: %v",
+				c.id, r.Header.Get("Location"))
+			return false
+		}
+		return true
+	}
+	// helper - make a squares-returning action call, return false on error
 	getSquares := func(c *sessionClient, action string) bool {
 		target := fmt.Sprintf("%s/api/%s", srv.URL, action)
 		t.Logf("Client %d: getting %s", c.id, target)
@@ -94,13 +124,12 @@ func TestSessionSelect(t *testing.T) {
 			t.Errorf("client %d: Got wrong number of squares: %d", c.id, len(s))
 			return false
 		}
-		/*
-			for i := 0; i < len(s); i++ {
-				if s[i].Aval != c.vals[i+1] {
-					t.Errorf("client %d: Square %d has value %d", c.id, s[i].Index, s[i].Aval)
-				}
+		for i := 0; i < len(s); i++ {
+			if s[i].Aval != c.vals[i+1] {
+				t.Errorf("client %d: Square %d has value %d", c.id, s[i].Index, s[i].Aval)
+				return false
 			}
-		*/
+		}
 		return true
 	}
 	// helper - make an update-returning action call, return false on fatal error
@@ -151,19 +180,21 @@ func TestSessionSelect(t *testing.T) {
 		time.Sleep(sleeptime)
 	}
 
-	// ten clients
+	// make clients
 	clients := make([]*sessionClient, clientCount)
 	for i := 0; i < clientCount; i++ {
 		jar, e := cookiejar.New(nil)
 		if e != nil {
 			t.Fatalf("Failed to create cookie jar #%d: %v", i+1, e)
 		}
-		// puzzleID is 1 + puzzleValues index, but we avoid 0 (the defaultIndex)
-		puzzleID := 2 + (i % (len(puzzleValues) - 2))
-		puzzleVals := puzzleValues[puzzleID-1]
+		// try every key except the default "1-star"
+		testKeys := []string{"2-star", "3-star", "4-star", "5-star", "6-star"}
+		keyIndex := i % len(testKeys)
+		puzzleID := testKeys[keyIndex]
+		puzzleVals := puzzleValues[puzzleID]
 		clients[i] = &sessionClient{
 			id:       i + 1,
-			client:   &http.Client{Jar: jar},
+			client:   &http.Client{Jar: jar, CheckRedirect: redirectFn},
 			puzzleID: puzzleID,
 			interval: (i*17)%100 + 100,
 			vals:     puzzleVals,
@@ -180,7 +211,10 @@ func TestSessionSelect(t *testing.T) {
 		go func(client *sessionClient) {
 			for i := 0; i < runCount; i++ {
 				sleep(client)
-				if !getSquares(client, fmt.Sprintf("/reset/%d", client.puzzleID)) {
+				if !setPuzzle(client, client.puzzleID) {
+					break
+				}
+				if !getSquares(client, "/") {
 					break
 				}
 				sleep(client)
@@ -228,11 +262,11 @@ func TestIssue1(t *testing.T) {
 	// server
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		session := sessionSelect(w, r)
-		t.Logf("Session %v handling %s %s.", session.id, r.Method, r.URL.Path)
+		t.Logf("Session %v handling %s %s.", session.sessionID, r.Method, r.URL.Path)
 		http.Error(w, "This is a test", http.StatusOK)
 	}))
 	defer srv.Close()
-	target := srv.URL + "/api/test" // need /api/ for the cookie path
+	target := srv.URL
 
 	// client
 	jar, e := cookiejar.New(nil)
@@ -262,8 +296,8 @@ func TestIssue1(t *testing.T) {
 			if e != nil {
 				t.Fatalf("Request error: %v", e)
 			}
-			// t.Logf("request 1: %q\n", r.Status)
-			// t.Logf("request 1: %v\n", r.Header)
+			t.Logf("request 1: %q\n", r.Status)
+			t.Logf("request 1: %v\n", r.Header)
 			r.Body.Close()
 			if expectSetCookie {
 				if h := r.Header.Get("Set-Cookie"); h == "" {

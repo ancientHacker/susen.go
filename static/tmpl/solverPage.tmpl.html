@@ -1,0 +1,63 @@
+<html>
+  <head>
+    <meta http-equiv="content-type" content="text/html; charset=utf-8">
+    <title>{{.Title}}</title>
+    <link rel="shortcut icon" type="image/vnd.microsoft.icon" href="{{.IconFile}}" />
+    <link rel="stylesheet" type="text/css" href="{{.CssFile}}">
+    <script src="{{.JsFile}}"></script>
+  </head>
+  <body sessionID="{{.SessionID}}" puzzleID="{{.PuzzleID}}"
+	onload="initializePage({{len .Puzzle}})" onclick="clickNowhere(event);">
+    <h1>{{.TopHead}}</h1>
+    <div class="puzzle">
+      <table>{{range .Puzzle}}
+	<tr>{{range .}}
+	  <td class="{{.Shade}} {{.HBorder}} {{.VBorder}}"
+	      id="c{{.Index}}"
+	      onclick="clickCell({{.Index}})"
+	      hint="none">{{.Value}}</td>{{end}}
+	</tr>{{end}}
+      </table>
+      <div class="controls">
+	<div class="options">
+	  <div>Hover hints:
+	    <input id="hoverOn" type="radio" onclick="clickHoverHints(true)">On
+	    <input id="hoverOff" type="radio" onclick="clickHoverHints(false)">Off
+	  </div>
+	  <div>Select hints:
+	    <input id="selectOn" type="radio" onclick="clickSelectHints(true)">On
+	    <input id="selectOff" type="radio" onclick="clickSelectHints(false)">Off
+	  </div>
+	  <div>Guess hints:
+	    <input id="guessOn" type="radio" onclick="clickGuessHints(true)">On
+	    <input id="guessOff" type="radio" onclick="clickGuessHints(false)">Off
+	  </div>
+	</div>
+	<div class="feedback" id="guessFeedback"></div>
+	<div id="guessbox" class="empty">{{range index .Puzzle 0}}
+	  <div id="guess{{.Index}}"
+	       class="guess"
+	       hint="maybe"
+	       onclick="clickGuess({{.Index}})">{{.Index}}</div>{{end}}
+	  <div id="why" class="why" show="no" onclick="clickWhy(event)">Why?</div>
+	</div>
+	<div class="puzzlecontrol">
+	  <p>Solving this puzzle:
+	    <div class="stepButton" onclick="undoGuess()">Undo last guess</div>
+	    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+	    <div class="stepButton warning" onclick="resetPuzzle()">Discard all guesses</div>
+	  </p>
+	</div>
+	<div class="puzzlecontrol">
+	  <p>Start new puzzle:
+	    <div class="puzzleButton" id="1-star" onclick="newPuzzle('1-star')">1-star</div>
+	    <div class="puzzleButton" id="2-star" onclick="newPuzzle('2-star')">2-star</div>
+	    <div class="puzzleButton" id="3-star" onclick="newPuzzle('3-star')">3-star</div>
+	    <div class="puzzleButton" id="4-star" onclick="newPuzzle('4-star')">4-star</div>
+	    <div class="puzzleButton" id="5-star" onclick="newPuzzle('5-star')">5-star</div>
+	    <div class="puzzleButton" id="6-star" onclick="newPuzzle('6-star')">6-star</div></p>
+	</div>
+      </div>
+    </div>
+  </body>
+</html>
