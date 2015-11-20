@@ -13,8 +13,11 @@ import (
 	"time"
 )
 
-const cookieName = "susenID"
-const cookiePath = "/"
+const (
+	cookieName   = "susenID"
+	cookiePath   = "/"
+	cookieMaxAge = 3600 * 24 * 7 // 1 week
+)
 
 type susenSession struct {
 	sessionID string
@@ -142,7 +145,7 @@ func getCookie(w http.ResponseWriter, r *http.Request) string {
 	// no session cookie or not a valid session cookie,
 	// start a new session with a new cookie
 	sid := proto + "-" + strconv.FormatInt(int64(time.Now().Sub(startTime)), 36)
-	sc := &http.Cookie{Name: cookieName, Value: sid, Path: cookiePath}
+	sc := &http.Cookie{Name: cookieName, Value: sid, Path: cookiePath, MaxAge: cookieMaxAge}
 	http.SetCookie(w, sc)
 	return sid
 }
