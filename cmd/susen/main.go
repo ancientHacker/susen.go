@@ -1,12 +1,13 @@
 package main
 
 import (
+	"encoding/json"
 	"github.com/ancientHacker/susen.go/client"
 	"github.com/ancientHacker/susen.go/puzzle"
+	"github.com/garyburd/redigo/redis"
 	"log"
 	"net/http"
 	"os"
-	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -14,15 +15,18 @@ import (
 )
 
 const (
-	cookieName   = "susenID"
-	cookiePath   = "/"
-	cookieMaxAge = 3600 * 24 * 7 // 1 week
+	cookieNameBase = "susenID"
+	cookiePath     = "/"
+	cookieMaxAge   = 3600 * 24 * 7 * 52 // 1 year
+	puzzleIDKey    = ":puzzleID"
+	stepsKey       = ":steps"
 )
 
 type susenSession struct {
 	sessionID string
 	puzzleID  string
 	steps     []puzzle.Puzzle
+	rdc       redis.Conn
 }
 
 var (
@@ -103,30 +107,12 @@ var (
 // getCookie gets the session cookie, or sets a new one.  It
 // returns the session ID associated with the cookie.
 //
-// The logic here was meant to be very simple, because it was
-// designed for only one server instance (which is all we support
-// right now), so each browser was given a cookie based on the
-// time (to the nanosecond) of the first request we received from
-// that browser.  Then the browser's notion of session cookie
-// lifetime would control the extent of that session: if it
-// thought it was in a different session it would not send the
-// cookie.
-//
-// Unfortunately, this breaks down for Heroku-served instances,
-// because the same server instance gets both HTTP and HTTP
-// traffic, which look to the browser like different sessions
-// even though they have the same endpoint.  Since HTTP cookies
-// can be given to HTTPS connections to the same endpoint,
-// browsers that start in HTTP and move to HTTPS will give the
-// HTTP cookie to the HTTPS endpoint and thus be using the same
-// puzzle as they had in HTTP, but they will have established a
-// different local session and thus the client will think he can
-// change puzzles etc. without affecting the HTTP session.
-//
-// The solution to this problem is to notice when we are running
-// under Heroku and make sure that browser tabs which use
-// different source protocols get different sessions, even if
-// they try submitting an existing cookie from the other tab.
+// The logic around session cookies is that we have one cookie
+// name per connection protocol, so that opening both a secure
+// and an insecure session from the same browser gives you two
+// sessions.  We need to do this because we often have one
+// instance serving both protocols, with the protocol termination
+// done at a load-balancer.
 func getCookie(w http.ResponseWriter, r *http.Request) string {
 	proto := "httpx" // absent other indicators, protocol is unknown
 
@@ -135,58 +121,90 @@ func getCookie(w http.ResponseWriter, r *http.Request) string {
 		proto = herokuProtocol
 	}
 
-	// check for an existing cookie whose value matches the protocol
-	if sc, e := r.Cookie(cookieName); e == nil {
-		if m, e := regexp.MatchString(proto+"-[0-9a-z]{3,}", sc.Value); e == nil && m {
-			return sc.Value
-		}
+	// check for an existing cookie whose name matches the protocol
+	cookieName := cookieNameBase + "-" + proto
+	if sc, e := r.Cookie(cookieName); e == nil && sc.Value != "" {
+		return sc.Value
 	}
 
 	// no session cookie or not a valid session cookie,
 	// start a new session with a new cookie
-	sid := proto + "-" + strconv.FormatInt(int64(time.Now().Sub(startTime)), 36)
+	sid := strconv.FormatInt(int64(time.Now().Sub(startTime)), 36)
+	if requestID := r.Header.Get("X-Request-ID"); requestID != "" {
+		// use request ID, if present, for uniqueness
+		sid = requestID
+	}
 	sc := &http.Cookie{Name: cookieName, Value: sid, Path: cookiePath, MaxAge: cookieMaxAge}
 	http.SetCookie(w, sc)
 	return sid
 }
 
-// since session selection can happen concurrently from
-// simultaneous goroutines, it has to be interlocked
-func sessionSelect(w http.ResponseWriter, r *http.Request) *susenSession {
+// sessionSelect: find or create the session for the current connection.
+func sessionSelect(rdc redis.Conn, w http.ResponseWriter, r *http.Request) (s *susenSession) {
+	// check to see if this is a force reset of the session
+	forceReset, resetID := false, ""
+	if strings.HasPrefix(r.URL.Path, "/reset/") {
+		forceReset = true
+		resetID = r.URL.Path[len("/reset/"):]
+	}
 	sessionID := getCookie(w, r)
-	// look up the session for the cookie
+	// look up in-memory session for the cookie, if there is one.
 	sessionMutex.RLock()
 	session, ok := sessions[sessionID]
 	sessionMutex.RUnlock()
-	if ok && session != nil && len(session.steps) > 0 {
+	if ok && session != nil {
+		if forceReset {
+			session.reset(resetID)
+		}
+		return session
+	}
+	// look for the session in the redis persistent store
+	sessionMutex.Lock()
+	defer sessionMutex.Unlock()
+	puzzleID, err := redis.String(rdc.Do("GET", sessionID+puzzleIDKey))
+	if err == nil && puzzleID != "" {
+		session = &susenSession{sessionID: sessionID, rdc: rdc, puzzleID: puzzleID}
+		sessions[sessionID] = session
+		if forceReset {
+			session.reset(resetID)
+		} else {
+			session.redisLoad()
+		}
 		return session
 	}
 	// initialize and save the new session
-	session = &susenSession{sessionID: sessionID}
-	session.reset(defaultPuzzleID)
-	sessionMutex.Lock()
+	session = &susenSession{sessionID: sessionID, rdc: rdc, puzzleID: defaultPuzzleID}
 	sessions[sessionID] = session
-	sessionMutex.Unlock()
+	session.reset(resetID)
 	return session
 }
 
+// reset: reset the session from an explict puzzleID or its default
 func (session *susenSession) reset(puzzleID string) {
+	// reset to the given puzzleID, making sure it's valid
+	if puzzleID == "" {
+		puzzleID = session.puzzleID
+	}
 	vals, ok := puzzleValues[puzzleID]
 	if ok {
 		session.puzzleID = puzzleID
 	} else {
 		session.puzzleID, vals = defaultPuzzleID, puzzleValues[defaultPuzzleID]
 	}
+
+	// start with steps equal to the puzzle
 	p, e := puzzle.New(vals)
 	if e != nil {
-		log.Fatal(e)
+		log.Fatalf("Failed to create puzzle %q: %v", puzzleID, e)
 	}
 	session.steps = []puzzle.Puzzle{p}
+	session.redisInit()
 	log.Printf("Initialized session %v from puzzle %q.", session.sessionID, session.puzzleID)
 }
 
 func (session *susenSession) addStep(next puzzle.Puzzle) {
 	session.steps = append(session.steps, next)
+	session.redisAddStep(next)
 	log.Printf("Added session %v step %d.", session.sessionID, len(session.steps))
 }
 
@@ -194,6 +212,7 @@ func (session *susenSession) undoStep() {
 	if len(session.steps) > 1 {
 		session.steps[len(session.steps)-1] = nil // release current step
 		session.steps = session.steps[:len(session.steps)-1]
+		session.redisUndoStep()
 		log.Printf("Reverted session %v to step %d.", session.sessionID, len(session.steps))
 	} else {
 		log.Printf("No steps to undo in session %v.", session.sessionID)
@@ -201,10 +220,10 @@ func (session *susenSession) undoStep() {
 }
 
 func (session *susenSession) apiHandler(w http.ResponseWriter, r *http.Request) {
-	if strings.Contains(r.URL.Path, "/reset/") {
+	if strings.HasPrefix(r.URL.Path, "/api/reset/") {
 		session.reset(session.puzzleID)
 	}
-	if strings.Contains(r.URL.Path, "/back/") {
+	if strings.HasPrefix(r.URL.Path, "/api/back/") {
 		session.undoStep()
 	}
 	switch method := r.Method; method {
@@ -237,12 +256,6 @@ func (session *susenSession) solverHandler(w http.ResponseWriter, r *http.Reques
 
 func (session *susenSession) rootHandler(w http.ResponseWriter, r *http.Request) {
 	switch {
-	case strings.HasPrefix(r.URL.Path, "/reset/"):
-		if len(r.URL.Path) > len("/reset/") {
-			session.reset(r.URL.Path[len("/reset/"):])
-		} else {
-			session.reset(session.puzzleID)
-		}
 	case strings.HasPrefix(r.URL.Path, "/api/"):
 		session.apiHandler(w, r)
 		return
@@ -254,6 +267,8 @@ func (session *susenSession) rootHandler(w http.ResponseWriter, r *http.Request)
 }
 
 func main() {
+	var rdc redis.Conn
+
 	http.Handle("/static/", http.StripPrefix("/", http.FileServer(http.Dir("."))))
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/favicon.ico" {
@@ -262,7 +277,7 @@ func main() {
 			return
 		}
 		log.Printf("Handling %s %s...", r.Method, r.URL.Path)
-		session := sessionSelect(w, r)
+		session := sessionSelect(rdc, w, r)
 		session.rootHandler(w, r)
 	})
 
@@ -271,14 +286,98 @@ func main() {
 	if port == "" {
 		// running locally in dev mode
 		port = "localhost:8080"
+		if rdc = redisConnect("redis://localhost:6379/0"); rdc == nil {
+			log.Fatal("No local redis server available, exiting.")
+		}
 	} else {
 		// running as a true server
 		port = ":" + port
+		if rdc = redisConnect(os.Getenv("REDISTOGO_URL")); rdc == nil {
+			log.Fatal("No remote redis server available, exiting.")
+		}
 	}
+	defer rdc.Close()
 
 	log.Printf("Listening on %s...", port)
 	err := http.ListenAndServe(port, nil)
 	if err != nil {
 		log.Fatal("Listener failure: ", err)
+	}
+}
+
+// redisConnect: connect to the given Redis URL.  Returns the
+// connection, if successful, nil otherwise.
+func redisConnect(url string) redis.Conn {
+	rdc, err := redis.DialURL(url)
+	if err != nil {
+		log.Printf("Redis connection to %v failed: %v", url, err)
+		return nil
+	}
+	return rdc
+}
+
+// redisInit: initialize the session in Redis
+func (session *susenSession) redisInit() {
+	_, err := session.rdc.Do("SET", session.sessionID+puzzleIDKey, session.puzzleID)
+	if err != nil {
+		log.Fatalf("Redis error on SET of session %q puzzleID: %v", session.sessionID, err)
+	}
+	_, err = session.rdc.Do("DEL", session.sessionID+stepsKey)
+	if err != nil {
+		log.Fatalf("Redis error on DELETE of session %q steps: %v", session.sessionID, err)
+	}
+}
+
+// redisAddStep: add to the session in Redis
+func (session *susenSession) redisAddStep(p puzzle.Puzzle) {
+	vals := p.State().Values
+	bytes, err := json.Marshal(vals)
+	if err != nil {
+		log.Fatalf("Failed to marshal %v as JSON: %v", vals, err)
+	}
+	_, err = session.rdc.Do("RPUSH", session.sessionID+stepsKey, bytes)
+	if err != nil {
+		log.Fatalf("Redis error on RPUSH of session %q steps: %v", session.sessionID, err)
+	}
+}
+
+// redisUndoStep: add to the session in Redis
+func (session *susenSession) redisUndoStep() {
+	_, err := session.rdc.Do("RPOP", session.sessionID+stepsKey)
+	if err != nil {
+		log.Fatalf("Redis error on RPOP of session %q steps: %v", session.sessionID, err)
+	}
+}
+
+// redisLoad: load the session from Redis
+func (session *susenSession) redisLoad() {
+	// first load the first step
+	vals, ok := puzzleValues[session.puzzleID]
+	geo := vals[0] // save for steps, later
+	if !ok {
+		log.Fatalf("Failed to find values for puzzle %q", session.puzzleID)
+	}
+	p, e := puzzle.New(vals)
+	if e != nil {
+		log.Fatalf("Failed to create puzzle %q: %v", session.puzzleID, e)
+	}
+	session.steps = []puzzle.Puzzle{p}
+
+	// now add any steps that were saved
+	steps, err := redis.Strings(session.rdc.Do("LRANGE", session.sessionID+stepsKey, 0, -1))
+	if err != nil {
+		log.Fatalf("Redis error on LRANGE of session %q steps: %v", session.sessionID, err)
+	}
+	for _, step := range steps {
+		var stepVals []int
+		if e = json.Unmarshal([]byte(step), &stepVals); e != nil {
+			log.Fatalf("JSON error on session %q step %v: %v", session.sessionID, step, e)
+		}
+		vals = append([]int{geo}, stepVals...)
+		p, e := puzzle.New(vals)
+		if e != nil {
+			log.Fatalf("Failed to create puzzle from %v: %v", vals, e)
+		}
+		session.steps = append(session.steps, p)
 	}
 }
