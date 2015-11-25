@@ -1,7 +1,17 @@
 {
-    "ImportPath": "github.com/ancientHacker/susen.go",
-    "GoVersion": "go1.5.1",
-    "Packages": [
-        "./..."
-    ]
+	"ImportPath": "github.com/ancientHacker/susen.go",
+	"GoVersion": "go1.5.1",
+	"Packages": [
+		"./..."
+	],
+	"Deps": [
+		{
+			"ImportPath": "github.com/garyburd/redigo/internal",
+			"Rev": "6ece6e0a09f28cc399b21550cbf37ab39ba63cce"
+		},
+		{
+			"ImportPath": "github.com/garyburd/redigo/redis",
+			"Rev": "6ece6e0a09f28cc399b21550cbf37ab39ba63cce"
+		}
+	]
 }

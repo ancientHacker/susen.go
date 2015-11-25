@@ -2,9 +2,9 @@ package main
 
 import (
 	"encoding/json"
+	"github.com/ancientHacker/susen.go/Godeps/_workspace/src/github.com/garyburd/redigo/redis"
 	"github.com/ancientHacker/susen.go/client"
 	"github.com/ancientHacker/susen.go/puzzle"
-	"github.com/garyburd/redigo/redis"
 	"log"
 	"net/http"
 	"os"

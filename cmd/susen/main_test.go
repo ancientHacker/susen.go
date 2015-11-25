@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"github.com/ancientHacker/susen.go/Godeps/_workspace/src/github.com/garyburd/redigo/redis"
 	"github.com/ancientHacker/susen.go/puzzle"
 	"io/ioutil"
 	"net/http"
@@ -29,14 +30,23 @@ type sessionClient struct {
 	choice   puzzle.Choice // the first choice to try in this puzzle
 }
 
-func TestSessionSelect(t *testing.T) {
+func rdcConnect(t *testing.T) redis.Conn {
 	rdc := redisConnect("redis://localhost:6379/0")
 	if rdc == nil {
-		t.Fatalf("No local redis server available, exiting.")
+		t.Fatalf("Exiting: No local redis server available")
 	}
+	_, e := rdc.Do("FLUSHALL")
+	if e != nil {
+		t.Fatalf("Exiting: Failed to flush redis database: %v", e)
+	}
+	return rdc
+}
+
+func TestSessionSelect(t *testing.T) {
+	rdc := rdcConnect(t)
+	defer rdc.Close()
 
 	// one server
-	defer rdc.Close()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		session := sessionSelect(rdc, w, r)
 		t.Logf("Session %v handling %s %s.", session.sessionID, r.Method, r.URL.Path)
@@ -247,10 +257,8 @@ func TestSessionSelect(t *testing.T) {
 }
 
 func TestIssue1(t *testing.T) {
-	rdc := redisConnect("redis://localhost:6379/0")
-	if rdc == nil {
-		t.Fatalf("No local redis server available, exiting.")
-	}
+	rdc := rdcConnect(t)
+	defer rdc.Close()
 
 	// helper - log cookies
 	logCookies := func(jar http.CookieJar, target string) {
@@ -356,10 +364,8 @@ func TestIssue1(t *testing.T) {
 }
 
 func TestIssue11(t *testing.T) {
-	rdc := redisConnect("redis://localhost:6379/0")
-	if rdc == nil {
-		t.Fatalf("No local redis server available, exiting.")
-	}
+	rdc := rdcConnect(t)
+	defer rdc.Close()
 
 	// helper - log cookies
 	logCookies := func(jar http.CookieJar, target string) {
