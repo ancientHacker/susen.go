@@ -1,4 +1,5 @@
 language: go
+services: redis-server
 deploy:
   provider: heroku
   api_key:

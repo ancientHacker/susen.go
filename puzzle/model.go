@@ -78,11 +78,16 @@ func (p *puzzle) indicesToSquares(is intset) []Square {
 			S.Aval = s.aval
 			continue
 		}
+		S.Pvals = newIntsetCopy(s.pvals)
+		if len(s.pvals) == 1 {
+			// don't return bindings if only one value,
+			// because they are extraneous and confusing.
+			continue
+		}
 		if s.bval != 0 {
 			S.Bval = s.bval
 			S.Bsrc = append(S.Bsrc, s.bsrc...)
 		}
-		S.Pvals = newIntsetCopy(s.pvals)
 	}
 	return SS
 }

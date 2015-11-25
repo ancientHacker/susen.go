@@ -538,8 +538,7 @@ var (
 	}
 	rotation4Puzzle1PartialAssign2CapitalSquares = []Square{
 		Square{Index: 1, Aval: 1},
-		Square{Index: 2, Pvals: intset{2},
-			Bval: 2, Bsrc: []GroupID{GroupID{GtypeCol, 2}, GroupID{GtypeTile, 1}}},
+		Square{Index: 2, Pvals: intset{2}},
 		Square{Index: 3, Aval: 3},
 		Square{Index: 4, Pvals: intset{2, 4},
 			Bval: 4, Bsrc: []GroupID{GroupID{GtypeRow, 1}, GroupID{GtypeCol, 4}}},
@@ -551,8 +550,7 @@ var (
 		Square{Index: 9, Aval: 3},
 		Square{Index: 10, Aval: 4},
 		Square{Index: 11, Aval: 1},
-		Square{Index: 12, Pvals: intset{2},
-			Bval: 2, Bsrc: []GroupID{GroupID{GtypeRow, 3}, GroupID{GtypeTile, 4}}},
+		Square{Index: 12, Pvals: intset{2}},
 		Square{Index: 13, Aval: 2},
 		Square{Index: 14, Aval: 1},
 		Square{Index: 15, Pvals: intset{4}},
@@ -630,8 +628,7 @@ var (
 	}
 	rotation4Puzzle1PartialAssign3CapitalSquares = []Square{
 		Square{Index: 1, Aval: 1},
-		Square{Index: 2, Pvals: intset{2},
-			Bval: 2, Bsrc: []GroupID{GroupID{GtypeCol, 2}, GroupID{GtypeTile, 1}}},
+		Square{Index: 2, Pvals: intset{2}},
 		Square{Index: 3, Aval: 3},
 		Square{Index: 4,
 			Pvals: intset{2, 4},
@@ -644,14 +641,12 @@ var (
 		},
 		Square{Index: 5, Pvals: intset{4}},
 		Square{Index: 6, Aval: 3},
-		Square{Index: 7, Pvals: intset{2},
-			Bval: 2, Bsrc: []GroupID{GroupID{GtypeRow, 2}, GroupID{GtypeCol, 3}}},
+		Square{Index: 7, Pvals: intset{2}},
 		Square{Index: 8, Aval: 1},
 		Square{Index: 9, Aval: 3},
 		Square{Index: 10, Aval: 4},
 		Square{Index: 11, Aval: 1},
-		Square{Index: 12, Pvals: intset{2},
-			Bval: 2, Bsrc: []GroupID{GroupID{GtypeRow, 3}, GroupID{GtypeTile, 4}}},
+		Square{Index: 12, Pvals: intset{2}},
 		Square{Index: 13, Aval: 2},
 		Square{Index: 14, Aval: 1},
 		Square{Index: 15, Aval: 4},
@@ -2819,7 +2814,7 @@ func TestExternalAssign(t *testing.T) {
 		}
 		for i, S := range p.Squares() {
 			if !reflect.DeepEqual(S, tc.SS[i]) {
-				t.Errorf("%s Assign(Choice{%d, %d}) square %d was %v, expected %v",
+				t.Errorf("%s Assign(Choice{%d, %d}) Square %d was %v, expected %v",
 					tc.name, tc.ai, tc.av, S.Index, S, tc.SS[i])
 			}
 		}

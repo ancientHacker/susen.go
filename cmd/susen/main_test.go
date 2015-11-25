@@ -4,12 +4,14 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"github.com/ancientHacker/susen.go/Godeps/_workspace/src/github.com/garyburd/redigo/redis"
 	"github.com/ancientHacker/susen.go/puzzle"
 	"io/ioutil"
 	"net/http"
 	"net/http/cookiejar"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 	"time"
 )
@@ -28,10 +30,25 @@ type sessionClient struct {
 	choice   puzzle.Choice // the first choice to try in this puzzle
 }
 
+func rdcConnect(t *testing.T) redis.Conn {
+	rdc := redisConnect("redis://localhost:6379/0")
+	if rdc == nil {
+		t.Fatalf("Exiting: No local redis server available")
+	}
+	_, e := rdc.Do("FLUSHALL")
+	if e != nil {
+		t.Fatalf("Exiting: Failed to flush redis database: %v", e)
+	}
+	return rdc
+}
+
 func TestSessionSelect(t *testing.T) {
+	rdc := rdcConnect(t)
+	defer rdc.Close()
+
 	// one server
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		session := sessionSelect(w, r)
+		session := sessionSelect(rdc, w, r)
 		t.Logf("Session %v handling %s %s.", session.sessionID, r.Method, r.URL.Path)
 		session.rootHandler(w, r)
 	}))
@@ -132,7 +149,7 @@ func TestSessionSelect(t *testing.T) {
 		}
 		return true
 	}
-	// helper - make an update-returning action call, return false on fatal error
+	// helper - make an update-returning action call, return false on error
 	getUpdate := func(c *sessionClient) bool {
 		t.Logf("Client %d: posting choice %v", c.id, c.choice)
 		bs, e := json.Marshal(c.choice)
@@ -240,6 +257,9 @@ func TestSessionSelect(t *testing.T) {
 }
 
 func TestIssue1(t *testing.T) {
+	rdc := rdcConnect(t)
+	defer rdc.Close()
+
 	// helper - log cookies
 	logCookies := func(jar http.CookieJar, target string) {
 		url, e := url.Parse(target)
@@ -261,7 +281,7 @@ func TestIssue1(t *testing.T) {
 
 	// server
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		session := sessionSelect(w, r)
+		session := sessionSelect(rdc, w, r)
 		t.Logf("Session %v handling %s %s.", session.sessionID, r.Method, r.URL.Path)
 		http.Error(w, "This is a test", http.StatusOK)
 	}))
@@ -281,7 +301,7 @@ func TestIssue1(t *testing.T) {
 	// indicator, which is a bit of overkill, since no server
 	// should get both Heroku and non-Heroku requests, but you
 	// never know :).
-	for i, herokuProtocol := range []string{"", "http", "https", "http", "", "https"} {
+	for i, herokuProtocol := range []string{"", "http", "https"} {
 		for j, expectSetCookie := range []bool{true, false} {
 			req, e := http.NewRequest("GET", target, nil)
 			if e != nil {
@@ -309,5 +329,250 @@ func TestIssue1(t *testing.T) {
 				}
 			}
 		}
+	}
+
+	// now make sure the protocol cookies are set for the next round
+	for i, herokuProtocol := range []string{"", "http", "https"} {
+		for j, expectSetCookie := range []bool{false, false} {
+			req, e := http.NewRequest("GET", target, nil)
+			if e != nil {
+				t.Fatalf("Failed to create request %d: %v", 2*i+j, e)
+			}
+			if herokuProtocol != "" {
+				req.Header.Add("X-Forwarded-Proto", herokuProtocol)
+			}
+			t.Logf("Created request %d: herokuProtocol = %q", 2*i+j, herokuProtocol)
+			logCookies(c.Jar, target)
+			r, e := c.Do(req)
+			if e != nil {
+				t.Fatalf("Request error: %v", e)
+			}
+			t.Logf("request 1: %q\n", r.Status)
+			t.Logf("request 1: %v\n", r.Header)
+			r.Body.Close()
+			if expectSetCookie {
+				if h := r.Header.Get("Set-Cookie"); h == "" {
+					t.Errorf("No Set-Cookie received on request %d.", 2*i+j)
+				}
+			} else {
+				if h := r.Header.Get("Set-Cookie"); h != "" {
+					t.Errorf("Set-Cookie received on request %d.", 2*i+j)
+				}
+			}
+		}
+	}
+}
+
+func TestIssue11(t *testing.T) {
+	rdc := rdcConnect(t)
+	defer rdc.Close()
+
+	// helper - log cookies
+	logCookies := func(jar http.CookieJar, target string) {
+		url, e := url.Parse(target)
+		if e != nil {
+			panic(e)
+		}
+		cookies := jar.Cookies(url)
+		if len(cookies) == 0 {
+			t.Logf("No target cookies.\n")
+		} else if len(cookies) == 1 {
+			t.Logf("Target cookie: %v\n", *cookies[0])
+		} else {
+			t.Logf("%d target cookies are:\n", len(cookies))
+			for i, c := range cookies {
+				t.Logf("\tcookie %d: %v\n", i, *c)
+			}
+		}
+	}
+
+	// add puzzle and appropriate assignments for testing
+	puzzleValues["test11"] = []int{0,
+		1, 0, 3, 0,
+		0, 3, 0, 1,
+		3, 0, 1, 0,
+		0, 1, 0, 3,
+	}
+	defer func() { delete(puzzleValues, "test11") }()
+	choices := []puzzle.Choice{{13, 2}, {10, 4}, {15, 4}}
+
+	// server
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Logf("Handling %s %s...", r.Method, r.URL.Path)
+		session := sessionSelect(rdc, w, r)
+		if strings.HasPrefix(r.URL.Path, "/ClearMemorySession/") {
+			sessionMutex.Lock()
+			delete(sessions, session.sessionID)
+			sessionMutex.Unlock()
+			t.Logf("Deleted session %q from memory", session.sessionID)
+			http.Error(w, session.sessionID, http.StatusOK)
+			return
+		}
+		session.rootHandler(w, r)
+		t.Logf("There are %d steps in session %q", len(session.steps), session.sessionID)
+		t.Logf("The puzzleID of session %q is %q", session.sessionID, session.puzzleID)
+	}))
+	defer srv.Close()
+
+	// client
+	jar, e := cookiejar.New(nil)
+	if e != nil {
+		t.Fatalf("Failed to create cookie jar: %v", e)
+	}
+	c := http.Client{Jar: jar}
+
+	// set the puzzle
+	r, e := c.Get(srv.URL + "/reset/test11")
+	if e != nil || r.StatusCode != http.StatusOK {
+		t.Fatalf("Request error on /reset/test11: %v", e)
+	}
+	logCookies(c.Jar, srv.URL)
+
+	// do the assignments
+	for i, choice := range choices {
+		b, e := json.Marshal(choice)
+		if e != nil {
+			t.Fatalf("Case %d: Failed to encode choice: %v", i, e)
+		}
+		t.Logf("%s\n", b)
+		r, e := c.Post(srv.URL+"/api/",
+			"application/json", strings.NewReader(string(b)))
+		if e != nil {
+			t.Fatalf("assignment %d: Request error: %v", i, e)
+		}
+		t.Logf("%q\n", r.Status)
+		t.Logf("%v\n", r.Header)
+		if r.StatusCode != http.StatusOK {
+			t.Errorf("case %d: Status was %v, expected %v", i, r.StatusCode, http.StatusOK)
+		}
+		body, e := ioutil.ReadAll(r.Body)
+		r.Body.Close()
+		if e != nil {
+			t.Fatalf("test %d: Read error on update: %v", i, e)
+		}
+		t.Logf("%s\n", string(body))
+	}
+
+	// read the puzzle contents
+	logCookies(c.Jar, srv.URL)
+	r, e = c.Get(srv.URL + "/api/")
+	if e != nil {
+		t.Fatalf("Squares before request error: %v", e)
+	}
+	t.Logf("%q\n", r.Status)
+	t.Logf("%v\n", r.Header)
+	if r.StatusCode != http.StatusOK {
+		t.Errorf("Squares before status was %v not %v", r.StatusCode, http.StatusOK)
+	}
+	squaresBefore, e := ioutil.ReadAll(r.Body)
+	r.Body.Close()
+	if e != nil {
+		t.Fatalf("Read error on squares before: %v", e)
+	}
+	t.Logf("%s\n", string(squaresBefore))
+
+	// clear the in-memory session cache
+	logCookies(c.Jar, srv.URL)
+	r, e = c.Get(srv.URL + "/ClearMemorySession/")
+	if e != nil {
+		t.Fatalf("Clear Memory Session Request error: %v", e)
+	}
+	t.Logf("%q\n", r.Status)
+	t.Logf("%v\n", r.Header)
+	if r.StatusCode != http.StatusOK {
+		t.Errorf("Clear Memory Session status was %v not %v", r.StatusCode, http.StatusOK)
+	}
+
+	// read the puzzle contents again, compare
+	logCookies(c.Jar, srv.URL)
+	r, e = c.Get(srv.URL + "/api/")
+	if e != nil {
+		t.Fatalf("Squares after request error: %v", e)
+	}
+	t.Logf("%q\n", r.Status)
+	t.Logf("%v\n", r.Header)
+	if r.StatusCode != http.StatusOK {
+		t.Errorf("Squares after status was %v not %v", r.StatusCode, http.StatusOK)
+	}
+	squaresAfter, e := ioutil.ReadAll(r.Body)
+	r.Body.Close()
+	if e != nil {
+		t.Fatalf("Read error on squares after: %v", e)
+	}
+	t.Logf("%s\n", string(squaresAfter))
+	if string(squaresAfter) != string(squaresBefore) {
+		t.Errorf("Squares don't match before and after.")
+	}
+
+	// now go back two steps
+	logCookies(c.Jar, srv.URL)
+	r, e = c.Get(srv.URL + "/api/back/")
+	if e != nil {
+		t.Fatalf("Go Back 1 error: %v", e)
+	}
+	t.Logf("%q\n", r.Status)
+	t.Logf("%v\n", r.Header)
+	if r.StatusCode != http.StatusOK {
+		t.Errorf("Go Back 1 status was %v not %v", r.StatusCode, http.StatusOK)
+	}
+	r, e = c.Get(srv.URL + "/api/back/")
+	if e != nil {
+		t.Fatalf("Go Back 2 error: %v", e)
+	}
+	t.Logf("%q\n", r.Status)
+	t.Logf("%v\n", r.Header)
+	if r.StatusCode != http.StatusOK {
+		t.Errorf("Go Back 2 status was %v not %v", r.StatusCode, http.StatusOK)
+	}
+
+	// read the puzzle contents
+	logCookies(c.Jar, srv.URL)
+	r, e = c.Get(srv.URL + "/api/")
+	if e != nil {
+		t.Fatalf("Squares before request error: %v", e)
+	}
+	t.Logf("%q\n", r.Status)
+	t.Logf("%v\n", r.Header)
+	if r.StatusCode != http.StatusOK {
+		t.Errorf("Squares before status was %v not %v", r.StatusCode, http.StatusOK)
+	}
+	squaresBefore, e = ioutil.ReadAll(r.Body)
+	r.Body.Close()
+	if e != nil {
+		t.Fatalf("Read error on squares before: %v", e)
+	}
+	t.Logf("%s\n", string(squaresBefore))
+
+	// clear the in-memory session cache
+	logCookies(c.Jar, srv.URL)
+	r, e = c.Get(srv.URL + "/ClearMemorySession/")
+	if e != nil {
+		t.Fatalf("Clear Memory Session Request error: %v", e)
+	}
+	t.Logf("%q\n", r.Status)
+	t.Logf("%v\n", r.Header)
+	if r.StatusCode != http.StatusOK {
+		t.Errorf("Clear Memory Session status was %v not %v", r.StatusCode, http.StatusOK)
+	}
+
+	// read the puzzle contents again, compare
+	logCookies(c.Jar, srv.URL)
+	r, e = c.Get(srv.URL + "/api/")
+	if e != nil {
+		t.Fatalf("Squares after request error: %v", e)
+	}
+	t.Logf("%q\n", r.Status)
+	t.Logf("%v\n", r.Header)
+	if r.StatusCode != http.StatusOK {
+		t.Errorf("Squares after status was %v not %v", r.StatusCode, http.StatusOK)
+	}
+	squaresAfter, e = ioutil.ReadAll(r.Body)
+	r.Body.Close()
+	if e != nil {
+		t.Fatalf("Read error on squares after: %v", e)
+	}
+	t.Logf("%s\n", string(squaresAfter))
+	if string(squaresAfter) != string(squaresBefore) {
+		t.Errorf("Squares don't match before and after.")
 	}
 }
