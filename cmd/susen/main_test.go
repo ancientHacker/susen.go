@@ -11,6 +11,7 @@ import (
 	"net/http/cookiejar"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -31,7 +32,12 @@ type sessionClient struct {
 }
 
 func rdcConnect(t *testing.T) redis.Conn {
-	rdc := redisConnect("redis://localhost:6379/0")
+	url := "redis://localhost:6379/0" // local redis
+	if remote := os.Getenv("REDISTOGO_URL"); remote != "" {
+		url = remote + "0"
+	}
+
+	rdc := redisConnect(url)
 	if rdc == nil {
 		t.Fatalf("Exiting: No local redis server available")
 	}
@@ -44,7 +50,7 @@ func rdcConnect(t *testing.T) redis.Conn {
 
 func TestSessionSelect(t *testing.T) {
 	rdc := rdcConnect(t)
-	defer rdc.Close()
+	defer redisClose(rdc)
 
 	// one server
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -286,7 +292,6 @@ func TestIssue1(t *testing.T) {
 		http.Error(w, "This is a test", http.StatusOK)
 	}))
 	defer srv.Close()
-	target := srv.URL
 
 	// client
 	jar, e := cookiejar.New(nil)
@@ -303,6 +308,7 @@ func TestIssue1(t *testing.T) {
 	// never know :).
 	for i, herokuProtocol := range []string{"", "http", "https"} {
 		for j, expectSetCookie := range []bool{true, false} {
+			target := fmt.Sprintf("%s/reset/%d-star", srv.URL, i+j+1)
 			req, e := http.NewRequest("GET", target, nil)
 			if e != nil {
 				t.Fatalf("Failed to create request %d: %v", 2*i+j, e)
@@ -334,6 +340,7 @@ func TestIssue1(t *testing.T) {
 	// now make sure the protocol cookies are set for the next round
 	for i, herokuProtocol := range []string{"", "http", "https"} {
 		for j, expectSetCookie := range []bool{false, false} {
+			target := fmt.Sprintf("%s", srv.URL)
 			req, e := http.NewRequest("GET", target, nil)
 			if e != nil {
 				t.Fatalf("Failed to create request %d: %v", 2*i+j, e)

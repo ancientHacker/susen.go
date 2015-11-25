@@ -102,6 +102,7 @@ var (
 	startTime       = time.Now()
 	sessions        = make(map[string]*susenSession)
 	sessionMutex    sync.RWMutex
+	rdMutex         sync.Mutex
 )
 
 // getCookie gets the session cookie, or sets a new one.  It
@@ -140,7 +141,7 @@ func getCookie(w http.ResponseWriter, r *http.Request) string {
 }
 
 // sessionSelect: find or create the session for the current connection.
-func sessionSelect(rdc redis.Conn, w http.ResponseWriter, r *http.Request) (s *susenSession) {
+func sessionSelect(rdc redis.Conn, w http.ResponseWriter, r *http.Request) *susenSession {
 	// check to see if this is a force reset of the session
 	forceReset, resetID := false, ""
 	if strings.HasPrefix(r.URL.Path, "/reset/") {
@@ -158,24 +159,19 @@ func sessionSelect(rdc redis.Conn, w http.ResponseWriter, r *http.Request) (s *s
 		}
 		return session
 	}
-	// look for the session in the redis persistent store
-	sessionMutex.Lock()
-	defer sessionMutex.Unlock()
-	puzzleID, err := redis.String(rdc.Do("GET", sessionID+puzzleIDKey))
-	if err == nil && puzzleID != "" {
-		session = &susenSession{sessionID: sessionID, rdc: rdc, puzzleID: puzzleID}
-		sessions[sessionID] = session
-		if forceReset {
-			session.reset(resetID)
-		} else {
-			session.redisLoad()
-		}
-		return session
-	}
-	// initialize and save the new session
+	// create and remember the in-memory session
 	session = &susenSession{sessionID: sessionID, rdc: rdc, puzzleID: defaultPuzzleID}
+	sessionMutex.Lock()
 	sessions[sessionID] = session
-	session.reset(resetID)
+	sessionMutex.Unlock()
+	// initialize or reload it
+	if forceReset {
+		session.reset(resetID)
+	} else if session.redisLookup() {
+		session.redisLoad()
+	} else {
+		session.reset(defaultPuzzleID)
+	}
 	return session
 }
 
@@ -203,12 +199,16 @@ func (session *susenSession) reset(puzzleID string) {
 }
 
 func (session *susenSession) addStep(next puzzle.Puzzle) {
+	sessionMutex.Lock()
+	defer sessionMutex.Unlock()
 	session.steps = append(session.steps, next)
 	session.redisAddStep(next)
 	log.Printf("Added session %v step %d.", session.sessionID, len(session.steps))
 }
 
 func (session *susenSession) undoStep() {
+	sessionMutex.Lock()
+	defer sessionMutex.Unlock()
 	if len(session.steps) > 1 {
 		session.steps[len(session.steps)-1] = nil // release current step
 		session.steps = session.steps[:len(session.steps)-1]
@@ -229,14 +229,12 @@ func (session *susenSession) apiHandler(w http.ResponseWriter, r *http.Request) 
 	switch method := r.Method; method {
 	case "GET":
 		puzzle.SquaresHandler(session.steps[len(session.steps)-1], w, r)
-		log.Printf("Returned current state.")
 	case "POST":
 		next := session.steps[len(session.steps)-1].Copy()
 		_, e := puzzle.AssignHandler(next, w, r)
 		if e != nil {
 			log.Printf("Assign failed, returned error, no session change.")
 		} else {
-			log.Printf("Assign succeeded, returned update.")
 			session.addStep(next)
 		}
 	default:
@@ -292,11 +290,11 @@ func main() {
 	} else {
 		// running as a true server
 		port = ":" + port
-		if rdc = redisConnect(os.Getenv("REDISTOGO_URL")); rdc == nil {
+		if rdc = redisConnect(os.Getenv("REDISTOGO_URL") + "0"); rdc == nil {
 			log.Fatal("No remote redis server available, exiting.")
 		}
 	}
-	defer rdc.Close()
+	defer redisClose(rdc)
 
 	log.Printf("Listening on %s...", port)
 	err := http.ListenAndServe(port, nil)
@@ -308,6 +306,8 @@ func main() {
 // redisConnect: connect to the given Redis URL.  Returns the
 // connection, if successful, nil otherwise.
 func redisConnect(url string) redis.Conn {
+	rdMutex.Lock()
+	defer rdMutex.Unlock()
 	rdc, err := redis.DialURL(url)
 	if err != nil {
 		log.Printf("Redis connection to %v failed: %v", url, err)
@@ -316,11 +316,36 @@ func redisConnect(url string) redis.Conn {
 	return rdc
 }
 
+// redisClose: close the given Redis connection.
+func redisClose(rdc redis.Conn) {
+	rdMutex.Lock()
+	defer rdMutex.Unlock()
+	rdc.Close()
+}
+
+// redisLookup: lookup a session for a sessionID
+func (session *susenSession) redisLookup() bool {
+	rdMutex.Lock()
+	defer rdMutex.Unlock()
+	puzzleID, err := redis.String(session.rdc.Do("GET", session.sessionID+puzzleIDKey))
+	if puzzleID != "" {
+		session.puzzleID = puzzleID
+		return true
+	}
+	if err != redis.ErrNil {
+		log.Fatalf("Redis error on GET of session %q puzzleID: %v", session.sessionID, err)
+	}
+	return false
+}
+
 // redisInit: initialize the session in Redis
 func (session *susenSession) redisInit() {
+	rdMutex.Lock()
+	defer rdMutex.Unlock()
 	_, err := session.rdc.Do("SET", session.sessionID+puzzleIDKey, session.puzzleID)
 	if err != nil {
-		log.Fatalf("Redis error on SET of session %q puzzleID: %v", session.sessionID, err)
+		log.Fatalf("Redis error on SET of session %q puzzleID to %q: %v",
+			session.sessionID, session.puzzleID, err)
 	}
 	_, err = session.rdc.Do("DEL", session.sessionID+stepsKey)
 	if err != nil {
@@ -330,6 +355,8 @@ func (session *susenSession) redisInit() {
 
 // redisAddStep: add to the session in Redis
 func (session *susenSession) redisAddStep(p puzzle.Puzzle) {
+	rdMutex.Lock()
+	defer rdMutex.Unlock()
 	vals := p.State().Values
 	bytes, err := json.Marshal(vals)
 	if err != nil {
@@ -343,6 +370,8 @@ func (session *susenSession) redisAddStep(p puzzle.Puzzle) {
 
 // redisUndoStep: add to the session in Redis
 func (session *susenSession) redisUndoStep() {
+	rdMutex.Lock()
+	defer rdMutex.Unlock()
 	_, err := session.rdc.Do("RPOP", session.sessionID+stepsKey)
 	if err != nil {
 		log.Fatalf("Redis error on RPOP of session %q steps: %v", session.sessionID, err)
@@ -351,6 +380,8 @@ func (session *susenSession) redisUndoStep() {
 
 // redisLoad: load the session from Redis
 func (session *susenSession) redisLoad() {
+	rdMutex.Lock()
+	defer rdMutex.Unlock()
 	// first load the first step
 	vals, ok := puzzleValues[session.puzzleID]
 	geo := vals[0] // save for steps, later
