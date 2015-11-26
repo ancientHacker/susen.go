@@ -26,7 +26,6 @@ type susenSession struct {
 	sessionID string
 	puzzleID  string
 	steps     []puzzle.Puzzle
-	rdc       redis.Conn
 }
 
 var (
@@ -103,6 +102,8 @@ var (
 	sessions        = make(map[string]*susenSession)
 	sessionMutex    sync.RWMutex
 	rdMutex         sync.Mutex
+	rdUrl           string
+	rdc             redis.Conn
 )
 
 // getCookie gets the session cookie, or sets a new one.  It
@@ -141,7 +142,7 @@ func getCookie(w http.ResponseWriter, r *http.Request) string {
 }
 
 // sessionSelect: find or create the session for the current connection.
-func sessionSelect(rdc redis.Conn, w http.ResponseWriter, r *http.Request) *susenSession {
+func sessionSelect(w http.ResponseWriter, r *http.Request) *susenSession {
 	// check to see if this is a force reset of the session
 	forceReset, resetID := false, ""
 	if strings.HasPrefix(r.URL.Path, "/reset/") {
@@ -160,7 +161,7 @@ func sessionSelect(rdc redis.Conn, w http.ResponseWriter, r *http.Request) *suse
 		return session
 	}
 	// create and remember the in-memory session
-	session = &susenSession{sessionID: sessionID, rdc: rdc, puzzleID: defaultPuzzleID}
+	session = &susenSession{sessionID: sessionID, puzzleID: defaultPuzzleID}
 	sessionMutex.Lock()
 	sessions[sessionID] = session
 	sessionMutex.Unlock()
@@ -169,6 +170,8 @@ func sessionSelect(rdc redis.Conn, w http.ResponseWriter, r *http.Request) *suse
 		session.reset(resetID)
 	} else if session.redisLookup() {
 		session.redisLoad()
+		log.Printf("Reloaded session %v, puzzle %q, through step %d.",
+			session.sessionID, session.puzzleID, len(session.steps))
 	} else {
 		session.reset(defaultPuzzleID)
 	}
@@ -214,8 +217,6 @@ func (session *susenSession) undoStep() {
 		session.steps = session.steps[:len(session.steps)-1]
 		session.redisUndoStep()
 		log.Printf("Reverted session %v to step %d.", session.sessionID, len(session.steps))
-	} else {
-		log.Printf("No steps to undo in session %v.", session.sessionID)
 	}
 }
 
@@ -265,8 +266,19 @@ func (session *susenSession) rootHandler(w http.ResponseWriter, r *http.Request)
 }
 
 func main() {
-	var rdc redis.Conn
+	// establish redis connection
+	url := os.Getenv("REDISTOGO_URL")
+	if url == "" {
+		rdUrl = "redis://localhost:6379/0"
+	} else {
+		rdUrl = url + "0"
+	}
+	if err := redisConnect(url); err != nil {
+		log.Fatalf("Exiting: No redis server at %q: %v", url, err)
+	}
+	defer redisClose()
 
+	// define handlers
 	http.Handle("/static/", http.StripPrefix("/", http.FileServer(http.Dir("."))))
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/favicon.ico" {
@@ -274,28 +286,26 @@ func main() {
 			http.ServeFile(w, r, "static/img/susen.ico")
 			return
 		}
-		log.Printf("Handling %s %s...", r.Method, r.URL.Path)
-		session := sessionSelect(rdc, w, r)
+		if r.URL.Path == "/robots.txt" {
+			log.Printf("Received site scan request.")
+			http.ServeFile(w, r, "static/robots.txt")
+			return
+		}
+		session := sessionSelect(w, r)
 		session.rootHandler(w, r)
 	})
 
-	// Heroku environment port sensing
+	// port sensing
 	port := os.Getenv("PORT")
 	if port == "" {
 		// running locally in dev mode
 		port = "localhost:8080"
-		if rdc = redisConnect("redis://localhost:6379/0"); rdc == nil {
-			log.Fatal("No local redis server available, exiting.")
-		}
 	} else {
 		// running as a true server
 		port = ":" + port
-		if rdc = redisConnect(os.Getenv("REDISTOGO_URL") + "0"); rdc == nil {
-			log.Fatal("No remote redis server available, exiting.")
-		}
 	}
-	defer redisClose(rdc)
 
+	// serve
 	log.Printf("Listening on %s...", port)
 	err := http.ListenAndServe(port, nil)
 	if err != nil {
@@ -305,29 +315,48 @@ func main() {
 
 // redisConnect: connect to the given Redis URL.  Returns the
 // connection, if successful, nil otherwise.
-func redisConnect(url string) redis.Conn {
+func redisConnect(url string) error {
 	rdMutex.Lock()
 	defer rdMutex.Unlock()
-	rdc, err := redis.DialURL(url)
-	if err != nil {
-		log.Printf("Redis connection to %v failed: %v", url, err)
+
+	conn, err := redis.DialURL(url)
+	if err == nil {
+		log.Printf("Connected to redis at %q", url)
+		rdc, rdUrl = conn, url
 		return nil
 	}
-	return rdc
+	return err
 }
 
 // redisClose: close the given Redis connection.
-func redisClose(rdc redis.Conn) {
+func redisClose() {
 	rdMutex.Lock()
 	defer rdMutex.Unlock()
+
 	rdc.Close()
+}
+
+// redisPing: make sure the redis connection is up
+// you MUST have the mutex when you call this!
+func (session *susenSession) redisPing() {
+	if _, err := rdc.Do("PING"); err != nil {
+		log.Printf("Lost connection to redis: %v", err)
+		rdc.Close()
+		rdc, err = redis.DialURL(rdUrl)
+		if err != nil {
+			log.Fatalf("Reconnect failure: %v", err)
+		} else {
+			log.Printf("Reconnected to redis at %q", rdUrl)
+		}
+	}
 }
 
 // redisLookup: lookup a session for a sessionID
 func (session *susenSession) redisLookup() bool {
 	rdMutex.Lock()
 	defer rdMutex.Unlock()
-	puzzleID, err := redis.String(session.rdc.Do("GET", session.sessionID+puzzleIDKey))
+	session.redisPing()
+	puzzleID, err := redis.String(rdc.Do("GET", session.sessionID+puzzleIDKey))
 	if puzzleID != "" {
 		session.puzzleID = puzzleID
 		return true
@@ -342,12 +371,13 @@ func (session *susenSession) redisLookup() bool {
 func (session *susenSession) redisInit() {
 	rdMutex.Lock()
 	defer rdMutex.Unlock()
-	_, err := session.rdc.Do("SET", session.sessionID+puzzleIDKey, session.puzzleID)
+	session.redisPing()
+	_, err := rdc.Do("SET", session.sessionID+puzzleIDKey, session.puzzleID)
 	if err != nil {
 		log.Fatalf("Redis error on SET of session %q puzzleID to %q: %v",
 			session.sessionID, session.puzzleID, err)
 	}
-	_, err = session.rdc.Do("DEL", session.sessionID+stepsKey)
+	_, err = rdc.Do("DEL", session.sessionID+stepsKey)
 	if err != nil {
 		log.Fatalf("Redis error on DELETE of session %q steps: %v", session.sessionID, err)
 	}
@@ -357,12 +387,13 @@ func (session *susenSession) redisInit() {
 func (session *susenSession) redisAddStep(p puzzle.Puzzle) {
 	rdMutex.Lock()
 	defer rdMutex.Unlock()
+	session.redisPing()
 	vals := p.State().Values
 	bytes, err := json.Marshal(vals)
 	if err != nil {
 		log.Fatalf("Failed to marshal %v as JSON: %v", vals, err)
 	}
-	_, err = session.rdc.Do("RPUSH", session.sessionID+stepsKey, bytes)
+	_, err = rdc.Do("RPUSH", session.sessionID+stepsKey, bytes)
 	if err != nil {
 		log.Fatalf("Redis error on RPUSH of session %q steps: %v", session.sessionID, err)
 	}
@@ -372,7 +403,8 @@ func (session *susenSession) redisAddStep(p puzzle.Puzzle) {
 func (session *susenSession) redisUndoStep() {
 	rdMutex.Lock()
 	defer rdMutex.Unlock()
-	_, err := session.rdc.Do("RPOP", session.sessionID+stepsKey)
+	session.redisPing()
+	_, err := rdc.Do("RPOP", session.sessionID+stepsKey)
 	if err != nil {
 		log.Fatalf("Redis error on RPOP of session %q steps: %v", session.sessionID, err)
 	}
@@ -382,6 +414,8 @@ func (session *susenSession) redisUndoStep() {
 func (session *susenSession) redisLoad() {
 	rdMutex.Lock()
 	defer rdMutex.Unlock()
+	session.redisPing()
+
 	// first load the first step
 	vals, ok := puzzleValues[session.puzzleID]
 	geo := vals[0] // save for steps, later
@@ -395,7 +429,7 @@ func (session *susenSession) redisLoad() {
 	session.steps = []puzzle.Puzzle{p}
 
 	// now add any steps that were saved
-	steps, err := redis.Strings(session.rdc.Do("LRANGE", session.sessionID+stepsKey, 0, -1))
+	steps, err := redis.Strings(rdc.Do("LRANGE", session.sessionID+stepsKey, 0, -1))
 	if err != nil {
 		log.Fatalf("Redis error on LRANGE of session %q steps: %v", session.sessionID, err)
 	}

@@ -4,9 +4,9 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/ancientHacker/susen.go/Godeps/_workspace/src/github.com/garyburd/redigo/redis"
 	"github.com/ancientHacker/susen.go/puzzle"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"net/http/cookiejar"
 	"net/http/httptest"
@@ -22,6 +22,16 @@ const (
 	runCount    = 3
 )
 
+type tLogger struct {
+	t *testing.T
+}
+
+func (t tLogger) Write(p []byte) (n int, err error) {
+	n = len(p)
+	t.t.Log(string(p[:n-1]))
+	return
+}
+
 type sessionClient struct {
 	id       int           // which client this is
 	client   *http.Client  // the http client, with cookies
@@ -31,30 +41,28 @@ type sessionClient struct {
 	choice   puzzle.Choice // the first choice to try in this puzzle
 }
 
-func rdcConnect(t *testing.T) redis.Conn {
-	url := "redis://localhost:6379/0" // local redis
-	if remote := os.Getenv("REDISTOGO_URL"); remote != "" {
-		url = remote + "0"
-	}
+func rdcConnect(t *testing.T) {
+	log.SetOutput(tLogger{t})
 
-	rdc := redisConnect(url)
-	if rdc == nil {
-		t.Fatalf("Exiting: No local redis server available")
+	url := os.Getenv("REDISTOGO_URL")
+	if url == "" {
+		url = "redis://localhost:6379/0"
+	} else {
+		url = url + "0"
 	}
-	_, e := rdc.Do("FLUSHALL")
-	if e != nil {
-		t.Fatalf("Exiting: Failed to flush redis database: %v", e)
+	err := redisConnect(url)
+	if err != nil {
+		t.Fatalf("Exiting: Can't connect to redis at %q: %v", url, err)
 	}
-	return rdc
 }
 
 func TestSessionSelect(t *testing.T) {
-	rdc := rdcConnect(t)
-	defer redisClose(rdc)
+	rdcConnect(t)
+	defer redisClose()
 
 	// one server
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		session := sessionSelect(rdc, w, r)
+		session := sessionSelect(w, r)
 		t.Logf("Session %v handling %s %s.", session.sessionID, r.Method, r.URL.Path)
 		session.rootHandler(w, r)
 	}))
@@ -263,8 +271,8 @@ func TestSessionSelect(t *testing.T) {
 }
 
 func TestIssue1(t *testing.T) {
-	rdc := rdcConnect(t)
-	defer rdc.Close()
+	rdcConnect(t)
+	defer redisClose()
 
 	// helper - log cookies
 	logCookies := func(jar http.CookieJar, target string) {
@@ -287,7 +295,7 @@ func TestIssue1(t *testing.T) {
 
 	// server
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		session := sessionSelect(rdc, w, r)
+		session := sessionSelect(w, r)
 		t.Logf("Session %v handling %s %s.", session.sessionID, r.Method, r.URL.Path)
 		http.Error(w, "This is a test", http.StatusOK)
 	}))
@@ -371,8 +379,8 @@ func TestIssue1(t *testing.T) {
 }
 
 func TestIssue11(t *testing.T) {
-	rdc := rdcConnect(t)
-	defer rdc.Close()
+	rdcConnect(t)
+	defer redisClose()
 
 	// helper - log cookies
 	logCookies := func(jar http.CookieJar, target string) {
@@ -406,7 +414,7 @@ func TestIssue11(t *testing.T) {
 	// server
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Logf("Handling %s %s...", r.Method, r.URL.Path)
-		session := sessionSelect(rdc, w, r)
+		session := sessionSelect(w, r)
 		if strings.HasPrefix(r.URL.Path, "/ClearMemorySession/") {
 			sessionMutex.Lock()
 			delete(sessions, session.sessionID)
