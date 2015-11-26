@@ -267,12 +267,7 @@ func (session *susenSession) rootHandler(w http.ResponseWriter, r *http.Request)
 
 func main() {
 	// establish redis connection
-	url := os.Getenv("REDISTOGO_URL")
-	if url == "" {
-		rdUrl = "redis://localhost:6379/0"
-	} else {
-		rdUrl = url + "0"
-	}
+	url := redisUrl()
 	if err := redisConnect(url); err != nil {
 		log.Fatalf("Exiting: No redis server at %q: %v", url, err)
 	}
@@ -311,6 +306,16 @@ func main() {
 	if err != nil {
 		log.Fatal("Listener failure: ", err)
 	}
+}
+
+func redisUrl() string {
+	url := os.Getenv("REDISTOGO_URL")
+	if url == "" {
+		url = "redis://localhost:6379/0"
+	} else {
+		url = url + "0"
+	}
+	return url
 }
 
 // redisConnect: connect to the given Redis URL.  Returns the

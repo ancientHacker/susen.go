@@ -11,7 +11,6 @@ import (
 	"net/http/cookiejar"
 	"net/http/httptest"
 	"net/url"
-	"os"
 	"strings"
 	"testing"
 	"time"
@@ -44,14 +43,8 @@ type sessionClient struct {
 func rdcConnect(t *testing.T) {
 	log.SetOutput(tLogger{t})
 
-	url := os.Getenv("REDISTOGO_URL")
-	if url == "" {
-		url = "redis://localhost:6379/0"
-	} else {
-		url = url + "0"
-	}
-	err := redisConnect(url)
-	if err != nil {
+	url := redisUrl()
+	if err := redisConnect(url); err != nil {
 		t.Fatalf("Exiting: Can't connect to redis at %q: %v", url, err)
 	}
 }
