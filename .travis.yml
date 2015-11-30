@@ -1,9 +1,2 @@
 language: go
 services: redis-server
-deploy:
-  provider: heroku
-  api_key:
-    secure: zhdJqTg2jQmqgF4CLVApVAesHT1+AbGi1uVye4MHq8w193iC5D26Ne2aXAYy2wEJpjhfTiMQlZKQxZ0KKKSNR/cb+hix3wplra6ROWJ58uLzH4D9ny/bNzEdWGVaJ0icvJaRo/BhD35w6kzpsUEw4M3FeJZcPAW/OG8+NqajxcabHdyz+7s4Pmxz+ZOFllh/Eiy7+IQymkg8Y653aR2AGBw5Vr5rZUllpnUEFjbzKmPncO5GVq/ehgLiUkeZZfjESDs2iJWBbjZj8u/fePx3xvfS1UPY7EhDYHhkO26AfrSH8cj59Jf2Xbv9jVZR2W6AzGrCZMmUZelBCtBWEvxlReHi7UdhvVtj6DTx4FctxgmdhrOFe4ANkwPkNg/YXnlWnQeZRLm4wTyIlVoBAQ6HToGE2KrK5x/9+eBQcCBj8ppYeGRFrVSzGectx8OBIVQ0oQr3jUoMB+0ASSla7hRAW9aYzniWVSQlCIxfofqmYOYb2O0XGTfnuxLvFgzSeALHcfLSVUkThFDxiRet+S9/PJi621P19eLp4qj7mEQXpxOX0xfvwQaTpS3PTd5KpT7c+U3OMO+yBhRugAqqZ1v0C6xPW5X1dM84+4XrnxIvJLkwZdVR5Mzs3h8xk7/bsbUKMQJAiG1Hvx7UMfDhyupv2Dt9fMGO5tqrHMXNP6YV+yQ=
-  app: susen-staging
-  on:
-    repo: ancientHacker/susen.go
