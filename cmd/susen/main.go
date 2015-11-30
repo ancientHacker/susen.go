@@ -265,6 +265,14 @@ func (session *susenSession) rootHandler(w http.ResponseWriter, r *http.Request)
 	http.Redirect(w, r, "/solver/", http.StatusFound)
 }
 
+func serveHttp(w http.ResponseWriter, r *http.Request) {
+	if client.StaticHandler(w, r) {
+		return
+	}
+	session := sessionSelect(w, r)
+	session.rootHandler(w, r)
+}
+
 func main() {
 	// establish redis connection
 	url := redisUrl()
@@ -272,23 +280,6 @@ func main() {
 		log.Fatalf("Exiting: No redis server at %q: %v", url, err)
 	}
 	defer redisClose()
-
-	// define handlers
-	http.Handle("/static/", http.StripPrefix("/", http.FileServer(http.Dir("."))))
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/favicon.ico" {
-			log.Printf("Received site icon request.")
-			http.ServeFile(w, r, "static/img/susen.ico")
-			return
-		}
-		if r.URL.Path == "/robots.txt" {
-			log.Printf("Received site scan request.")
-			http.ServeFile(w, r, "static/robots.txt")
-			return
-		}
-		session := sessionSelect(w, r)
-		session.rootHandler(w, r)
-	})
 
 	// port sensing
 	port := os.Getenv("PORT")
@@ -302,6 +293,7 @@ func main() {
 
 	// serve
 	log.Printf("Listening on %s...", port)
+	http.HandleFunc("/", serveHttp)
 	err := http.ListenAndServe(port, nil)
 	if err != nil {
 		log.Fatal("Listener failure: ", err)

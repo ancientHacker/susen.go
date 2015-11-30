@@ -2,6 +2,8 @@ package client
 
 import (
 	"html/template"
+	"log"
+	"net/http"
 	"os"
 	"path/filepath"
 )
@@ -13,20 +15,47 @@ Common client settings
 */
 
 const (
-	applicationName                = "Sudoku on the Web"
+	applicationName                = "Sūsen"
 	applicationVersion             = "0.6"
-	solverPageHead                 = "Puzzle Solver"
-	errorPageHead                  = "Error Encountered"
 	templatePageSuffix             = "Page.tmpl.html"
 	defaultTemplateDirectoryEnvVar = "TEMPLATE_DIRECTORY"
-	staticDirPrefix                = "/static/"
-	iconPath                       = "img/susen.ico"
-	reportBugPath                  = "html/report_bug.html"
+	defaultStaticDirectoryEnvVar   = "STATIC_DIRECTORY"
+	iconPath                       = "/favicon.ico"
+	reportBugPath                  = "/bugreport.html"
 )
 
 var (
 	defaultTemplateDirectory = filepath.Join("static", "tmpl")
+	defaultStaticDirectory   = filepath.Join("static")
+	staticResourcePaths      = map[string]string{
+		iconPath:      filepath.Join("special", "susen.ico"),
+		"/robots.txt": filepath.Join("special", "robots.txt"),
+		reportBugPath: filepath.Join("special", "report_bug.html"),
+	}
 )
+
+/*
+
+handle static resources
+
+*/
+
+func findStaticDirectory() string {
+	if dir := os.Getenv(defaultStaticDirectoryEnvVar); dir != "" {
+		return dir
+	}
+	return defaultStaticDirectory
+}
+
+func StaticHandler(w http.ResponseWriter, r *http.Request) bool {
+	path, ok := staticResourcePaths[r.URL.Path]
+	if ok {
+		log.Printf("Serving static resource for %q", r.URL.Path)
+		fp := filepath.Join(findStaticDirectory(), path)
+		http.ServeFile(w, r, fp)
+	}
+	return ok
+}
 
 /*
 

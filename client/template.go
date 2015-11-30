@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/ancientHacker/susen.go/puzzle"
 	"html/template"
+	"path/filepath"
 )
 
 /*
@@ -40,6 +41,12 @@ type templatePuzzleCell struct {
 	Shade, HBorder, VBorder string
 }
 
+// add solver statics to the static list
+func init() {
+	staticResourcePaths["/solver.js"] = filepath.Join("solver", "puzzle.js")
+	staticResourcePaths["/solver.css"] = filepath.Join("solver", "puzzle.css")
+}
+
 // SolverPage executes the solver page template over the passed
 // session and puzzle info, and returns the solver page content as a
 // string.
@@ -60,11 +67,11 @@ func SolverPage(sessionID string, puzzleID string, state puzzle.State) string {
 	tsp := templateSolverPage{
 		SessionID: sessionID,
 		PuzzleID:  puzzleID,
-		Title:     fmt.Sprintf("%s v%s", applicationName, applicationVersion),
-		TopHead:   solverPageHead,
-		IconFile:  staticDirPrefix + iconPath,
-		CssFile:   staticDirPrefix + "css/puzzle.css",
-		JsFile:    staticDirPrefix + "js/puzzle.js",
+		Title:     fmt.Sprintf("%s: Solver", applicationName),
+		TopHead:   fmt.Sprintf("%s v%s Puzzle Solver", applicationName, applicationVersion),
+		IconFile:  iconPath,
+		CssFile:   "/solver.css",
+		JsFile:    "/solver.js",
 		Puzzle:    tp,
 	}
 
@@ -237,11 +244,11 @@ type templateErrorPage struct {
 // return error page content
 func errorPage(e error) string {
 	tep := templateErrorPage{
-		Title:         fmt.Sprintf("%s: %s", applicationName, "Error"),
-		TopHead:       errorPageHead,
+		Title:         fmt.Sprintf("%s: Error", applicationName),
+		TopHead:       fmt.Sprintf("%s v%s Error Page", applicationName, applicationVersion),
 		Message:       e.Error(),
-		ReportBugPage: staticDirPrefix + reportBugPath,
-		IconFile:      staticDirPrefix + iconPath,
+		IconFile:      iconPath,
+		ReportBugPage: reportBugPath,
 	}
 
 	tmpl, err := loadPageTemplate("error")

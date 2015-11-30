@@ -64,7 +64,7 @@ helpers
 */
 
 func sameAsResultFile(s, fname string) bool {
-	path := filepath.Join(".", "tests", fname)
+	path := filepath.Join(".", "testdata", fname)
 	f, err := os.Open(path)
 	if err != nil {
 		panic(err)
