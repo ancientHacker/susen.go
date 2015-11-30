@@ -1,0 +1,12 @@
+{
+  "name": "susen.go",
+  "description": "automatic pull request configuration",
+  "scripts": {
+  },
+  "env": {
+  },
+  "addons": [
+    "papertrail",
+    "redistogo"
+  ]
+}
