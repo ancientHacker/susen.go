@@ -9,7 +9,6 @@ var squaresURL = "/api/squares/";
 var assignURL = "/api/assign/";
 var backURL = "/api/back/";
 var resetURL = "/api/reset/";
-var startURL = "/reset/";
 
 function receivePuzzleSquares() {
     if (this.readyState == 4) {
@@ -332,32 +331,27 @@ function resetPuzzle() {
     LoadPuzzle(resetURL);
 }
 
-function clickPuzzleButton(index) {
-    newPuzzle(index);
-    event.stopPropagation();
-}
-
 function setPuzzle(pid) {
     if (!pid) {
 	pid = "1-star";
     }
-    // deselect current puzzle button
-    if (puzzleID && pid != puzzleID) {
-	button = document.getElementById(puzzleID);
-	if (button) {
-	    button.setAttribute("current", "no")
-	}
-    }
-    button = document.getElementById(pid);
-    if (button) {
-	button.setAttribute("current", "yes");
-    }
+    // // deselect current puzzle button
+    // if (puzzleID && pid != puzzleID) {
+    // 	button = document.getElementById(puzzleID);
+    // 	if (button) {
+    // 	    button.setAttribute("current", "no")
+    // 	}
+    // }
+    // button = document.getElementById(pid);
+    // if (button) {
+    // 	button.setAttribute("current", "yes");
+    // }
     puzzleID = pid;
     localStorage.puzzleID = puzzleID;
 }
 
-function newPuzzle(pid) {
-    window.location = startURL + pid;
+function goHome() {
+    window.location = "/home/"
 }
 
 function initializePage(sideLen) {
