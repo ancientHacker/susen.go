@@ -3,6 +3,7 @@ var selectHints;
 var guessHints;
 var puzzleID;
 var startURL = "/reset/";
+var solverURL = "/solver/";
 
 function clickHoverHints(val) {
     setHoverHints(val);
@@ -87,7 +88,11 @@ function setPuzzle(pid) {
 }
 
 function newPuzzle(pid) {
-    window.location = startURL + pid;
+    if (pid && pid == puzzleID) {
+	window.location = solverURL;
+    } else {
+	window.location = startURL + pid;
+    }
 }
 
 function initializePage() {

@@ -1,12 +1,13 @@
 {
-  "name": "susen-dev",
-  "description": "automatic pull request configuration",
-  "scripts": {
-  },
-  "env": {
-  },
-  "addons": [
-    "papertrail",
-    "redistogo"
-  ]
+    "name": "susen-dev",
+    "description": "automatic pull request configuration",
+    "scripts": {
+    },
+    "env": {
+	"REDISTOGO_DB": "3"
+    },
+    "addons": [
+	"papertrail",
+	"redistogo"
+    ]
 }

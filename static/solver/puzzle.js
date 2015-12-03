@@ -198,7 +198,7 @@ function selectCell(idx) {
 	}
 	arguments.callee.selectedIdx = null
 	fillGuess();
-	setFeedback("No cell selected.");
+	setFeedback("Click a square to select it.");
     }
     // find and select sell with given index
     if (idx) {
