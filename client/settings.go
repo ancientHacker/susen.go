@@ -16,7 +16,7 @@ Common client settings
 
 const (
 	applicationName                = "Sūsen"
-	applicationVersion             = "0.6"
+	applicationVersion             = "0.7"
 	templatePageSuffix             = "Page.tmpl.html"
 	defaultTemplateDirectoryEnvVar = "TEMPLATE_DIRECTORY"
 	defaultStaticDirectoryEnvVar   = "STATIC_DIRECTORY"
