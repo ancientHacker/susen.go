@@ -34,14 +34,17 @@ td.bottom {
 td[hover="none"]:hover {
     background-color: #a6bcdb;
 }
+td[hover="zero"]:hover {
+    background-color: #ff6666;
+}
 td[hover="one"]:hover {
     background-color: #99ff99;
 }
 td[hover="two"]:hover {
-    background-color: #ffff99;
+    background-color: #99ff99;
 }
 td[hover="many"]:hover {
-    background-color: #ff6666;
+    background-color: #ffff99;
 }
 td[hover="opaque"]:hover {
     background-color: #f1f6fd;

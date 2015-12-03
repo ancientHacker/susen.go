@@ -69,16 +69,24 @@ func (session *susenSession) apiHandler(w http.ResponseWriter, r *http.Request) 
 	switch method := r.Method; method {
 	case "GET":
 		puzzle.SquaresHandler(session.steps[len(session.steps)-1], w, r)
+		log.Printf("Returned current squares for %s:%s step %d",
+			session.sessionID, session.puzzleID, len(session.steps))
 	case "POST":
 		next := session.steps[len(session.steps)-1].Copy()
-		_, e := puzzle.AssignHandler(next, w, r)
+		update, e := puzzle.AssignHandler(next, w, r)
 		if e != nil {
-			log.Printf("Assign failed, returned error, no session change.")
+			log.Printf("Assign to %s:%s step %d failed, returned error.",
+				session.sessionID, session.puzzleID, len(session.steps))
 		} else {
 			session.addStep(next)
+			if update.Errors != nil {
+				log.Printf("Assign to %s:%s gave errors; step %d is unsolvable.",
+					session.sessionID, session.puzzleID, len(session.steps))
+			}
 		}
 	default:
-		log.Printf("%s unexpected; no action taken.", method)
+		log.Printf("%s of %s:%s step %d unexpected; no action taken.",
+			method, session.sessionID, session.puzzleID, len(session.steps))
 	}
 }
 
@@ -90,6 +98,8 @@ func (session *susenSession) solverHandler(w http.ResponseWriter, r *http.Reques
 	hs.Add("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte(body))
+	log.Printf("Returned solver page for %s:%s step %d.",
+		session.sessionID, session.puzzleID, len(session.steps))
 }
 
 func (session *susenSession) homeHandler(w http.ResponseWriter, r *http.Request) {
@@ -98,12 +108,16 @@ func (session *susenSession) homeHandler(w http.ResponseWriter, r *http.Request)
 	hs.Add("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte(body))
+	log.Printf("Returned home page for %s:%s step %d.",
+		session.sessionID, session.puzzleID, len(session.steps))
 }
 
 func (session *susenSession) rootHandler(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case strings.HasPrefix(r.URL.Path, "/reset/"):
 		http.Redirect(w, r, "/solver/", http.StatusFound)
+		log.Printf("Redirected to solver page for %s:%s step %d.",
+			session.sessionID, session.puzzleID, len(session.steps))
 	case strings.HasPrefix(r.URL.Path, "/api/"):
 		session.apiHandler(w, r)
 	case strings.HasPrefix(r.URL.Path, "/solver/"):
@@ -112,6 +126,8 @@ func (session *susenSession) rootHandler(w http.ResponseWriter, r *http.Request)
 		session.homeHandler(w, r)
 	default:
 		http.Redirect(w, r, "/home/", http.StatusFound)
+		log.Printf("Redirected to home page for %s:%s step %d.",
+			session.sessionID, session.puzzleID, len(session.steps))
 	}
 }
 
@@ -240,7 +256,8 @@ func (session *susenSession) addStep(next puzzle.Puzzle) {
 	defer sessionMutex.Unlock()
 	session.steps = append(session.steps, next)
 	session.redisAddStep(next)
-	log.Printf("Added session %v step %d.", session.sessionID, len(session.steps))
+	log.Printf("Added session %v:%v step %d.",
+		session.sessionID, session.puzzleID, len(session.steps))
 }
 
 func (session *susenSession) undoStep() {
@@ -250,7 +267,8 @@ func (session *susenSession) undoStep() {
 		session.steps[len(session.steps)-1] = nil // release current step
 		session.steps = session.steps[:len(session.steps)-1]
 		session.redisUndoStep()
-		log.Printf("Reverted session %v to step %d.", session.sessionID, len(session.steps))
+		log.Printf("Reverted session %v:%v to step %d.",
+			session.sessionID, session.puzzleID, len(session.steps))
 	}
 }
 
