@@ -4,7 +4,6 @@
     "scripts": {
     },
     "env": {
-	"REDISTOGO_DB": "3"
     },
     "addons": [
 	"papertrail",
