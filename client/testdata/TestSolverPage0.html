@@ -8,7 +8,7 @@
   </head>
   <body sessionID="httpx-Test0" puzzleID="test-0"
 	onload="initializePage( 4 )" onclick="clickNowhere(event);">
-    <h1>Sūsen v0.6 Puzzle Solver</h1>
+    <h1>Sūsen v0.7 Puzzle Solver</h1>
     <div class="puzzle">
       <table>
 	<tr>
@@ -119,21 +119,15 @@
 	       onclick="clickGuess( 4 )">4</div>
 	  <div id="why" class="why" show="no" onclick="clickWhy(event)">Why?</div>
 	</div>
-	<div class="puzzlecontrol">
-	  <p>Solving this puzzle:
+	<div class="stepControl">
+	  <p>Working on: <strong>test-0</strong></p>
+	  <p>
 	    <div class="stepButton" onclick="undoGuess()">Undo last guess</div>
 	    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-	    <div class="stepButton warning" onclick="resetPuzzle()">Discard all guesses</div>
+	    <div class="stepButton warning" onclick="resetPuzzle()">Start puzzle over</div>
+	    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+	    <div class="stepButton" onclick="goHome()">Go home</div>
 	  </p>
-	</div>
-	<div class="puzzlecontrol">
-	  <p>Start new puzzle:
-	    <div class="puzzleButton" id="1-star" onclick="newPuzzle('1-star')">1-star</div>
-	    <div class="puzzleButton" id="2-star" onclick="newPuzzle('2-star')">2-star</div>
-	    <div class="puzzleButton" id="3-star" onclick="newPuzzle('3-star')">3-star</div>
-	    <div class="puzzleButton" id="4-star" onclick="newPuzzle('4-star')">4-star</div>
-	    <div class="puzzleButton" id="5-star" onclick="newPuzzle('5-star')">5-star</div>
-	    <div class="puzzleButton" id="6-star" onclick="newPuzzle('6-star')">6-star</div></p>
 	</div>
       </div>
     </div>

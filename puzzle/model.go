@@ -597,7 +597,7 @@ func (s *square) remove(val int) (errs []Error) {
 	if removed {
 		if len(s.pvals) == 0 {
 			errs = append(errs,
-				squareError(s, s.bval, RemovedValueAttribute, NoPossibleValuesCondition))
+				squareError(s, val, RemovedValueAttribute, NoPossibleValuesCondition))
 		}
 		s.logger.log(s.index)
 	}

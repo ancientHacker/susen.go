@@ -35,6 +35,14 @@ func TestErrorPage(t *testing.T) {
 	}
 }
 
+func TestHomePage(t *testing.T) {
+	session0, puzzle0 := "httpx-Test0", "test-0"
+	body := HomePage(session0, puzzle0, nil)
+	if !sameAsResultFile(body, "TestHomePage0.html") {
+		t.Errorf("Test Home 0: got unexpected result body:\n%v\n", body)
+	}
+}
+
 func TestSolverPage(t *testing.T) {
 	p0, e := puzzle.New(rotation4Puzzle1PartialValues)
 	if e != nil {

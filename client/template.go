@@ -263,3 +263,57 @@ func errorPage(e error) string {
 	}
 	return buf.String()
 }
+
+/*
+
+home page
+
+*/
+
+// The homePageTemplate contains the template for a home
+// page.  It's initialized when needed; see the definition of
+// findHomePageTemplate for template location details.
+var homePageTemplate *template.Template
+
+// A templateHomePage contains the values to file the home
+// page template.
+type templateHomePage struct {
+	SessionID, PuzzleID       string
+	Title, TopHead            string
+	IconFile, CssFile, JsFile string
+	PuzzleIDs                 []string
+}
+
+// add home statics to the static list
+func init() {
+	staticResourcePaths["/home.js"] = filepath.Join("home", "home.js")
+	staticResourcePaths["/home.css"] = filepath.Join("home", "home.css")
+}
+
+// HomePage executes the home page template over the passed
+// session and puzzle info, and returns the home page content as
+// a string.  If there is an error, what's returned is the error
+// page content as a string.
+func HomePage(sessionID string, puzzleID string, puzzleIDs []string) string {
+	tsp := templateHomePage{
+		SessionID: sessionID,
+		PuzzleID:  puzzleID,
+		Title:     fmt.Sprintf("%s: Home", applicationName),
+		TopHead:   fmt.Sprintf("%s v%s Home", applicationName, applicationVersion),
+		IconFile:  iconPath,
+		CssFile:   "/home.css",
+		JsFile:    "/home.js",
+		PuzzleIDs: puzzleIDs,
+	}
+
+	tmpl, err := loadPageTemplate("home")
+	if err != nil {
+		return errorPage(fmt.Errorf("Couldn't load the %q template: %v", "home", err))
+	}
+	buf := new(bytes.Buffer)
+	err = tmpl.Execute(buf, tsp)
+	if err != nil {
+		return errorPage(err)
+	}
+	return buf.String()
+}

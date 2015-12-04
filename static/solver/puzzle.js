@@ -3,20 +3,27 @@ var selectHints;
 var guessHints;
 var puzzleID;
 var puzzleContent = null;
+var puzzleErrors = null;
 var guessContent = null;
 var puzzleSideLength = 0;
 var squaresURL = "/api/squares/";
 var assignURL = "/api/assign/";
 var backURL = "/api/back/";
 var resetURL = "/api/reset/";
-var startURL = "/reset/";
+var homeURL = "/home/";
+var solverURL = "/solver/";
 
 function receivePuzzleSquares() {
     if (this.readyState == 4) {
-	// console.log("Got puzzle squares:", this.responseText);
-        var squares = JSON.parse(this.responseText);
-	fillPuzzle(squares);
-	setFeedback("Puzzle received.");
+	if (this.status == 200) {
+	    // console.log("Got puzzle squares:", this.responseText);
+            var squares = JSON.parse(this.responseText);
+	    fillPuzzle(squares);
+	    setFeedback("Click a square to select it.");
+	} else {
+	    setFeedback("Fetch of puzzle content failed:<br />" + result.message);
+	    setTimeout(function(){window.location = solverURL;}, 2000);
+	}
     }
 }
 
@@ -30,17 +37,15 @@ function receivePuzzleUpdate() {
 	if (this.status == 200) {
 	    updatePuzzle(result.squares);
 	    if ("conflict" in result) {
-		errors = result.conflict
-		messages = ""
-		for (i = 0; i < result.conflict.length; i++) {
-		    messages += "<br />" + result.conflict[i].message
-		}
-		setFeedback("Assign produced errors; puzzle not solvable:" + messages);
+		puzzleErrors = result.conflict
+		message = puzzleErrorMessage()
+		setFeedback("Assign caused conflicts. " + message);
 	    } else {
 		setFeedback("Assign successful; puzzle updated.");
 	    }
 	} else {
-	    setFeedback("Assign failed: " + result.message);
+	    setFeedback("Assign failed:<br />" + result.message);
+	    setTimeout(function(){window.location = solverURL;}, 2000);
 	}
     }
 }
@@ -98,12 +103,15 @@ function refillPuzzle() {
 	    } else if ('bval' in puzzleContent[pcIdx]) {
 		cell.innerHTML = "&nbsp;";
 		cell.setAttribute("hint", "one");
-	    } else {
+	    } else if ('pvals' in puzzleContent[pcIdx]) {
 		cell.innerHTML = "&nbsp;";
 		if (puzzleContent[pcIdx].pvals.length == 1)
 		    cell.setAttribute("hint", "one");
 		else
 		    cell.setAttribute("hint", "many");
+	    } else {
+		cell.innerHTML = "&empty;";
+		cell.setAttribute("hint", "zero");
 	    }
 	    if (hoverHints) {
 		cell.setAttribute("hover", cell.getAttribute("hint"));
@@ -158,6 +166,17 @@ function refillGuess() {
     }
 };
 
+function puzzleErrorMessage() {
+    var message = ""
+    if (puzzleErrors) {
+	message += "Puzzle not solvable:"
+	for (i = 0; i < puzzleErrors.length; i++) {
+	    message += "<br />" + puzzleErrors[i].message
+	}
+    }
+    return message
+}    
+
 function setFeedback(message) {
     document.getElementById("guessFeedback").innerHTML = message
 }
@@ -179,7 +198,7 @@ function selectCell(idx) {
 	}
 	arguments.callee.selectedIdx = null
 	fillGuess();
-	setFeedback("No cell selected.");
+	setFeedback("Click a square to select it.");
     }
     // find and select sell with given index
     if (idx) {
@@ -195,31 +214,39 @@ function selectCell(idx) {
 	    }
 	}
 	// fill the guess for the cell
-	if (puzzleContent) {
-	    var pcIdx = idx - 1;
-	    // console.log(puzzleContent);
-	    if ('aval' in puzzleContent[pcIdx]) {
-		fillGuess();
-	    } else if ('bval' in puzzleContent[pcIdx]) {
-		var val = puzzleContent[pcIdx].bval
-		fillGuess([ val ], idx, val, puzzleContent[pcIdx].bsrc);
-	    } else
-		fillGuess(puzzleContent[pcIdx].pvals, idx);
+	if (puzzleErrors) {
+	    emsg = puzzleErrorMessage()
+	    setFeedback("Cell " + idx + " selected. " + emsg)
 	} else {
-	    fillGuess();
+	    if (puzzleContent) {
+		var pcIdx = idx - 1;
+		// console.log(puzzleContent);
+		if ('aval' in puzzleContent[pcIdx]) {
+		    fillGuess();
+		} else if ('bval' in puzzleContent[pcIdx]) {
+		    var val = puzzleContent[pcIdx].bval
+		    fillGuess([ val ], idx, val, puzzleContent[pcIdx].bsrc);
+		} else if ('pvals' in puzzleContent[pcIdx]) {
+		    fillGuess(puzzleContent[pcIdx].pvals, idx);
+		} else {
+		    fillGuess([], idx)
+		}
+	    } else {
+		fillGuess();
+	    }
+	    setFeedback("Cell " + idx);
 	}
-	setFeedback("Cell " + idx);
     }
 }
 
 function clickGuess(guess) {
+    event.stopPropagation();
     if (guessContent.guesses.indexOf(guess) >= 0) {
 	setFeedback("Submitting guess...");
 	AssignPuzzle(guessContent.index, guess);
     } else {
 	setFeedback("Guess not allowed!");
     }
-    event.stopPropagation();
 }
 
 function keyGuess(event) {
@@ -247,20 +274,20 @@ function clickWhy(event) {
 }
 
 function clickCell(idx) {
-    selectCell(idx)
     event.stopPropagation();
+    selectCell(idx)
 };
 
 function clickNowhere(event) {
-    selectCell(null)
     event.stopPropagation();
+    selectCell(null)
 }
 
 function clickHoverHints(val) {
+    event.stopPropagation();
     setHoverHints(val);
     refillPuzzle();
     selectCell(-1);
-    event.stopPropagation();
 }
 
 function setHoverHints(val) {
@@ -281,10 +308,10 @@ function setHoverHints(val) {
 };
 
 function clickSelectHints(val) {
+    event.stopPropagation();
     setSelectHints(val);
     refillPuzzle();
     selectCell(-1);
-    event.stopPropagation();
 }
 
 function setSelectHints(val) {
@@ -305,9 +332,9 @@ function setSelectHints(val) {
 };
 
 function clickGuessHints(val) {
+    event.stopPropagation();
     setGuessHints(val);
     refillGuess();
-    event.stopPropagation();
 }
 
 function setGuessHints(val) {
@@ -332,32 +359,27 @@ function resetPuzzle() {
     LoadPuzzle(resetURL);
 }
 
-function clickPuzzleButton(index) {
-    newPuzzle(index);
-    event.stopPropagation();
-}
-
 function setPuzzle(pid) {
     if (!pid) {
 	pid = "1-star";
     }
-    // deselect current puzzle button
-    if (puzzleID && pid != puzzleID) {
-	button = document.getElementById(puzzleID);
-	if (button) {
-	    button.setAttribute("current", "no")
-	}
-    }
-    button = document.getElementById(pid);
-    if (button) {
-	button.setAttribute("current", "yes");
-    }
+    // // deselect current puzzle button
+    // if (puzzleID && pid != puzzleID) {
+    // 	button = document.getElementById(puzzleID);
+    // 	if (button) {
+    // 	    button.setAttribute("current", "no")
+    // 	}
+    // }
+    // button = document.getElementById(pid);
+    // if (button) {
+    // 	button.setAttribute("current", "yes");
+    // }
     puzzleID = pid;
     localStorage.puzzleID = puzzleID;
 }
 
-function newPuzzle(pid) {
-    window.location = startURL + pid;
+function goHome() {
+    window.location = homeURL;
 }
 
 function initializePage(sideLen) {
