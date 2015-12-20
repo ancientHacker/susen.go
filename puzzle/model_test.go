@@ -2988,7 +2988,7 @@ func TestNewErrorCases(t *testing.T) {
 		t.Errorf("Wrong error on bad geometry: %v", e)
 	}
 
-	// input state with too many errors
+	// input state with errors but puzzle does not have any
 	es0 := &State{
 		Metadata:   nil,
 		Geometry:   SudokuGeometryName,
@@ -3003,9 +3003,9 @@ func TestNewErrorCases(t *testing.T) {
 		}}}
 	p, e := New(es0)
 	if e == nil {
-		t.Errorf("No error creating puzzle from state with too many errors")
+		t.Errorf("No error creating good puzzle from state with errors")
 	} else if e.(Error).Condition != MismatchedStateErrorsCondition {
-		t.Errorf("Wrong error creating puzzle from state with too many errors: %v", e)
+		t.Errorf("Wrong error creating good puzzle from state with errors: %v", e)
 	}
 
 	// input state with too few errors

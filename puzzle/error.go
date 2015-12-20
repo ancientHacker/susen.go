@@ -230,7 +230,7 @@ func (e Error) Error() string {
 	case InvalidArgumentCondition:
 		es += fmt.Sprintf("Required value was missing or invalid")
 	case MismatchedStateErrorsCondition:
-		es += fmt.Sprintf("Puzzle has different errors than state.")
+		es += fmt.Sprintf("State has errors but puzzle created from it does not")
 	default:
 		es += fmt.Sprintf("Supplemental data is %v", values)
 	}

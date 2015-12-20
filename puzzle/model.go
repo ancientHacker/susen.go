@@ -567,8 +567,8 @@ func New(state *State) (*Puzzle, error) {
 		return nil, e
 	}
 	if len(state.Errors) > 0 {
-		if len(p.errors) < len(state.Errors) {
-			// must have been a bogus state!
+		if len(p.errors) == 0 {
+			// must have been a bogus state - no errors in the puzzle!
 			return nil, argumentError(StateAttribute, MismatchedStateErrorsCondition, state.Errors)
 		}
 		p.errors = make([]Error, len(state.Errors))
