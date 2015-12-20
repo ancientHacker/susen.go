@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -16,11 +17,18 @@ import (
 )
 
 func main() {
-	// establish redis connection
-	url := redisUrl()
-	if err := redisConnect(url); err != nil {
-		log.Fatalf("Exiting: No redis server at %q: %v", url, err)
+	// client initialization
+	if err := client.VerifyResources(); err != nil {
+		log.Printf("Error during client initialization: %v", err)
+		shutdown(startupFailureShutdown)
 	}
+	// establish redis connection
+	redisInit()
+	if err := redisConnect(); err != nil {
+		shutdown(startupFailureShutdown)
+	}
+	// no deferred close; this function never terminates!
+	// for abnormal terminations, see shutdown
 
 	// port sensing
 	port := os.Getenv("PORT")
@@ -40,7 +48,7 @@ func main() {
 	http.HandleFunc("/", serveHttp)
 	err := http.ListenAndServe(port, nil)
 	if err != nil {
-		log.Print("Listener failure: ", err)
+		log.Printf("Listener failure: %v", err)
 		shutdown(listenerFailureShutdown)
 	}
 }
@@ -51,6 +59,8 @@ request handlers
 
 */
 
+var apiEndpointRegexp = regexp.MustCompile("^/api/+([a-z]+)/*$")
+
 func serveHttp(w http.ResponseWriter, r *http.Request) {
 	if client.StaticHandler(w, r) {
 		return
@@ -60,64 +70,101 @@ func serveHttp(w http.ResponseWriter, r *http.Request) {
 }
 
 func (session *susenSession) apiHandler(w http.ResponseWriter, r *http.Request) {
-	if strings.HasPrefix(r.URL.Path, "/api/reset/") {
-		session.reset(session.puzzleID)
+	sendSquares := func() {
+		session.puzzle.SquaresHandler(w, r)
+		log.Printf("Returned current squares for %s:%q step %d", session.SID, session.PID, session.Step)
 	}
-	if strings.HasPrefix(r.URL.Path, "/api/back/") {
-		session.undoStep()
+	sendState := func() {
+		session.puzzle.StateHandler(w, r)
+		log.Printf("Returned current state for %s:%q step %d", session.SID, session.PID, session.Step)
 	}
-	switch method := r.Method; method {
-	case "GET":
-		puzzle.SquaresHandler(session.steps[len(session.steps)-1], w, r)
-		log.Printf("Returned current squares for %s:%s step %d",
-			session.sessionID, session.puzzleID, len(session.steps))
-	case "POST":
-		next := session.steps[len(session.steps)-1].Copy()
-		update, e := puzzle.AssignHandler(next, w, r)
-		if e != nil {
-			log.Printf("Assign to %s:%s step %d failed, returned error.",
-				session.sessionID, session.puzzleID, len(session.steps))
+	sendNotAllowed := func() {
+		http.Error(w, apiEndpointUnknown(r.URL.Path), http.StatusMethodNotAllowed)
+		log.Printf("Endpoint %q cannot accept %s: returned a Method Not Allowed error.", r.URL.Path, r.Method)
+	}
+	sendNotFound := func() {
+		http.Error(w, apiEndpointUnknown(r.URL.Path), http.StatusNotFound)
+		log.Printf("Endpoint %q unknown: returned a Not Found error.", r.URL.Path)
+	}
+
+	matches := apiEndpointRegexp.FindStringSubmatch(r.URL.Path)
+	if matches == nil {
+		http.Error(w, apiEndpointUnknown(r.URL.Path), http.StatusNotFound)
+		log.Printf("Unknown endpoint %q: returned a Not Found error.", r.URL.Path)
+		return
+	}
+	switch matches[1] {
+	case "reset":
+		if r.Method == "GET" {
+			session.startPuzzle("")
+			sendSquares()
 		} else {
-			session.addStep(next)
-			if update.Errors != nil {
-				log.Printf("Assign to %s:%s gave errors; step %d is unsolvable.",
-					session.sessionID, session.puzzleID, len(session.steps))
+			sendNotAllowed()
+		}
+	case "back":
+		if r.Method == "GET" {
+			session.removeStep()
+			sendSquares()
+		} else {
+			sendNotAllowed()
+		}
+	case "squares":
+		if r.Method == "GET" {
+			sendSquares()
+		} else {
+			sendNotAllowed()
+		}
+	case "state":
+		if r.Method == "GET" {
+			sendState()
+		} else {
+			sendNotAllowed()
+		}
+	case "assign":
+		if r.Method == "POST" {
+			update, e := session.puzzle.AssignHandler(w, r)
+			if e != nil {
+				log.Printf("Assign to %s:%q step %d failed: %v", session.SID, session.PID, session.Step, e)
+			} else {
+				session.addStep()
+				if update.Errors != nil {
+					log.Printf("Assign to %s:%q gave errors; step %d is unsolvable.",
+						session.SID, session.PID, session.Step)
+				}
 			}
+		} else {
+			sendNotAllowed()
 		}
 	default:
-		log.Printf("%s of %s:%s step %d unexpected; no action taken.",
-			method, session.sessionID, session.puzzleID, len(session.steps))
+		sendNotFound()
 	}
 }
 
 func (session *susenSession) solverHandler(w http.ResponseWriter, r *http.Request) {
-	curpuz := session.steps[len(session.steps)-1]
-	state := curpuz.State()
-	body := client.SolverPage(session.sessionID, session.puzzleID, state)
+	body := client.SolverPage(session.SID, session.PID, session.state)
 	hs := w.Header()
 	hs.Add("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte(body))
-	log.Printf("Returned solver page for %s:%s step %d.",
-		session.sessionID, session.puzzleID, len(session.steps))
+	log.Printf("Returned solver page for %s:%q step %d.", session.SID, session.PID, session.Step)
 }
 
 func (session *susenSession) homeHandler(w http.ResponseWriter, r *http.Request) {
-	body := client.HomePage(session.sessionID, session.puzzleID, nil)
+	body := client.HomePage(session.SID, session.PID, nil)
 	hs := w.Header()
 	hs.Add("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte(body))
-	log.Printf("Returned home page for %s:%s step %d.",
-		session.sessionID, session.puzzleID, len(session.steps))
+	log.Printf("Returned home page for %s:%q step %d.",
+		session.SID, session.PID, session.Step)
 }
 
 func (session *susenSession) rootHandler(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case strings.HasPrefix(r.URL.Path, "/reset/"):
 		http.Redirect(w, r, "/solver/", http.StatusFound)
-		log.Printf("Redirected to solver page for %s:%s step %d.",
-			session.sessionID, session.puzzleID, len(session.steps))
+		log.Printf("Redirected to solver page for %s:%q step %d.",
+			session.SID, session.PID, session.Step)
 	case strings.HasPrefix(r.URL.Path, "/api/"):
 		session.apiHandler(w, r)
 	case strings.HasPrefix(r.URL.Path, "/solver/"):
@@ -126,8 +173,8 @@ func (session *susenSession) rootHandler(w http.ResponseWriter, r *http.Request)
 		session.homeHandler(w, r)
 	default:
 		http.Redirect(w, r, "/home/", http.StatusFound)
-		log.Printf("Redirected to home page for %s:%s step %d.",
-			session.sessionID, session.puzzleID, len(session.steps))
+		log.Printf("Redirected to home page for %s:%q step %d.",
+			session.SID, session.PID, session.Step)
 	}
 }
 
@@ -137,22 +184,30 @@ session handling
 
 */
 
+// A susenSession the user's current step in a puzzle solution.
+// Behind the scenes, we persist all the prior steps the user has
+// taken, so he can go back (undo) prior choices.
 type susenSession struct {
-	sessionID string
-	puzzleID  string
-	steps     []puzzle.Puzzle
+	SID     string         // session ID
+	PID     string         // ID of puzzle being solved
+	Step    int            // current step
+	state   *puzzle.State  // state upon arriving at current step
+	puzzle  *puzzle.Puzzle // puzzle for current step
+	Created string         // RFC3339 time when the session was created
+	Saved   string         // RFC3339 time when the session was last saved
 }
 
+// We use a cookie to associate sessions with clients (by storing
+// the session ID in the cookie).  These are the values shared
+// among all our cookies.
 const (
 	cookieNameBase = "susenID"
 	cookiePath     = "/"
-	cookieMaxAge   = 3600 * 24 * 7 * 52 // 1 year
+	cookieMaxAge   = 3600 * 24 * 365 * 10 // 10 years
 )
 
 var (
-	startTime    = time.Now()
-	sessions     = make(map[string]*susenSession)
-	sessionMutex sync.RWMutex
+	startTime = time.Now() // instance start-up time
 )
 
 // getCookie gets the session cookie, or sets a new one.  It
@@ -177,14 +232,14 @@ func getCookie(w http.ResponseWriter, r *http.Request) string {
 		return sc.Value
 	}
 
-	// no session cookie or not a valid session cookie,
-	// start a new session with a new cookie
+	// no session cookie: start a new session with a new ID
+	// poor man's UUID for the session in local mode: time since startup.
 	sid := strconv.FormatInt(int64(time.Now().Sub(startTime)), 36)
+	// if we're on an infrastructure, we use the request ID
 	if requestID := r.Header.Get("X-Request-ID"); requestID != "" {
-		// use request ID, if present, for uniqueness
 		sid = requestID
 	}
-	log.Printf("No session cookie found, creating new session ID %q", sid)
+	log.Printf("No session cookie found, created new session ID %q", sid)
 	sc := &http.Cookie{Name: cookieName, Value: sid, Path: cookiePath, MaxAge: cookieMaxAge}
 	http.SetCookie(w, sc)
 	return sid
@@ -198,77 +253,71 @@ func sessionSelect(w http.ResponseWriter, r *http.Request) *susenSession {
 		forceReset = true
 		resetID = r.URL.Path[len("/reset/"):]
 	}
-	sessionID := getCookie(w, r)
-	// look up in-memory session for the cookie, if there is one.
-	sessionMutex.RLock()
-	session, ok := sessions[sessionID]
-	sessionMutex.RUnlock()
-	if ok && session != nil {
+	id := getCookie(w, r)
+	// create an in-memory session with this cookie
+	session := &susenSession{SID: id, Created: time.Now().Format(time.RFC3339)}
+	// load session from storage if possible, otherwise just initialize it
+	if session.redisLookup() {
+		log.Printf("Found session %v, puzzle %q, on step %d.", session.SID, session.PID, session.Step)
 		if forceReset {
-			session.reset(resetID)
+			session.startPuzzle(resetID)
+		} else {
+			session.redisLoadStep()
 		}
-		return session
-	}
-	// create and remember the in-memory session
-	session = &susenSession{sessionID: sessionID, puzzleID: defaultPuzzleID}
-	sessionMutex.Lock()
-	sessions[sessionID] = session
-	sessionMutex.Unlock()
-	// initialize or reload it
-	if forceReset {
-		session.reset(resetID)
-	} else if session.redisLookup() {
-		session.redisLoad()
-		log.Printf("Reloaded session %v, puzzle %q, through step %d.",
-			session.sessionID, session.puzzleID, len(session.steps))
+	} else if forceReset {
+		session.startPuzzle(resetID)
 	} else {
-		session.reset(defaultPuzzleID)
+		session.startPuzzle(defaultPuzzleID)
 	}
 	return session
 }
 
-// reset: reset the session from an explict puzzleID or its default
-func (session *susenSession) reset(puzzleID string) {
-	// reset to the given puzzleID, making sure it's valid
-	if puzzleID == "" {
-		puzzleID = session.puzzleID
+// startPuzzle: set the puzzle ID for the current session and clear any
+// existing solver steps for that puzzle ID.  If the given puzzle
+// ID is empty, try using the session's current puzzle ID.  If
+// the given puzzle ID is not valid, use the default puzzle ID.
+func (session *susenSession) startPuzzle(pid string) {
+	// change to the given pid, making sure it's valid
+	if pid == "" {
+		pid = session.PID
 	}
-	vals, ok := puzzleValues[puzzleID]
-	if ok {
-		session.puzzleID = puzzleID
+	session.state = puzzleStates[pid]
+	if session.state != nil {
+		session.PID = pid
 	} else {
-		session.puzzleID, vals = defaultPuzzleID, puzzleValues[defaultPuzzleID]
+		session.PID, session.state = defaultPuzzleID, puzzleStates[defaultPuzzleID]
 	}
 
-	// start with steps equal to the puzzle
-	p, e := puzzle.New(vals)
+	// make the puzzle for the state
+	p, e := puzzle.New(session.state)
 	if e != nil {
-		log.Printf("Failed to create puzzle %q: %v", puzzleID, e)
+		log.Printf("Failed to create puzzle %q: %v", pid, e)
 		shutdown(runtimeFailureShutdown)
 	}
-	session.steps = []puzzle.Puzzle{p}
-	session.redisInit()
-	log.Printf("Reset session %v from puzzle %q.", session.sessionID, session.puzzleID)
+	session.puzzle = p
+	session.redisStartPuzzle()
+	log.Printf("Reset session %v to start solving puzzle %q.", session.SID, session.PID)
 }
 
-func (session *susenSession) addStep(next puzzle.Puzzle) {
-	sessionMutex.Lock()
-	defer sessionMutex.Unlock()
-	session.steps = append(session.steps, next)
-	session.redisAddStep(next)
-	log.Printf("Added session %v:%v step %d.",
-		session.sessionID, session.puzzleID, len(session.steps))
+// addStep:  a new current step with the current puzzle state.
+func (session *susenSession) addStep() {
+	state, err := session.puzzle.State()
+	if err != nil {
+		log.Printf("Failed to get state of %s:%q step %d: %v", session.SID, session.PID, session.Step, err)
+		shutdown(runtimeFailureShutdown)
+	}
+	session.state = state
+	session.redisAddStep()
+	log.Printf("Added session %v:%v step %d.", session.SID, session.PID, session.Step)
 }
 
-func (session *susenSession) undoStep() {
-	sessionMutex.Lock()
-	defer sessionMutex.Unlock()
-	if len(session.steps) > 1 {
-		session.steps[len(session.steps)-1] = nil // release current step
-		session.steps = session.steps[:len(session.steps)-1]
-		session.redisUndoStep()
+// removeStep: remove the last step and restore the prior step's
+// puzzle state.
+func (session *susenSession) removeStep() {
+	if session.Step > 1 {
+		session.redisRemoveStep()
 		log.Printf("Reverted session %v:%v to step %d.",
-			session.sessionID, session.puzzleID, len(session.steps))
+			session.SID, session.PID, session.Step)
 	}
 }
 
@@ -281,121 +330,150 @@ persistence layer
 // puzzle data
 var (
 	defaultPuzzleID = "1-star"
-	puzzleValues    = map[string][]int{
-		"1-star": []int{0,
-			4, 0, 0, 0, 0, 3, 5, 0, 2,
-			0, 0, 9, 5, 0, 6, 3, 4, 0,
-			0, 0, 0, 0, 0, 0, 0, 0, 8,
-			0, 0, 0, 0, 3, 4, 8, 6, 0,
-			0, 0, 4, 6, 0, 5, 2, 0, 0,
-			0, 2, 8, 7, 9, 0, 0, 0, 0,
-			9, 0, 0, 0, 0, 0, 0, 0, 0,
-			0, 8, 7, 3, 0, 2, 9, 0, 0,
-			5, 0, 2, 9, 0, 0, 0, 0, 6,
-		},
-		"2-star": []int{0,
-			0, 1, 0, 5, 0, 6, 0, 2, 0,
-			0, 0, 0, 0, 0, 3, 0, 1, 8,
-			0, 0, 0, 0, 7, 0, 0, 0, 6,
-			0, 0, 5, 0, 0, 0, 0, 3, 0,
-			0, 0, 8, 0, 9, 0, 7, 0, 0,
-			0, 6, 0, 0, 0, 0, 4, 0, 0,
-			5, 0, 0, 0, 4, 0, 0, 0, 0,
-			6, 4, 0, 2, 0, 0, 0, 0, 0,
-			0, 3, 0, 9, 0, 1, 0, 8, 0,
-		},
-		"3-star": []int{0,
-			9, 0, 0, 4, 5, 0, 0, 0, 8,
-			0, 2, 0, 0, 0, 0, 0, 0, 0,
-			0, 0, 0, 1, 7, 2, 4, 0, 0,
-			0, 7, 9, 0, 0, 0, 6, 8, 0,
-			2, 0, 0, 0, 0, 0, 0, 0, 5,
-			0, 4, 3, 0, 0, 0, 2, 7, 0,
-			0, 0, 8, 3, 2, 5, 0, 0, 0,
-			0, 0, 0, 0, 0, 0, 0, 6, 0,
-			4, 0, 0, 0, 1, 6, 0, 0, 3,
-		},
-		"4-star": []int{0,
-			9, 4, 8, 0, 5, 0, 2, 0, 0,
-			0, 0, 7, 8, 0, 3, 0, 0, 1,
-			0, 5, 0, 0, 7, 0, 0, 0, 0,
-			0, 7, 0, 0, 0, 0, 3, 0, 0,
-			2, 0, 0, 6, 0, 5, 0, 0, 4,
-			0, 0, 5, 0, 0, 0, 0, 9, 0,
-			0, 0, 0, 0, 6, 0, 0, 1, 0,
-			3, 0, 0, 5, 0, 9, 7, 0, 0,
-			0, 0, 6, 0, 1, 0, 4, 2, 3,
-		},
-		"5-star": []int{0,
-			0, 0, 0, 0, 0, 0, 0, 0, 0,
-			9, 0, 0, 5, 0, 7, 0, 3, 0,
-			0, 0, 0, 1, 0, 0, 6, 0, 7,
-			0, 4, 0, 0, 6, 0, 0, 8, 2,
-			6, 7, 0, 0, 0, 0, 0, 1, 3,
-			3, 8, 0, 0, 1, 0, 0, 9, 0,
-			7, 0, 5, 0, 0, 8, 0, 0, 0,
-			0, 2, 0, 3, 0, 9, 0, 0, 8,
-			0, 0, 0, 0, 0, 0, 0, 0, 0,
-		},
-		"6-star": []int{0,
-			2, 0, 0, 8, 0, 0, 0, 5, 0,
-			0, 8, 5, 0, 0, 0, 0, 0, 0,
-			0, 3, 6, 7, 5, 0, 0, 0, 1,
-			0, 0, 3, 0, 4, 0, 0, 9, 8,
-			0, 0, 0, 3, 0, 5, 0, 0, 0,
-			4, 1, 0, 0, 6, 0, 7, 0, 0,
-			5, 0, 0, 0, 0, 7, 1, 2, 0,
-			0, 0, 0, 0, 0, 0, 5, 6, 0,
-			0, 2, 0, 0, 0, 0, 0, 0, 4,
-		},
+	puzzleStates    = map[string]*puzzle.State{
+		"1-star": &puzzle.State{
+			Geometry:   puzzle.SudokuGeometryName,
+			SideLength: 9,
+			Values: []int{
+				4, 0, 0, 0, 0, 3, 5, 0, 2,
+				0, 0, 9, 5, 0, 6, 3, 4, 0,
+				0, 0, 0, 0, 0, 0, 0, 0, 8,
+				0, 0, 0, 0, 3, 4, 8, 6, 0,
+				0, 0, 4, 6, 0, 5, 2, 0, 0,
+				0, 2, 8, 7, 9, 0, 0, 0, 0,
+				9, 0, 0, 0, 0, 0, 0, 0, 0,
+				0, 8, 7, 3, 0, 2, 9, 0, 0,
+				5, 0, 2, 9, 0, 0, 0, 0, 6,
+			}},
+		"2-star": &puzzle.State{
+			Geometry:   puzzle.SudokuGeometryName,
+			SideLength: 9,
+			Values: []int{
+				0, 1, 0, 5, 0, 6, 0, 2, 0,
+				0, 0, 0, 0, 0, 3, 0, 1, 8,
+				0, 0, 0, 0, 7, 0, 0, 0, 6,
+				0, 0, 5, 0, 0, 0, 0, 3, 0,
+				0, 0, 8, 0, 9, 0, 7, 0, 0,
+				0, 6, 0, 0, 0, 0, 4, 0, 0,
+				5, 0, 0, 0, 4, 0, 0, 0, 0,
+				6, 4, 0, 2, 0, 0, 0, 0, 0,
+				0, 3, 0, 9, 0, 1, 0, 8, 0,
+			}},
+		"3-star": &puzzle.State{
+			Geometry:   puzzle.SudokuGeometryName,
+			SideLength: 9,
+			Values: []int{
+				9, 0, 0, 4, 5, 0, 0, 0, 8,
+				0, 2, 0, 0, 0, 0, 0, 0, 0,
+				0, 0, 0, 1, 7, 2, 4, 0, 0,
+				0, 7, 9, 0, 0, 0, 6, 8, 0,
+				2, 0, 0, 0, 0, 0, 0, 0, 5,
+				0, 4, 3, 0, 0, 0, 2, 7, 0,
+				0, 0, 8, 3, 2, 5, 0, 0, 0,
+				0, 0, 0, 0, 0, 0, 0, 6, 0,
+				4, 0, 0, 0, 1, 6, 0, 0, 3,
+			}},
+		"4-star": &puzzle.State{
+			Geometry:   puzzle.SudokuGeometryName,
+			SideLength: 9,
+			Values: []int{
+				9, 4, 8, 0, 5, 0, 2, 0, 0,
+				0, 0, 7, 8, 0, 3, 0, 0, 1,
+				0, 5, 0, 0, 7, 0, 0, 0, 0,
+				0, 7, 0, 0, 0, 0, 3, 0, 0,
+				2, 0, 0, 6, 0, 5, 0, 0, 4,
+				0, 0, 5, 0, 0, 0, 0, 9, 0,
+				0, 0, 0, 0, 6, 0, 0, 1, 0,
+				3, 0, 0, 5, 0, 9, 7, 0, 0,
+				0, 0, 6, 0, 1, 0, 4, 2, 3,
+			}},
+		"5-star": &puzzle.State{
+			Geometry:   puzzle.SudokuGeometryName,
+			SideLength: 9,
+			Values: []int{
+				0, 0, 0, 0, 0, 0, 0, 0, 0,
+				9, 0, 0, 5, 0, 7, 0, 3, 0,
+				0, 0, 0, 1, 0, 0, 6, 0, 7,
+				0, 4, 0, 0, 6, 0, 0, 8, 2,
+				6, 7, 0, 0, 0, 0, 0, 1, 3,
+				3, 8, 0, 0, 1, 0, 0, 9, 0,
+				7, 0, 5, 0, 0, 8, 0, 0, 0,
+				0, 2, 0, 3, 0, 9, 0, 0, 8,
+				0, 0, 0, 0, 0, 0, 0, 0, 0,
+			}},
+		"6-star": &puzzle.State{
+			Geometry:   puzzle.SudokuGeometryName,
+			SideLength: 9,
+			Values: []int{
+				2, 0, 0, 8, 0, 0, 0, 5, 0,
+				0, 8, 5, 0, 0, 0, 0, 0, 0,
+				0, 3, 6, 7, 5, 0, 0, 0, 1,
+				0, 0, 3, 0, 4, 0, 0, 9, 8,
+				0, 0, 0, 3, 0, 5, 0, 0, 0,
+				4, 1, 0, 0, 6, 0, 7, 0, 0,
+				5, 0, 0, 0, 0, 7, 1, 2, 0,
+				0, 0, 0, 0, 0, 0, 5, 6, 0,
+				0, 2, 0, 0, 0, 0, 0, 0, 4,
+			}},
 	}
 )
 
 // keys for persisted session values
 var (
-	puzzleIDKey = ":puzzleID"
-	stepsKey    = ":steps"
+	sessionKeyFormat = "session:"
+	stepsKey         = "step:"
 )
 
 // current connection data
 var (
-	rdc     redis.Conn
-	rdUrl   string
-	rdMutex sync.Mutex
+	rdc     redis.Conn // open connection, if any
+	rdUrl   string     // URL for the open connection
+	rdEnv   string     // environment key prefix
+	rdMutex sync.Mutex // prevent concurrent connection use
 )
 
-// redisUrl - where to find the database
-func redisUrl() string {
-	db := os.Getenv("REDISTOGO_DB")
-	if db == "" {
-		db = "0" // scratch database
-	}
+// redisInit - look up redis info from the environment
+func redisInit() {
 	url := os.Getenv("REDISTOGO_URL")
-	if url == "" {
-		url = "redis://localhost:6379/" + db
-	} else {
-		url = url + db
+	db := os.Getenv("REDISTOGO_DB")
+	env := os.Getenv("REDISTOGO_ENV")
+	if db == "" {
+		db = "0" // default database
 	}
-	return url
+	if url == "" {
+		rdUrl = "redis://localhost:6379/" + db
+	} else {
+		rdUrl = url + db
+	}
+	if env == "" {
+		if url == "" {
+			rdEnv = "local"
+		} else {
+			rdEnv = "dev"
+		}
+	} else {
+		rdEnv = env
+	}
 }
 
 // redisConnect: connect to the given Redis URL.  Returns the
 // connection, if successful, nil otherwise.
-func redisConnect(url string) error {
-	conn, err := redis.DialURL(url)
+func redisConnect() error {
+	conn, err := redis.DialURL(rdUrl)
 	if err == nil {
-		log.Printf("Connected to redis at %q", url)
-		rdc, rdUrl = conn, url
+		log.Printf("Connected to redis at %q (env: %q)", rdUrl, rdEnv)
+		rdc = conn
 		return nil
 	}
+	log.Printf("Can't connect to redis server at %q", rdUrl)
 	return err
 }
 
 // redisClose: close the given Redis connection.
 func redisClose() {
 	if rdc != nil {
-		log.Print("Closed connection to redis.")
 		rdc.Close()
+		log.Print("Closed connection to redis.")
 		rdc = nil
 	}
 }
@@ -403,149 +481,169 @@ func redisClose() {
 // redisExecute: execute the body with the redis connection.
 // If the body returns an error, shutdown the server.
 func redisExecute(body func() error) {
-	// because redis connections can go away without warning, we
-	// first ping to make sure the connection is alive, and
-	// reconnect if not.
-	redisPing := func() (err error) {
-		_, err = rdc.Do("PING")
-		if err != nil {
+	// wrap the body in panic protection for runtime failures.
+	paniced := false
+	wrapper := func() error {
+		defer func() {
+			if err := recover(); err != nil {
+				log.Printf("Caught panic during redisExecute: %v", err)
+				paniced = true
+			}
+		}()
+		// Because redis connections can go away without warning,
+		// we ping to make sure the connection is alive, and try
+		// to reconnect if not.
+		if _, err := rdc.Do("PING"); err != nil {
 			log.Printf("PING failure with redis: %v", err)
 			redisClose()
-			err = redisConnect(rdUrl)
+			err = redisConnect()
 			if err != nil {
 				log.Printf("Failed to reconnect to redis at %q", rdUrl)
+				return err
 			}
 		}
-		return
+		// connection is good; run the body
+		return body()
 	}
-
 	// grab the mutex and execute the body
-	// if the ping or the body fails, shut down
+	// if if fails, shut down
 	rdMutex.Lock()
-	defer func(failed bool) {
+	defer func(err error) {
 		rdMutex.Unlock()
-		if failed {
+		if paniced {
+			shutdown(runtimeFailureShutdown)
+		} else if err != nil {
 			shutdown(redisFailureShutdown)
 		}
-	}(redisPing() != nil || body() != nil)
+	}(wrapper())
 }
 
-// redisLookup: lookup a session for a sessionID
+// redisKey - returns the session key
+func (session *susenSession) redisKey() string {
+	return rdEnv + ":SID:" + session.SID
+}
+
+// redisStepsKey - returns the key for the session's step array
+func (session *susenSession) redisStepsKey() string {
+	return session.redisKey() + ":Steps"
+}
+
+// redisLookup: lookup a session for an ID
 func (session *susenSession) redisLookup() (found bool) {
 	body := func() error {
-		puzzleID, err := redis.String(rdc.Do("GET", session.sessionID+puzzleIDKey))
-		if puzzleID != "" {
-			session.puzzleID = puzzleID
+		vals, err := redis.Values(rdc.Do("HGETALL", session.redisKey()))
+		if len(vals) > 0 {
+			if err := redis.ScanStruct(vals, session); err != nil {
+				log.Printf("Redis error on parse of saved session %q: %v", session.SID, err)
+				return err
+			}
 			found = true
 			return nil
 		}
-		if err != redis.ErrNil {
-			log.Printf("Redis error on GET of session %q puzzleID: %v",
-				session.sessionID, err)
+		if err != nil {
+			log.Printf("Redis error on GET of session %q pid: %v", session.SID, err)
 			return err
 		}
-		log.Printf("No redis saved state for session %q", session.sessionID)
+		log.Printf("No redis saved state for session %q", session.SID)
 		return nil
 	}
 	redisExecute(body)
 	return
 }
 
-// redisInit: initialize the session in Redis
-func (session *susenSession) redisInit() {
+// redisLoadStep: load the current step from the saved state
+func (session *susenSession) redisLoadStep() {
+	var bytes []byte
 	body := func() (err error) {
-		_, err = rdc.Do("SET", session.sessionID+puzzleIDKey, session.puzzleID)
+		bytes, err = redis.Bytes(rdc.Do("LINDEX", session.redisStepsKey(), -1))
 		if err != nil {
-			log.Printf("Redis error on SET of session %q puzzleID to %q: %v",
-				session.sessionID, session.puzzleID, err)
-			return err
+			log.Printf("Error on load of %s:%q step %d: %v", session.SID, session.PID, session.Step, err)
 		}
-		_, err = rdc.Do("DEL", session.sessionID+stepsKey)
+		return
+	}
+	redisExecute(body)
+	session.redisUnmarshalStep(bytes)
+}
+
+// redisStartPuzzle: save a session that's just starting a puzzle
+func (session *susenSession) redisStartPuzzle() {
+	session.Saved = time.Now().Format(time.RFC3339)
+	session.Step = 1
+	bytes := session.redisMarshalStep()
+	body := func() (err error) {
+		rdc.Send("HMSET", redis.Args{}.Add(session.redisKey()).AddFlat(session)...)
+		rdc.Send("DEL", session.redisStepsKey())
+		_, err = rdc.Do("RPUSH", session.redisStepsKey(), bytes)
 		if err != nil {
-			log.Printf("Redis error on DELETE of session %q steps: %v",
-				session.sessionID, err)
-			return err
+			log.Printf("Redis error on save of session %q after reset: %v", session.SID, err)
 		}
-		return nil
+		return
 	}
 	redisExecute(body)
 }
 
-// redisAddStep: add to the session in Redis
-func (session *susenSession) redisAddStep(p puzzle.Puzzle) {
-	vals := p.State().Values
-	bytes, err := json.Marshal(vals)
+// redisAddStep: add the current step to the saved state
+func (session *susenSession) redisAddStep() {
+	session.Saved = time.Now().Format(time.RFC3339)
+	session.Step++
+	bytes := session.redisMarshalStep()
+	body := func() (err error) {
+		rdc.Send("HMSET", redis.Args{}.Add(session.redisKey()).AddFlat(session)...)
+		_, err = rdc.Do("RPUSH", session.redisStepsKey(), bytes)
+		if err != nil {
+			log.Printf("Redis error on save of %s:%q step %d: %v", session.SID, session.PID, session.Step, err)
+		}
+		return
+	}
+	redisExecute(body)
+}
+
+// redisRemoveStep: remove the last step from the saved session
+// and load the current step
+func (session *susenSession) redisRemoveStep() {
+	var bytes []byte
+	session.Saved = time.Now().Format(time.RFC3339)
+	session.Step--
+	session.state = nil // free the current step's state
+	body := func() (err error) {
+		rdc.Send("HMSET", redis.Args{}.Add(session.redisKey()).AddFlat(session)...)
+		rdc.Send("LTRIM", session.redisStepsKey(), 0, -2)
+		bytes, err = redis.Bytes(rdc.Do("LINDEX", session.redisStepsKey(), -1))
+		if err != nil {
+			log.Printf("Error on remove to %s:%q step %d: %v", session.SID, session.PID, session.Step, err)
+		}
+		return
+	}
+	redisExecute(body)
+	session.redisUnmarshalStep(bytes)
+}
+
+// redisMarshalStep - get JSON for the current step
+func (session *susenSession) redisMarshalStep() []byte {
+	bytes, err := json.Marshal(session.state)
 	if err != nil {
-		log.Printf("Failed to marshal %v as JSON: %v", vals, err)
+		log.Printf("Failed to marshal state of %s:%q step %d (%+v) as JSON: %v",
+			session.SID, session.PID, session.Step, *session.state, err)
 		shutdown(runtimeFailureShutdown)
 	}
-
-	body := func() (err error) {
-		_, err = rdc.Do("RPUSH", session.sessionID+stepsKey, bytes)
-		if err != nil {
-			log.Printf("Redis error on RPUSH of session %q steps: %v",
-				session.sessionID, err)
-		}
-		return
-	}
-	redisExecute(body)
+	return bytes
 }
 
-// redisUndoStep: add to the session in Redis
-func (session *susenSession) redisUndoStep() {
-	body := func() (err error) {
-		_, err = rdc.Do("RPOP", session.sessionID+stepsKey)
-		if err != nil {
-			log.Printf("Redis error on RPOP of session %q steps: %v",
-				session.sessionID, err)
-		}
-		return
-	}
-	redisExecute(body)
-}
-
-// redisLoad: load the session from Redis
-func (session *susenSession) redisLoad() {
-	// first load the first step
-	vals, ok := puzzleValues[session.puzzleID]
-	geo := vals[0] // save for steps, later
-	if !ok {
-		log.Printf("Failed to find values for puzzle %q", session.puzzleID)
+// redisUnmarshalStep - get puzzle for the saved step
+func (session *susenSession) redisUnmarshalStep(bytes []byte) {
+	var state *puzzle.State
+	err := json.Unmarshal(bytes, &state)
+	if err != nil {
+		log.Printf("Failed to unmarshal saved JSON of %s:%q step %d: %v",
+			session.SID, session.PID, session.Step, err)
 		shutdown(runtimeFailureShutdown)
 	}
-	p, e := puzzle.New(vals)
-	if e != nil {
-		log.Printf("Failed to create puzzle %q: %v", session.puzzleID, e)
+	session.state = state
+	session.puzzle, err = puzzle.New(session.state)
+	if err != nil {
+		log.Printf("Failed to create puzzle for %s:%q step %d (%+v): %v",
+			session.SID, session.PID, session.Step, *session.state, err)
 		shutdown(runtimeFailureShutdown)
-	}
-	session.steps = []puzzle.Puzzle{p}
-
-	// now fetch any step values that were saved
-	var steps []string
-	body := func() (err error) {
-		steps, err = redis.Strings(rdc.Do("LRANGE", session.sessionID+stepsKey, 0, -1))
-		if err != nil {
-			log.Printf("Redis error on LRANGE of session %q steps: %v",
-				session.sessionID, err)
-		}
-		return
-	}
-	redisExecute(body)
-
-	// add puzzle steps for each of the saved step values
-	for _, step := range steps {
-		var stepVals []int
-		if e = json.Unmarshal([]byte(step), &stepVals); e != nil {
-			log.Printf("JSON error on session %q step %v: %v", session.sessionID, step, e)
-			shutdown(runtimeFailureShutdown)
-		}
-		vals = append([]int{geo}, stepVals...)
-		p, e := puzzle.New(vals)
-		if e != nil {
-			log.Printf("Failed to create puzzle from %v: %v", vals, e)
-			shutdown(runtimeFailureShutdown)
-		}
-		session.steps = append(session.steps, p)
 	}
 }
 
@@ -558,24 +656,36 @@ coordinate shutdown across goroutines and top-level server
 type shutdownCause int
 
 const (
-	normalShutdown = iota
+	unknownShutdown = iota
 	runtimeFailureShutdown
+	startupFailureShutdown
 	redisFailureShutdown
 	caughtSignalShutdown
 	listenerFailureShutdown
 )
 
-// shutdownLog: log process exit
+// for testing, allow alternate forms of shutdown
+var alternateShutdown func(reason shutdownCause)
+
+// shutdown: process exit with logging.
 func shutdown(reason shutdownCause) {
 	// Get redis mutex and keep it to block other handlers from
 	// running.  Close the redis connection.
 	rdMutex.Lock()
 	redisClose()
 
+	// run alternateShutdown instead, if defined
+	if alternateShutdown != nil {
+		alternateShutdown(reason)
+		panic(reason) // shouldn't get here
+	}
+
 	// log reason for shutdown and exit
 	switch reason {
-	case normalShutdown:
+	case unknownShutdown:
 		log.Fatal("Exiting: normal shutdown.")
+	case startupFailureShutdown:
+		log.Fatal("Exiting: initialization failure.")
 	case runtimeFailureShutdown:
 		log.Fatal("Exiting: runtime failure.")
 	case caughtSignalShutdown:
@@ -600,4 +710,15 @@ func shutdownOnSignal() {
 		log.Printf("Received OS-level signal: %v", s)
 		shutdown(caughtSignalShutdown)
 	}()
+}
+
+/*
+
+various low-level utilities
+
+*/
+
+func apiEndpointUnknown(endpoint string) string {
+	return `{"scope": "1", "structure": "1", "condition": "1", "values": ["No such endpoint"], ` +
+		`"message": "No such endpoint: ` + endpoint + `"}`
 }

@@ -37,7 +37,7 @@ func vstr(i int) string {
 // The String form of a puzzle is a pretty-printed grid with
 // assigned squares, bound squares, and 2-choice squares showing
 // their values.
-func (p *puzzle) String() (result string) {
+func (p *Puzzle) String() (result string) {
 	if p == nil {
 		return
 	}

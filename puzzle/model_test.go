@@ -256,31 +256,6 @@ func helperDiffSquares(ss1, ss2 []*square) intset {
 	return intset(diff)
 }
 
-// create a new sudoku *puzzle by casting from the Puzzle
-func helperNewSudokuPuzzle(vals []int) (*puzzle, error) {
-	p, e := newSudokuPuzzle(vals)
-	if e != nil {
-		return nil, e
-	}
-	return p.(*puzzle), nil
-}
-
-// create a new empty sudoku puzzle with the given sidelength
-func helperNewEmptySudokuPuzzle(sidelen int) (*puzzle, error) {
-	vals := make([]int, sidelen*sidelen)
-	p, e := helperNewSudokuPuzzle(vals)
-	return p, e
-}
-
-// create a new dudoku *puzzle by casting from the Puzzle
-func helperNewDudokuPuzzle(vals []int) (*puzzle, error) {
-	p, e := newDudokuPuzzle(vals)
-	if e != nil {
-		return nil, e
-	}
-	return p.(*puzzle), nil
-}
-
 /*
 
 test values
@@ -928,6 +903,32 @@ var (
 		0, 4, 0, 0,
 	}
 )
+
+/*
+
+Test the generated strings for GroupID values.
+
+*/
+
+func TestGroupString(t *testing.T) {
+	// group IDs
+	s := GroupID{GtypeRow, 1}.String()
+	if s != "row 1" {
+		t.Errorf("String for row 1 is wrong: %q", s)
+	}
+	s = GroupID{GtypeCol, 2}.String()
+	if s != "column 2" {
+		t.Errorf("String for column 2 is wrong: %q", s)
+	}
+	s = GroupID{"test", 4}.String()
+	if s != "test 4" {
+		t.Errorf("String for test 4 is wrong: %q", s)
+	}
+	s = GroupID{}.String()
+	if s != "<group> 0" {
+		t.Errorf("String for null GroupID is wrong: %q", s)
+	}
+}
 
 /*
 
@@ -2397,125 +2398,141 @@ Puzzle Construction
 */
 
 type newSudokuErrcase struct {
-	name      string
+	metadata  map[string]string
+	sidelen   int
 	vals      []int
 	canCreate bool
 	cond      ErrorCondition
 }
 
 type newSudokuTestcase struct {
-	name string
-	vals []int
-	ss   []*square
-	gs   []*group
+	metadata map[string]string
+	sidelen  int
+	vals     []int
+	ss       []*square
+	gs       []*group
 }
 
 func TestNewSudoku(t *testing.T) {
 	errcases := []newSudokuErrcase{
 		newSudokuErrcase{
-			"err 1",
+			map[string]string{"name": "err 1"}, 4,
 			conflicting4Puzzle1,
 			true, DuplicateGroupValuesCondition,
 		},
 		newSudokuErrcase{
-			"err 2",
+			map[string]string{"name": "err 2"}, 4,
 			conflicting4Puzzle2,
 			true, DuplicateGroupValuesCondition,
 		},
 		newSudokuErrcase{
-			"err 3",
+			map[string]string{"name": "err 3"}, 4,
 			conflicting4Puzzle3,
 			true, DuplicateGroupValuesCondition,
 		},
 		newSudokuErrcase{
-			"err 4",
+			map[string]string{"name": "err 4"}, 4,
 			conflicting4Puzzle4,
 			true, DuplicateGroupValuesCondition,
 		},
 		newSudokuErrcase{
-			"err 5",
+			map[string]string{"name": "err 5"}, 4,
 			unsatisfiable4Puzzle,
 			true, NoGroupValueCondition,
 		},
 		newSudokuErrcase{
-			"err 6",
+			map[string]string{"name": "err 6"}, 2,
 			[]int{0, 0, 0, 0},
 			false, TooSmallCondition,
 		},
 		newSudokuErrcase{
-			"err 7",
+			map[string]string{"name": "err 7"}, 4,
 			[]int{0, 374, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
 			false, TooLargeCondition,
 		},
 	}
 	for _, ec := range errcases {
-		p, e := helperNewSudokuPuzzle(ec.vals)
-		if e != nil {
-			if ec.canCreate {
-				t.Errorf("newSudoku case %s didn't create puzzle: %v", ec.name, e)
-			} else {
-				if e.(Error).Condition != ec.cond {
-					t.Errorf("newSudoku case %s wrong error: %v", ec.name, e)
-				}
+		p, e := New(&State{
+			Metadata:   ec.metadata,
+			Geometry:   SudokuGeometryName,
+			SideLength: ec.sidelen,
+			Values:     ec.vals,
+		})
+		if ec.canCreate {
+			if e != nil {
+				t.Fatalf("newSudoku case %s create failed: %v", ec.metadata["name"], e)
 			}
-		} else if len(p.errors) > 0 {
 			if !helperCheckCondition(ec.cond, p.errors) {
-				t.Errorf("newSudoku case %s: wrong errors: %v", ec.name, p.errors)
+				t.Errorf("newSudoku case %s: wrong errors: %v", ec.metadata["name"], p.errors)
 			}
 		} else {
-			t.Errorf("newSudoku case %s produced no errors: %v", ec.name, p.State())
+			if e == nil {
+				t.Fatalf("newSudoku case %s create didn't fail': %v", ec.metadata["name"], *p.state())
+			}
+			if e.(Error).Condition != ec.cond {
+				t.Errorf("newSudoku case %s, create failure wrong error: %v", ec.metadata["name"], e)
+			}
 		}
 	}
 
 	testcases := []newSudokuTestcase{
 		newSudokuTestcase{
-			"test 1",
+			map[string]string{"name": "test 1"}, 4,
 			rotation4Puzzle1PartialValues,
 			rotation4Puzzle1PartialSquares,
 			rotation4Puzzle1PartialGroups,
 		},
 		newSudokuTestcase{
-			"test 2",
+			map[string]string{"name": "test 2"}, 4,
 			rotation4Puzzle2PartialValues,
 			rotation4Puzzle2PartialSquares,
 			rotation4Puzzle2PartialGroups,
 		},
 		newSudokuTestcase{
-			"test 3",
+			map[string]string{"name": "test 3"}, 4,
 			bound4PuzzleValues,
 			bound4PuzzleSquares,
 			nil,
 		},
 	}
 	for _, tc := range testcases {
-		p, e := helperNewSudokuPuzzle(tc.vals)
+		p, e := New(&State{
+			Metadata:   tc.metadata,
+			Geometry:   SudokuGeometryName,
+			SideLength: tc.sidelen,
+			Values:     tc.vals,
+		})
 		if e != nil {
-			t.Fatalf("newSudoku case %s failed: %s", tc.name, e.Error())
+			t.Fatalf("newSudoku case %s failed: %s", tc.metadata["name"], e.Error())
+		}
+		if !reflect.DeepEqual(p.Metadata, tc.metadata) {
+			t.Fatalf("newSudoku case %s: got metadata %v, expected %v",
+				tc.metadata["name"], p.Metadata, tc.metadata)
 		}
 		if len(p.squares) != len(tc.ss) {
 			t.Fatalf("newSudoku case %s: gave %d squares, expected %d.",
-				tc.name, len(p.squares), len(tc.ss))
+				tc.metadata["name"], len(p.squares), len(tc.ss))
 		}
 		if !helperSquaresEqual(p.squares, tc.ss) {
-			t.Errorf("newSudoku case %s unexpected squares:", tc.name)
+			t.Errorf("newSudoku case %s unexpected squares:", tc.metadata["name"])
 			for i := range p.squares {
 				if !helperSquareEqual(p.squares[i], tc.ss[i]) {
 					t.Errorf("%s Square %d: is %+v, expected %+v",
-						tc.name, p.squares[i].index, *p.squares[i], *tc.ss[i])
+						tc.metadata["name"], p.squares[i].index, *p.squares[i], *tc.ss[i])
 				}
 			}
 		}
 		if tc.gs != nil {
 			if len(p.groups) != len(tc.gs) {
 				t.Fatalf("newSudoku case %s: gave %d groups, expected %d.",
-					tc.name, len(p.groups), len(tc.gs))
+					tc.metadata["name"], len(p.groups), len(tc.gs))
 			}
 			if !reflect.DeepEqual(p.groups, tc.gs) {
-				t.Errorf("newSudoku case %s unexpected groups:", tc.name)
+				t.Errorf("newSudoku case %s unexpected groups:", tc.metadata["name"])
 				for i := range p.groups {
 					if !reflect.DeepEqual(p.groups[i], tc.gs[i]) {
 						t.Errorf("%s Group %v: is %+v, expected %+v",
-							tc.name, p.groups[i].desc.id, *p.groups[i], *tc.gs[i])
+							tc.metadata["name"], p.groups[i].desc.id, *p.groups[i], *tc.gs[i])
 					}
 				}
 			}
@@ -2524,50 +2541,54 @@ func TestNewSudoku(t *testing.T) {
 }
 
 type newEmptySudokuTestcase struct {
-	name    string
-	sidelen int
-	ss      []*square
-	gs      []*group
+	metadata map[string]string
+	sidelen  int
+	ss       []*square
+	gs       []*group
 }
 
 func TestNewEmptySudoku(t *testing.T) {
 	testcases := []newEmptySudokuTestcase{
 		newEmptySudokuTestcase{
-			"test 1",
+			map[string]string{"name": "test 1"},
 			4,
 			empty4PuzzleSquares,
 			empty4PuzzleGroups,
 		},
 	}
 	for _, tc := range testcases {
-		p, e := helperNewEmptySudokuPuzzle(tc.sidelen)
+		p, e := New(&State{
+			Metadata:   tc.metadata,
+			Geometry:   SudokuGeometryName,
+			SideLength: tc.sidelen,
+		})
 		if e != nil {
-			t.Fatalf("newEmptySudoku case %s failed: %s", tc.name, e.Error())
+			t.Fatalf("newEmptySudoku case %s failed: %s", tc.metadata["name"], e.Error())
 		}
 		if len(p.squares) != len(tc.ss) {
 			t.Fatalf("newEmptySudoku case %s: gave %d squares, expected %d.",
-				tc.name, len(p.squares), len(tc.ss))
+				tc.metadata["name"], len(p.squares), len(tc.ss))
 		}
 		if !helperSquaresEqual(p.squares, tc.ss) {
-			t.Errorf("newEmptySudoku case %s unexpected squares:", tc.name)
+			t.Errorf("newEmptySudoku case %s unexpected squares:", tc.metadata["name"])
 			for i := range p.squares {
 				if !helperSquareEqual(p.squares[i], tc.ss[i]) {
 					t.Errorf("%s Square %d: is %+v, expected %+v",
-						tc.name, p.squares[i].index, *p.squares[i], *tc.ss[i])
+						tc.metadata["name"], p.squares[i].index, *p.squares[i], *tc.ss[i])
 				}
 			}
 		}
 		if tc.gs != nil {
 			if len(p.groups) != len(tc.gs) {
 				t.Fatalf("newEmptySudoku case %s: gave %d groups, expected %d.",
-					tc.name, len(p.groups), len(tc.gs))
+					tc.metadata["name"], len(p.groups), len(tc.gs))
 			}
 			if !reflect.DeepEqual(p.groups, tc.gs) {
-				t.Errorf("newEmptySudoku case %s unexpected groups:", tc.name)
+				t.Errorf("newEmptySudoku case %s unexpected groups:", tc.metadata["name"])
 				for i := range p.groups {
 					if !reflect.DeepEqual(p.groups[i], tc.gs[i]) {
 						t.Errorf("%s Group %v: is %+v, expected %+v",
-							tc.name, p.groups[i].desc.id, *p.groups[i], *tc.gs[i])
+							tc.metadata["name"], p.groups[i].desc.id, *p.groups[i], *tc.gs[i])
 					}
 				}
 			}
@@ -2582,100 +2603,78 @@ Puzzle Operations
 */
 
 type stateTestcase struct {
-	name   string
-	vals   []int
-	estate State
+	metadata map[string]string
+	vals     []int
+	estate   State
 }
 
 func TestState(t *testing.T) {
 	testcases := []stateTestcase{
 		stateTestcase{
-			"test 1",
+			map[string]string{"name": "test 1"},
 			rotation4Puzzle1PartialAssign1Values,
-			State{SudokuGeometryCode, 4, rotation4Puzzle1PartialAssign1Values, nil},
+			State{nil, SudokuGeometryName, 4, rotation4Puzzle1PartialAssign1Values, nil},
 		},
 		stateTestcase{
-			"test 2",
+			map[string]string{"name": "test 2"},
 			empty4PuzzleValues,
-			State{SudokuGeometryCode, 4, empty4PuzzleValues, nil},
+			State{nil, SudokuGeometryName, 4, empty4PuzzleValues, nil},
 		},
 		stateTestcase{
-			"test 3",
+			map[string]string{"name": "test 3"},
 			rotation4Puzzle1Complete1,
-			State{SudokuGeometryCode, 4, rotation4Puzzle1Complete1, nil},
-		},
-		stateTestcase{
-			"test 4",
-			conflicting4Puzzle1,
-			State{SudokuGeometryCode, 4, conflicting4Puzzle1, []Error{
-				Error{
-					Scope:     GroupScope,
-					Structure: ScopeStructure,
-					Condition: DuplicateGroupValuesCondition,
-					Values:    ErrorData{GroupID{GtypeTile, 1}, 1},
-					Message:   "Problem in tile 1: Multiple squares have value 1",
-				},
-				Error{
-					Scope:     GroupScope,
-					Structure: ScopeStructure,
-					Condition: NoGroupValueCondition,
-					Values:    ErrorData{GroupID{GtypeTile, 2}, 1},
-					Message:   "Problem in tile 2: No square can contain 1",
-				},
-				Error{
-					Scope:     GroupScope,
-					Structure: ScopeStructure,
-					Condition: NoGroupValueCondition,
-					Values:    ErrorData{GroupID{GtypeTile, 3}, 1},
-					Message:   "Problem in tile 3: No square can contain 1",
-				},
-			}},
+			State{nil, SudokuGeometryName, 4, rotation4Puzzle1Complete1, nil},
 		},
 	}
 	for _, tc := range testcases {
-		p, e := helperNewSudokuPuzzle(tc.vals)
+		p, e := New(&State{
+			Metadata:   tc.metadata,
+			Geometry:   SudokuGeometryName,
+			SideLength: 4,
+			Values:     tc.vals,
+		})
 		if e != nil {
-			t.Fatalf("State case %s creation failed: %s", tc.name, e.Error())
+			t.Fatalf("State case %s creation failed: %s", tc.metadata["name"], e.Error())
 		}
-		state := p.State()
-		if !reflect.DeepEqual(state, tc.estate) {
-			t.Errorf("State case %s returned %v, expected %v",
-				tc.name, state, tc.estate)
+		state := p.state()
+		tc.estate.Metadata = tc.metadata
+		if !reflect.DeepEqual(*state, tc.estate) {
+			t.Errorf("State case %s returned %v, expected %v", tc.metadata["name"], *state, tc.estate)
 		}
 	}
 }
 
 type assignInternalTestcase struct {
-	name   string
-	ai, av int
-	ss     []*square
-	pss    []*square
-	gs     []*group
+	metadata map[string]string
+	ai, av   int
+	ss       []*square
+	pss      []*square
+	gs       []*group
 }
 
 func TestInternalAssign(t *testing.T) {
 	testcases := []assignInternalTestcase{
 		assignInternalTestcase{
-			"test 1", 13, 2,
+			map[string]string{"name": "test 1"}, 13, 2,
 			rotation4Puzzle1PartialAssign1Squares,
 			rotation4Puzzle1PartialSquares,
 			rotation4Puzzle1PartialAssign1Groups,
 		},
 		assignInternalTestcase{
-			"test 2", 10, 4,
+			map[string]string{"name": "test 2"}, 10, 4,
 			rotation4Puzzle1PartialAssign2Squares,
 			rotation4Puzzle1PartialAssign1Squares,
 			rotation4Puzzle1PartialAssign2Groups,
 		},
 		assignInternalTestcase{
-			"test 3", 15, 4,
+			map[string]string{"name": "test 3"}, 15, 4,
 			rotation4Puzzle1PartialAssign3Squares,
 			rotation4Puzzle1PartialAssign2Squares,
 			rotation4Puzzle1PartialAssign3Groups,
 		},
 	}
 	// we apply the testcases in sequence to a base setup
-	p, e := helperNewSudokuPuzzle(rotation4Puzzle1PartialValues)
+	p, e := New(&State{nil, SudokuGeometryName, 4, rotation4Puzzle1PartialValues, nil})
 	if e != nil {
 		t.Fatalf("Creation of rotation4Puzzle1 failed: %s", e.Error())
 	}
@@ -2683,32 +2682,32 @@ func TestInternalAssign(t *testing.T) {
 		is := p.assign(tc.ai, tc.av)
 		if len(p.errors) != 0 {
 			t.Fatalf("invalid assign %s: assign(%d, %d) failed: %s",
-				tc.name, tc.ai, tc.av, e.Error())
+				tc.metadata["name"], tc.ai, tc.av, e.Error())
 		}
 		if !reflect.DeepEqual(is, helperDiffSquares(tc.pss, tc.ss)) {
 			t.Errorf("%s assign(%d, %d) logged %v, expected %v",
-				tc.name, tc.ai, tc.av, is, helperDiffSquares(tc.pss, tc.ss))
+				tc.metadata["name"], tc.ai, tc.av, is, helperDiffSquares(tc.pss, tc.ss))
 		}
 		if !helperSquaresEqual(p.squares, tc.ss) {
-			t.Errorf("%s assign(%d, %d) unexpected squares:", tc.name, tc.ai, tc.av)
+			t.Errorf("%s assign(%d, %d) unexpected squares:", tc.metadata["name"], tc.ai, tc.av)
 			for i := range p.squares {
 				if !helperSquareEqual(p.squares[i], tc.ss[i]) {
 					t.Errorf("%s Square %d: is %+v, expected %+v",
-						tc.name, p.squares[i].index, *p.squares[i], *tc.ss[i])
+						tc.metadata["name"], p.squares[i].index, *p.squares[i], *tc.ss[i])
 				}
 			}
 		}
 		if tc.gs != nil {
 			if len(p.groups) != len(tc.gs) {
 				t.Fatalf("%s assign(%d, %d): gave %d groups, expected %d.",
-					tc.name, tc.ai, tc.av, len(p.groups), len(tc.gs))
+					tc.metadata["name"], tc.ai, tc.av, len(p.groups), len(tc.gs))
 			}
 			if !reflect.DeepEqual(p.groups, tc.gs) {
-				t.Errorf("%s assign(%d, %d) unexpected groups:", tc.name, tc.ai, tc.av)
+				t.Errorf("%s assign(%d, %d) unexpected groups:", tc.metadata["name"], tc.ai, tc.av)
 				for i := range p.groups {
 					if !reflect.DeepEqual(p.groups[i], tc.gs[i]) {
 						t.Errorf("%s Group %v: is %+v, expected %+v",
-							tc.name, p.groups[i].desc.id, *p.groups[i], *tc.gs[i])
+							tc.metadata["name"], p.groups[i].desc.id, *p.groups[i], *tc.gs[i])
 					}
 				}
 			}
@@ -2728,7 +2727,7 @@ func BenchmarkInternalAssign(b *testing.B) {
 		assignInternalBenchcase{"test 3", 15, 4},
 	}
 	// we apply the benchcases in sequence to a base setup
-	master, e := helperNewSudokuPuzzle(rotation4Puzzle1PartialValues)
+	master, e := New(&State{nil, SudokuGeometryName, 4, rotation4Puzzle1PartialValues, nil})
 	if e != nil {
 		b.Fatalf("Creation of rotation4Puzzle1 failed: %s", e.Error())
 	}
@@ -2754,7 +2753,7 @@ type assignExternalTestcase struct {
 // just need to test the outputs and errors, not the logic
 func TestExternalAssign(t *testing.T) {
 	// multiple boundary cases
-	pi := &puzzle{errors: []Error{{Message: "test error"}}}
+	pi := &Puzzle{errors: []Error{{Message: "test error"}}}
 	_, e := pi.Assign(Choice{1, 1})
 	if e == nil {
 		t.Errorf("Assign to puzzle with one issue didn't err")
@@ -2762,7 +2761,7 @@ func TestExternalAssign(t *testing.T) {
 	if e.(Error).Scope != ArgumentScope {
 		t.Errorf("Assign to puzzle with one issue returned wrong error: %v", e.Error())
 	}
-	pi, e = helperNewSudokuPuzzle(rotation4Puzzle1PartialValues)
+	pi, e = New(&State{nil, SudokuGeometryName, 4, rotation4Puzzle1PartialValues, nil})
 	if e != nil {
 		t.Fatalf("Creation of valid 4 puzzle produced error: %v", e)
 	}
@@ -2802,7 +2801,7 @@ func TestExternalAssign(t *testing.T) {
 		},
 	}
 	// we apply the testcases in sequence to a base setup
-	p, e := helperNewSudokuPuzzle(rotation4Puzzle1PartialValues)
+	p, e := New(&State{nil, SudokuGeometryName, 4, rotation4Puzzle1PartialValues, nil})
 	if e != nil {
 		t.Fatalf("Creation of rotation4Puzzle1 failed: %s", e.Error())
 	}
@@ -2812,7 +2811,7 @@ func TestExternalAssign(t *testing.T) {
 			t.Fatalf("%s: Assign(Choice{%d, %d}) failed: %s",
 				tc.name, tc.ai, tc.av, e.Error())
 		}
-		for i, S := range p.Squares() {
+		for i, S := range p.allSquares() {
 			if !reflect.DeepEqual(S, tc.SS[i]) {
 				t.Errorf("%s Assign(Choice{%d, %d}) Square %d was %v, expected %v",
 					tc.name, tc.ai, tc.av, S.Index, S, tc.SS[i])
@@ -2845,7 +2844,7 @@ func TestSquares(t *testing.T) {
 		},
 	}
 	// we apply the testcases in sequence to a base setup
-	p, e := helperNewSudokuPuzzle(rotation4Puzzle1PartialValues)
+	p, e := New(&State{nil, SudokuGeometryName, 4, rotation4Puzzle1PartialValues, nil})
 	if e != nil {
 		t.Fatalf("Creation of rotation4Puzzle1 failed: %s", e.Error())
 	}
@@ -2855,7 +2854,7 @@ func TestSquares(t *testing.T) {
 			t.Fatalf("invalid Squares %s: Assign(&Choice{%d, %d}) failed: %s",
 				tc.name, tc.ai, tc.av, e.Error())
 		}
-		ss := p.Squares()
+		ss := p.allSquares()
 		if len(ss) != len(tc.ss) {
 			t.Fatalf("Squares %s: gave %d squares, expected %d.",
 				tc.name, len(ss), len(tc.ss))
@@ -2879,11 +2878,6 @@ type puzzleCopyTestcase struct {
 }
 
 func TestPuzzleInternalCopy(t *testing.T) {
-	ep := (*puzzle)(nil).copy()
-	if ep != nil {
-		t.Errorf("Copy of nil puzzle returned non-nil: %v", ep)
-	}
-
 	testcases := []puzzleCopyTestcase{
 		puzzleCopyTestcase{
 			"test 1",
@@ -2922,7 +2916,7 @@ func TestPuzzleInternalCopy(t *testing.T) {
 		},
 	}
 	for _, tc := range testcases {
-		p, e := helperNewSudokuPuzzle(tc.vals)
+		p, e := New(&State{nil, SudokuGeometryName, 4, tc.vals, nil})
 		if e != nil {
 			t.Fatalf("puzzleCopy %s failed to make puzzle: %v", tc.name, e)
 		}
@@ -2956,32 +2950,120 @@ func TestPuzzleInternalCopy(t *testing.T) {
 }
 
 func TestPuzzleExternalCopy(t *testing.T) {
-	in, e := helperNewSudokuPuzzle(rotation4Puzzle1PartialValues)
+	in, e := New(&State{nil, SudokuGeometryName, 4, rotation4Puzzle1PartialValues, nil})
 	if e != nil {
 		t.Fatalf("Creation of rotation4Puzzle1 failed: %s", e.Error())
 	}
-	In := Puzzle(in)
-	Copy := In.Copy()
-	copy := Copy.(*puzzle)
-	if reflect.ValueOf(copy).Pointer() == reflect.ValueOf(in).Pointer() {
-		t.Errorf("Puzzle.Copy wraps same puzzle as original")
+	copy, e := in.Copy()
+	if e != nil {
+		t.Fatalf("*Puzzle.Copy failed.")
 	}
-	if !reflect.DeepEqual(In, Copy) {
+	if reflect.ValueOf(copy).Pointer() == reflect.ValueOf(in).Pointer() {
+		t.Errorf("*Puzzle.Copy returns same puzzle as original")
+	}
+	if !reflect.DeepEqual(in, copy) {
 		t.Errorf("Puzzle.Copy differs from original")
 	}
 }
 
-func BenchmarkCopy(b *testing.B) {
-	master, e := helperNewSudokuPuzzle(rotation4Puzzle1PartialValues)
-	if e != nil {
-		b.Fatalf("Creation of rotation4Puzzle1 failed: %s", e.Error())
+/*
+
+Test the error cases for New.  The non-error cases should be
+tested by the various registered geometry implementations.
+
+*/
+
+func TestNewErrorCases(t *testing.T) {
+	// null input
+	_, e := New(nil)
+	err, ok := e.(Error)
+	if !ok || err.Condition != InvalidArgumentCondition {
+		t.Errorf("Wrong error on nil input: %v", e)
 	}
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		p := master.copy()
-		if p == nil {
-			b.Fatalf("Copy failed, returned nil")
-		}
+
+	// bad geometry
+	_, e = New(&State{Geometry: "notachance", SideLength: 9})
+	err, ok = e.(Error)
+	if !ok || err.Condition != UnknownGeometryCondition {
+		t.Errorf("Wrong error on bad geometry: %v", e)
+	}
+
+	// input state with too many errors
+	es0 := &State{
+		Metadata:   nil,
+		Geometry:   SudokuGeometryName,
+		SideLength: 4,
+		Values:     rotation4Puzzle1PartialValues,
+		Errors: []Error{{
+			Scope:     GroupScope,
+			Structure: ScopeStructure,
+			Condition: NoGroupValueCondition,
+			Values:    ErrorData{GroupID{GtypeTile, 2}, 1},
+			Message:   "Problem in tile 2: No square can contain 1",
+		}}}
+	p, e := New(es0)
+	if e == nil {
+		t.Errorf("No error creating puzzle from state with too many errors")
+	} else if e.(Error).Condition != MismatchedStateErrorsCondition {
+		t.Errorf("Wrong error creating puzzle from state with too many errors: %v", e)
+	}
+
+	// input state with too few errors
+	es1 := &State{
+		Metadata:   map[string]string{"name": "test 4"},
+		Geometry:   SudokuGeometryName,
+		SideLength: 4,
+		Values:     conflicting4Puzzle1,
+		Errors: []Error{
+			// remove one of the actual errors the puzzle has
+			// Error{
+			// 	Scope:     GroupScope,
+			// 	Structure: ScopeStructure,
+			// 	Condition: DuplicateGroupValuesCondition,
+			// 	Values:    ErrorData{GroupID{GtypeTile, 1}, 1},
+			// 	Message:   "Problem in tile 1: Multiple squares have value 1",
+			// },
+			Error{
+				Scope:     GroupScope,
+				Structure: ScopeStructure,
+				Condition: NoGroupValueCondition,
+				Values:    ErrorData{GroupID{GtypeTile, 2}, 1},
+				Message:   "Problem in tile 2: No square can contain 1",
+			},
+			Error{
+				Scope:     GroupScope,
+				Structure: ScopeStructure,
+				Condition: NoGroupValueCondition,
+				Values:    ErrorData{GroupID{GtypeTile, 3}, 1},
+				Message:   "Problem in tile 3: No square can contain 1",
+			},
+		},
+	}
+	p, e = New(es1)
+	if e != nil {
+		t.Fatalf("Error creating puzzle with errors: %v", e)
+	}
+	s := p.state()
+	if !reflect.DeepEqual(s, es1) {
+		t.Errorf("State of new puzzle doesn't match: %+v, %+v", *s, *es1)
+	}
+
+	// restore known geometries after test
+	defer func(gd map[string]func([]int) (*Puzzle, error)) {
+		knownGeometries = gd
+	}(knownGeometries)
+
+	// constructor with error
+	knownGeometries = map[string]func([]int) (*Puzzle, error){
+		"test": func(_ []int) (*Puzzle, error) { return nil, Error{Message: "test error"} },
+	}
+	_, e = New(&State{Geometry: "test", SideLength: 9})
+	err, ok = e.(Error)
+	if !ok || err.Scope != UnknownScope || err.Message != "test error" {
+		t.Errorf("Wrong error on test geometry: %v", e)
+	}
+	if err.Error() != "test error" {
+		t.Errorf("Wrong error message on test geometry: %v", e)
 	}
 }
 
@@ -3002,7 +3084,7 @@ type assignseq struct {
 }
 
 func TestEndToEndPuzzleAssignment(t *testing.T) {
-	var p *puzzle
+	var p *Puzzle
 
 	tryassign := func(i, v int) error {
 		_, e := p.Assign(Choice{i, v})
@@ -3044,9 +3126,9 @@ func TestEndToEndPuzzleAssignment(t *testing.T) {
 	for _, test := range tests {
 		if test.init == nil {
 			t.Log("NEW TEST (starter puzzle empty)")
-			p, _ = helperNewEmptySudokuPuzzle(4)
+			p, _ = New(&State{nil, SudokuGeometryName, 4, nil, nil})
 		} else {
-			p, _ = helperNewSudokuPuzzle(test.init)
+			p, _ = New(&State{nil, SudokuGeometryName, 4, test.init, nil})
 			t.Logf("NEW TEST, starter puzzle:\n%v", p)
 		}
 		for _, assign := range test.setup {
@@ -3062,6 +3144,36 @@ func TestEndToEndPuzzleAssignment(t *testing.T) {
 		e := tryassign(test.final.ai, test.final.av)
 		if e == nil && len(p.errors) == 0 {
 			t.Errorf("Assign(Choice{%d, %d}) didn't fail", test.final.ai, test.final.av)
+		}
+	}
+}
+
+/*
+
+Make sure the external calls are bullet-proof
+
+*/
+
+func TestExternalNil(t *testing.T) {
+	testcases := []*Puzzle{nil, &Puzzle{}}
+
+	var err error
+	for i, p := range testcases {
+		_, err = p.State()
+		if err == nil || err.(Error).Condition != InvalidArgumentCondition {
+			t.Errorf("case %v State: No error or incorrect condition on invalid puzzle: %v", i, err)
+		}
+		_, err = p.Squares()
+		if err == nil || err.(Error).Condition != InvalidArgumentCondition {
+			t.Errorf("case %v Squares: No error or incorrect condition on invalid puzzle: %v", i, err)
+		}
+		_, err = p.Assign(Choice{1, 1})
+		if err == nil || err.(Error).Condition != InvalidArgumentCondition {
+			t.Errorf("case %v Assign: No error or incorrect condition on invalid puzzle: %v", i, err)
+		}
+		_, err = p.Copy()
+		if err == nil || err.(Error).Condition != InvalidArgumentCondition {
+			t.Errorf("case %v Copy: No error or incorrect condition on invalid puzzle: %v", i, err)
 		}
 	}
 }

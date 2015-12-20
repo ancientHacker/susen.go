@@ -11,6 +11,7 @@ import (
 	"net/http/cookiejar"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -22,56 +23,75 @@ const (
 )
 
 type tLogger struct {
-	t *testing.T
+	t    *testing.T
+	name string
+	log  bytes.Buffer
 }
 
-func (t tLogger) Write(p []byte) (n int, err error) {
-	n = len(p)
+func (t *tLogger) Write(p []byte) (n int, e error) {
+	n, e = t.log.Write(p)
 	t.t.Log(string(p[:n-1]))
 	return
+}
+
+func (t *tLogger) shutdown(reason shutdownCause) {
+	t.t.Errorf("Shutdown: reason code is %v", reason)
+	fmt.Fprintf(os.Stderr, "Shutdown in %s: reason code is %d\n", t.name, reason)
+	fmt.Fprintf(os.Stderr, "Dumping log of test run before exit...\n")
+	t.log.WriteTo(os.Stderr)
+	os.Exit(int(reason))
 }
 
 type sessionClient struct {
 	id       int           // which client this is
 	client   *http.Client  // the http client, with cookies
-	puzzleID string        // the puzzle this client works on
+	PID      string        // the puzzle this client works on
 	interval int           // the interval, in msec, between calls
 	vals     []int         // the expected values of the puzzle
 	choice   puzzle.Choice // the first choice to try in this puzzle
 }
 
-func rdcConnect(t *testing.T) {
-	log.SetOutput(tLogger{t})
+func rdcConnect(t *testing.T, name string) {
+	tlog := &tLogger{t: t, name: name}
+	log.SetOutput(tlog)
+	alternateShutdown = tlog.shutdown
 
-	url := redisUrl()
-	if err := redisConnect(url); err != nil {
-		t.Fatalf("Exiting: Can't connect to redis at %q: %v", url, err)
+	redisInit()
+	if err := redisConnect(); err != nil {
+		shutdown(startupFailureShutdown)
 	}
 }
 
 func TestSessionSelect(t *testing.T) {
-	rdcConnect(t)
+	rdcConnect(t, "TestSessionSelect")
 	defer redisClose()
 
 	// one server
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		session := sessionSelect(w, r)
-		t.Logf("Session %v handling %s %s.", session.sessionID, r.Method, r.URL.Path)
+		t.Logf("Session %v handling %s %s.", session.SID, r.Method, r.URL.Path)
 		session.rootHandler(w, r)
 	}))
 	defer srv.Close()
 
 	// helper - select first assigned square as choice
 	firstAssigned := func(pvals []int) puzzle.Choice {
-		// first value is actually the geometry code, so 1-based indexing
-		for i := 1; i < len(pvals); i++ {
+		for i := 0; i < len(pvals); i++ {
 			if v := pvals[i]; v != 0 {
-				return puzzle.Choice{Index: i, Value: v}
+				return puzzle.Choice{Index: i + 1, Value: v} // 1-based indexing
 			}
 		}
 		panic(fmt.Errorf("No assigned values!"))
 	}
-	// helper - log cookies
+	// helpers - track the number of different cookies we see,
+	// and how many different values they get
+	cmap := make(map[string]map[string]int)
+	addCookie := func(c *http.Cookie) {
+		if m := cmap[c.Name]; m == nil {
+			cmap[c.Name] = make(map[string]int)
+		}
+		cmap[c.Name][c.Value]++
+	}
 	logCookies := func(c *sessionClient, target string) {
 		url, e := url.Parse(target)
 		if e != nil {
@@ -82,10 +102,12 @@ func TestSessionSelect(t *testing.T) {
 			t.Logf("Client %d: No target cookies.\n", c.id)
 		} else if len(cookies) == 1 {
 			t.Logf("Client %d: Target cookie: %v\n", c.id, *cookies[0])
+			addCookie(cookies[0])
 		} else {
 			t.Logf("Client %d: %d target cookies are:\n", c.id, len(cookies))
 			for i, c := range cookies {
 				t.Logf("\tcookie %d: %v\n", i, *c)
+				addCookie(c)
 			}
 		}
 	}
@@ -96,8 +118,8 @@ func TestSessionSelect(t *testing.T) {
 		return fmt.Errorf("%d", redirectCount)
 	}
 	// helper - make a call setting the current session puzzle, return false on error
-	setPuzzle := func(c *sessionClient, puzzleID string) bool {
-		target := fmt.Sprintf("%s/reset/%s", srv.URL, puzzleID)
+	setPuzzle := func(c *sessionClient, pid string) bool {
+		target := fmt.Sprintf("%s/reset/%s", srv.URL, pid)
 		t.Logf("Client %d: getting %s", c.id, target)
 		logCookies(c, target)
 		r, e := c.client.Get(target)
@@ -144,12 +166,12 @@ func TestSessionSelect(t *testing.T) {
 			t.Errorf("client %d: Unmarshal failed: %v", c.id, e)
 			return false
 		}
-		if len(s) != len(c.vals)-1 {
+		if len(s) != len(c.vals) {
 			t.Errorf("client %d: Got wrong number of squares: %d", c.id, len(s))
 			return false
 		}
 		for i := 0; i < len(s); i++ {
-			if s[i].Aval != c.vals[i+1] {
+			if s[i].Aval != c.vals[i] {
 				t.Errorf("client %d: Square %d has value %d", c.id, s[i].Index, s[i].Aval)
 				return false
 			}
@@ -214,12 +236,12 @@ func TestSessionSelect(t *testing.T) {
 		// try every key except the default "1-star"
 		testKeys := []string{"2-star", "3-star", "4-star", "5-star", "6-star"}
 		keyIndex := i % len(testKeys)
-		puzzleID := testKeys[keyIndex]
-		puzzleVals := puzzleValues[puzzleID]
+		pid := testKeys[keyIndex]
+		puzzleVals := puzzleStates[pid].Values
 		clients[i] = &sessionClient{
 			id:       i + 1,
 			client:   &http.Client{Jar: jar, CheckRedirect: redirectFn},
-			puzzleID: puzzleID,
+			PID:      pid,
 			interval: (i*17)%100 + 100,
 			vals:     puzzleVals,
 			choice:   firstAssigned(puzzleVals),
@@ -235,10 +257,10 @@ func TestSessionSelect(t *testing.T) {
 		go func(client *sessionClient) {
 			for i := 0; i < runCount; i++ {
 				sleep(client)
-				if !setPuzzle(client, client.puzzleID) {
+				if !setPuzzle(client, client.PID) {
 					break
 				}
-				if !getSquares(client, "/") {
+				if !getSquares(client, "/squares") {
 					break
 				}
 				sleep(client)
@@ -258,13 +280,18 @@ func TestSessionSelect(t *testing.T) {
 		diff := time.Now().Sub(start)
 		t.Logf("Client %d finished in %v\n", id, diff)
 	}
-	if len(sessions) != clientCount {
-		t.Errorf("At end of run, there were %d sessions: %v", len(sessions), sessions)
+	// the number of sessions is the number of different values of the different cookies
+	sessionCount := 0
+	for _, v := range cmap {
+		sessionCount += len(v)
+	}
+	if sessionCount != clientCount {
+		t.Errorf("Run produced %d (not %d) session cookies: %v", len(cmap), clientCount, cmap)
 	}
 }
 
 func TestIssue1(t *testing.T) {
-	rdcConnect(t)
+	rdcConnect(t, "TestIssue1")
 	defer redisClose()
 
 	// helper - log cookies
@@ -289,7 +316,7 @@ func TestIssue1(t *testing.T) {
 	// server
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		session := sessionSelect(w, r)
-		t.Logf("Session %v handling %s %s.", session.sessionID, r.Method, r.URL.Path)
+		t.Logf("Session %v handling %s %s.", session.SID, r.Method, r.URL.Path)
 		http.Error(w, "This is a test", http.StatusOK)
 	}))
 	defer srv.Close()
@@ -372,7 +399,7 @@ func TestIssue1(t *testing.T) {
 }
 
 func TestIssue11(t *testing.T) {
-	rdcConnect(t)
+	rdcConnect(t, "TestIssue11")
 	defer redisClose()
 
 	// helper - log cookies
@@ -395,30 +422,25 @@ func TestIssue11(t *testing.T) {
 	}
 
 	// add puzzle and appropriate assignments for testing
-	puzzleValues["test11"] = []int{0,
-		1, 0, 3, 0,
-		0, 3, 0, 1,
-		3, 0, 1, 0,
-		0, 1, 0, 3,
-	}
-	defer func() { delete(puzzleValues, "test11") }()
+	puzzleStates["test11"] = &puzzle.State{
+		Geometry:   puzzle.SudokuGeometryName,
+		SideLength: 4,
+		Values: []int{
+			1, 0, 3, 0,
+			0, 3, 0, 1,
+			3, 0, 1, 0,
+			0, 1, 0, 3,
+		}}
+	defer func() { delete(puzzleStates, "test11") }()
 	choices := []puzzle.Choice{{13, 2}, {10, 4}, {15, 4}}
 
 	// server
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Logf("Handling %s %s...", r.Method, r.URL.Path)
 		session := sessionSelect(w, r)
-		if strings.HasPrefix(r.URL.Path, "/ClearMemorySession/") {
-			sessionMutex.Lock()
-			delete(sessions, session.sessionID)
-			sessionMutex.Unlock()
-			t.Logf("Deleted session %q from memory", session.sessionID)
-			http.Error(w, session.sessionID, http.StatusOK)
-			return
-		}
 		session.rootHandler(w, r)
-		t.Logf("There are %d steps in session %q", len(session.steps), session.sessionID)
-		t.Logf("The puzzleID of session %q is %q", session.sessionID, session.puzzleID)
+		t.Logf("There are %d steps in session %q", session.Step, session.SID)
+		t.Logf("The puzzleID of session %q is %q", session.SID, session.PID)
 	}))
 	defer srv.Close()
 
@@ -443,8 +465,7 @@ func TestIssue11(t *testing.T) {
 			t.Fatalf("Case %d: Failed to encode choice: %v", i, e)
 		}
 		t.Logf("%s\n", b)
-		r, e := c.Post(srv.URL+"/api/",
-			"application/json", strings.NewReader(string(b)))
+		r, e := c.Post(srv.URL+"/api/assign", "application/json", strings.NewReader(string(b)))
 		if e != nil {
 			t.Fatalf("assignment %d: Request error: %v", i, e)
 		}
@@ -463,7 +484,7 @@ func TestIssue11(t *testing.T) {
 
 	// read the puzzle contents
 	logCookies(c.Jar, srv.URL)
-	r, e = c.Get(srv.URL + "/api/")
+	r, e = c.Get(srv.URL + "/api/squares")
 	if e != nil {
 		t.Fatalf("Squares before request error: %v", e)
 	}
@@ -479,21 +500,12 @@ func TestIssue11(t *testing.T) {
 	}
 	t.Logf("%s\n", string(squaresBefore))
 
-	// clear the in-memory session cache
-	logCookies(c.Jar, srv.URL)
-	r, e = c.Get(srv.URL + "/ClearMemorySession/")
-	if e != nil {
-		t.Fatalf("Clear Memory Session Request error: %v", e)
-	}
-	t.Logf("%q\n", r.Status)
-	t.Logf("%v\n", r.Header)
-	if r.StatusCode != http.StatusOK {
-		t.Errorf("Clear Memory Session status was %v not %v", r.StatusCode, http.StatusOK)
-	}
+	// we used to clear the in-memory session cache here, but now
+	// that there isn't any we don't have to
 
 	// read the puzzle contents again, compare
 	logCookies(c.Jar, srv.URL)
-	r, e = c.Get(srv.URL + "/api/")
+	r, e = c.Get(srv.URL + "/api/squares")
 	if e != nil {
 		t.Fatalf("Squares after request error: %v", e)
 	}
@@ -535,7 +547,7 @@ func TestIssue11(t *testing.T) {
 
 	// read the puzzle contents
 	logCookies(c.Jar, srv.URL)
-	r, e = c.Get(srv.URL + "/api/")
+	r, e = c.Get(srv.URL + "/api/squares")
 	if e != nil {
 		t.Fatalf("Squares before request error: %v", e)
 	}
@@ -551,21 +563,11 @@ func TestIssue11(t *testing.T) {
 	}
 	t.Logf("%s\n", string(squaresBefore))
 
-	// clear the in-memory session cache
-	logCookies(c.Jar, srv.URL)
-	r, e = c.Get(srv.URL + "/ClearMemorySession/")
-	if e != nil {
-		t.Fatalf("Clear Memory Session Request error: %v", e)
-	}
-	t.Logf("%q\n", r.Status)
-	t.Logf("%v\n", r.Header)
-	if r.StatusCode != http.StatusOK {
-		t.Errorf("Clear Memory Session status was %v not %v", r.StatusCode, http.StatusOK)
-	}
+	// again, no cache to clear
 
 	// read the puzzle contents again, compare
 	logCookies(c.Jar, srv.URL)
-	r, e = c.Get(srv.URL + "/api/")
+	r, e = c.Get(srv.URL + "/api/squares")
 	if e != nil {
 		t.Fatalf("Squares after request error: %v", e)
 	}

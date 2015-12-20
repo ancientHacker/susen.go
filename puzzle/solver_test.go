@@ -225,18 +225,19 @@ var (
 )
 
 type assignKnownTestcase struct {
-	before []int
-	after  []int
+	sidelen int
+	before  []int
+	after   []int
 }
 
 func TestAssignKnown(t *testing.T) {
 	tcs := []assignKnownTestcase{
-		assignKnownTestcase{oneStarValues, oneStarBoundValues},
-		assignKnownTestcase{solveSimpleFirstValues, solveSimpleFirstCompleteValues},
-		assignKnownTestcase{solveSimpleSecondValues, solveSimpleSecondCompleteValues},
+		assignKnownTestcase{9, oneStarValues, oneStarBoundValues},
+		assignKnownTestcase{4, solveSimpleFirstValues, solveSimpleFirstCompleteValues},
+		assignKnownTestcase{4, solveSimpleSecondValues, solveSimpleSecondCompleteValues},
 	}
 	for i, tc := range tcs {
-		p, e := helperNewSudokuPuzzle(tc.before)
+		p, e := New(&State{Geometry: SudokuGeometryName, SideLength: tc.sidelen, Values: tc.before})
 		if e != nil {
 			t.Fatalf("TestBindAll case %d: Failed to create test puzzle: %v", i+1, e)
 		}
@@ -257,7 +258,7 @@ func TestAssignKnown(t *testing.T) {
 }
 
 func TestPopThread(t *testing.T) {
-	pin, e := helperNewSudokuPuzzle(solveSimpleStartValues)
+	pin, e := New(&State{Geometry: "sudoku", SideLength: 4, Values: solveSimpleStartValues})
 	if e != nil {
 		t.Fatalf("TestPopThread: Failed to create puzzle: %v", e)
 	}
@@ -297,7 +298,7 @@ func TestPopThread(t *testing.T) {
 
 func TestPushThread(t *testing.T) {
 	// first test has an early square with 2 possibles
-	pin, e := helperNewSudokuPuzzle(solveSimpleStartValues)
+	pin, e := New(&State{Geometry: "sudoku", SideLength: 4, Values: solveSimpleStartValues})
 	if e != nil {
 		t.Fatalf("TestPushThread: Failed to create 1st puzzle: %v", e)
 	}
@@ -315,7 +316,7 @@ func TestPushThread(t *testing.T) {
 			p.allValues(), solveSimpleFirstValues)
 	}
 	// second test all squares have 4 possibles
-	pin, e = helperNewSudokuPuzzle(empty4PuzzleValues)
+	pin, e = New(&State{Geometry: "sudoku", SideLength: 4, Values: empty4PuzzleValues})
 	if e != nil {
 		t.Fatalf("TestPushThread: Failed to create 2nd puzzle: %v", e)
 	}
@@ -335,21 +336,22 @@ func TestPushThread(t *testing.T) {
 }
 
 type solveTestcase struct {
-	start  []int
-	done   bool
-	finish []int
-	elen   int
-	elasti int
-	elastv int
-	elastn intset
+	sidelen int
+	start   []int
+	done    bool
+	finish  []int
+	elen    int
+	elasti  int
+	elastv  int
+	elastn  intset
 }
 
 func TestSolve(t *testing.T) {
-	var p *puzzle
+	var p *Puzzle
 	var th thread
 	var e error
 	// first check behavior on a puzzle with problems
-	p, e = helperNewSudokuPuzzle(conflicting4Puzzle1)
+	p, e = New(&State{Geometry: "sudoku", SideLength: 4, Values: conflicting4Puzzle1})
 	if e != nil {
 		t.Fatalf("TestSolve: Failed to create conflicting puzzle: %v", e)
 	}
@@ -358,34 +360,34 @@ func TestSolve(t *testing.T) {
 	}
 	pc := p.copy()
 	p, th = solve(p, th)
-	if th != nil || !reflect.DeepEqual(p.State(), pc.State()) {
+	if th != nil || !reflect.DeepEqual(p.state(), pc.state()) {
 		t.Errorf("TestSolve: solving conflicting puzzle gave different puzzle:\n%v", p)
 	}
 
 	// now do the test cases
 	tcs := []solveTestcase{
 		solveTestcase{
-			oneStarValues, true, oneStarBoundValues,
+			9, oneStarValues, true, oneStarBoundValues,
 			0, 0, 0, nil,
 		},
 		solveTestcase{
-			oneStarValues, true, oneStarBoundValues,
+			9, oneStarValues, true, oneStarBoundValues,
 			0, 0, 0, nil,
 		},
 		solveTestcase{
-			sixStarValues, true, sixStarSolution.Values,
+			9, sixStarValues, true, sixStarSolution.Values,
 			1, 2, 6, intset{},
 		},
 		solveTestcase{
-			chronTwoValues, true, chronTwoSolution.Values,
+			9, chronTwoValues, true, chronTwoSolution.Values,
 			1, 2, 5, intset{},
 		},
 		solveTestcase{
-			solveSimpleStartValues, true, solveSimpleFirstCompleteValues,
+			4, solveSimpleStartValues, true, solveSimpleFirstCompleteValues,
 			1, 2, 2, intset{4},
 		},
 		solveTestcase{
-			nil, true, solveSimpleSecondCompleteValues,
+			4, nil, true, solveSimpleSecondCompleteValues,
 			1, 2, 4, intset{},
 		},
 	}
@@ -396,7 +398,7 @@ func TestSolve(t *testing.T) {
 			}
 			p, th = popChoice(p, th)
 		} else {
-			p, e = helperNewSudokuPuzzle(tc.start)
+			p, e = New(&State{Geometry: SudokuGeometryName, SideLength: tc.sidelen, Values: tc.start})
 			if e != nil {
 				t.Fatalf("TestSolve case %d: Failed to create puzzle: %v", i+1, e)
 			}
@@ -436,6 +438,7 @@ func TestSolve(t *testing.T) {
 }
 
 type solutionsTestcase struct {
+	sidelen  int
 	start    []int
 	numsolns int
 	solns    []Solution
@@ -445,31 +448,31 @@ func TestSolutions(t *testing.T) {
 	tcs := []solutionsTestcase{
 		// first the fully bound puzzles
 		solutionsTestcase{
-			oneStarValues, 1, []Solution{Solution{oneStarBoundValues, nil}},
+			9, oneStarValues, 1, []Solution{Solution{oneStarBoundValues, nil}},
 		},
 		solutionsTestcase{
-			threeStarValues, 1, []Solution{Solution{threeStarBoundValues, nil}},
+			9, threeStarValues, 1, []Solution{Solution{threeStarBoundValues, nil}},
 		},
 		solutionsTestcase{
-			chronOneValues, 1, []Solution{Solution{chronOneBoundValues, nil}},
+			9, chronOneValues, 1, []Solution{Solution{chronOneBoundValues, nil}},
 		},
 		// then the single-solution puzzles
 		solutionsTestcase{
-			sixStarValues, 1, []Solution{sixStarSolution},
+			9, sixStarValues, 1, []Solution{sixStarSolution},
 		},
 		solutionsTestcase{
-			chronTwoValues, 1, []Solution{chronTwoSolution},
+			9, chronTwoValues, 1, []Solution{chronTwoSolution},
 		},
 		// then the multi-solution puzzles
 		solutionsTestcase{
-			solveSimpleStartValues, 2,
+			4, solveSimpleStartValues, 2,
 			[]Solution{
 				Solution{solveSimpleFirstCompleteValues, []Choice{Choice{2, 2}}},
 				Solution{solveSimpleSecondCompleteValues, []Choice{Choice{2, 4}}},
 			},
 		},
 		solutionsTestcase{
-			multiChoiceStartValues, 4,
+			4, multiChoiceStartValues, 4,
 			[]Solution{
 				multiChoiceSolution1,
 				multiChoiceSolution2,
@@ -480,16 +483,16 @@ func TestSolutions(t *testing.T) {
 		// then the pathological puzzle with 12 solutions, just to
 		// make sure we can handle choices that lead nowhere.
 		solutionsTestcase{
-			fiveStarValues, 0, nil,
+			9, fiveStarValues, 0, nil,
 		},
 	}
 
 	for i, tc := range tcs {
-		p, e := helperNewSudokuPuzzle(tc.start)
+		p, e := New(&State{Geometry: SudokuGeometryName, SideLength: tc.sidelen, Values: tc.start})
 		if e != nil {
 			t.Fatalf("test %d: Failed to create puzzle: %v", i+1, e)
 		}
-		solns := p.Solutions()
+		solns := p.allSolutions()
 		if tc.numsolns == 0 {
 			// this is a run for test logic only, record the solutions
 			for j, soln := range solns {

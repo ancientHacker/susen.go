@@ -1,3 +1,62 @@
+// susen.go - a web-based Sudoku game and teaching tool.
+// Copyright (C) 2015 Daniel C. Brotsky.
+//
+// This program is free software; you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation; either version 2 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License along
+// with this program; if not, write to the Free Software Foundation, Inc.,
+// 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+// Licensed under the LGPL v3.  See the LICENSE file for details
+
+// Package puzzle provides a model for Sudoku puzzles and
+// operations on them.  It provides both a golang API and a web
+// API to the puzzles.
+//
+// Sudoku puzzles are made of squares which are either empty
+// (represented with a 0 value) or have an assigned value between
+// 1 and the side length of the puzzle (inclusive).  The squares
+// are designated by indices that start at 1 and increase
+// left-to-right, top-to-bottom (English reading order).
+//
+// For each empty square in a puzzle, the implementation
+// maintains a set of possible values the square can be assigned
+// without conflicting with other squares.  Exactly which other
+// squares might conflict depends on the puzzle's geometry, which
+// determines which groups of squares are constrained to have the
+// full range of possible values.
+//
+// All Sudoku geometries have a group for each row and column.
+// The standard geometry, called here the Sudoku geometry,
+// additionally requires the side length of a puzzle to be a
+// perfect square.  This produces side-length non-overlapping
+// sub-squares (aka tiles) in the the overall puzzle, each of
+// which is also a group.
+//
+// Another common Sudoku variant, called here the Dudoku
+// geometry, instead uses rectangular tiles whose width is one
+// greater than its height.  This leads to sides of the overall
+// square being equal in length to the area of one tile (e.g, 4x3
+// tiles and a 12x12 square).
+//
+// Another Sudoku variant, not yet implemented, uses the standard
+// geometry but adds the diagonals as two additional groups.
+//
+// If a square in a group is the only possible location for a
+// needed value, we say that the square is bound by the group,
+// and the implementation tracks these bound squares.  If an
+// assignment of some other value is made to that square, the
+// puzzle will not be solvable, and is deemed invalid.  Invalid
+// puzzles can also arise from assignments of the same value to
+// multiple squares in a group.  The implementation will not
+// perform operations on invalid puzzles.
 package puzzle
 
 /*
@@ -16,25 +75,43 @@ Puzzles
 
 */
 
-// A puzzle (actually a reference to a puzzle) is our internal
-// implementation of the Puzzle interface.  In addition to the
-// geometry's puzzle mapping, it stores the actual square data
-// and group data of the puzzle, and tracks any Errors that
-// prevent the puzzle from being solved.
+// A Puzzle is our puzzle implementation.  The puzzle's Metadata
+// is a convenience for clients who manipulate puzzles; it is
+// ignored by the puzzle operations.
 //
-// Each puzzle has an associated logger so assigns can track the
-// squares that are modified.
-type puzzle struct {
-	mapping *puzzleMapping
-	squares []*square
-	groups  []*group
-	errors  []Error
-	logger  *indexLogger
+// The zero Puzzle value does not represent a valid puzzle;
+// always use New to create one.  Also, do not try to copy
+// puzzles by assigning them, use Copy instead.
+type Puzzle struct {
+	Metadata map[string]string
+	mapping  *puzzleMapping
+	squares  []*square
+	groups   []*group
+	errors   []Error
+	logger   *indexLogger
+	valid    bool
+}
+
+// isValid checks whether a Puzzle pointer is non-nil and points
+// to a properly initialized puzzle.
+func (p *Puzzle) isValid() bool {
+	return p != nil && p.valid
+}
+
+// allMetadata returns a copy of a puzzle's metadata
+func (p *Puzzle) allMetadata() (result map[string]string) {
+	if len(p.Metadata) > 0 {
+		result = make(map[string]string, len(p.Metadata))
+		for k, v := range p.Metadata {
+			result[k] = v
+		}
+	}
+	return
 }
 
 // indicesToValues is a helper that takes an intset of indices
 // and returns the values in the squares with those indices.
-func (p *puzzle) indicesToValues(is intset) []int {
+func (p *Puzzle) indicesToValues(is intset) []int {
 	vs := make([]int, len(is))
 	for i, idx := range is {
 		vs[i] = p.squares[idx].aval
@@ -43,7 +120,7 @@ func (p *puzzle) indicesToValues(is intset) []int {
 }
 
 // allValues returns all the assigned values in the puzzle squares.
-func (p *puzzle) allValues() []int {
+func (p *Puzzle) allValues() []int {
 	is := newIntsetRange(p.mapping.scount)
 	return p.indicesToValues(is)
 }
@@ -52,7 +129,7 @@ func (p *puzzle) allValues() []int {
 // and returns the possible values in the squares with those
 // indices.  The return value does not share storage with the
 // puzzle.
-func (p *puzzle) indicesToPossibles(is intset) [][]int {
+func (p *Puzzle) indicesToPossibles(is intset) [][]int {
 	vs := make([][]int, len(is))
 	for i, idx := range is {
 		vs[i] = newIntsetCopy(p.squares[idx].pvals)
@@ -62,14 +139,14 @@ func (p *puzzle) indicesToPossibles(is intset) [][]int {
 
 // allPossibles returns the possible values for all of a puzzle's
 // squares.
-func (p *puzzle) allPossibles() [][]int {
+func (p *Puzzle) allPossibles() [][]int {
 	is := newIntsetRange(p.mapping.scount)
 	return p.indicesToPossibles(is)
 }
 
 // indicesToSquares is a helper that takes an intset of indices
 // and creates a slice of Squares for those indices.
-func (p *puzzle) indicesToSquares(is intset) []Square {
+func (p *Puzzle) indicesToSquares(is intset) []Square {
 	SS := make([]Square, len(is))
 	for i, idx := range is {
 		S, s := &SS[i], p.squares[idx]
@@ -93,14 +170,14 @@ func (p *puzzle) indicesToSquares(is intset) []Square {
 }
 
 // allSquares returns a Square for each of a puzzle's squares.
-func (p *puzzle) allSquares() []Square {
+func (p *Puzzle) allSquares() []Square {
 	is := newIntsetRange(p.mapping.scount)
 	return p.indicesToSquares(is)
 }
 
 // allErrors returns the puzzle's Errors.  The returned slice
 // doesn't share storage with the puzzle.
-func (p *puzzle) allErrors(verbose bool) []Error {
+func (p *Puzzle) allErrors(verbose bool) []Error {
 	errs := append([]Error(nil), p.errors...)
 	if verbose {
 		for i := range errs {
@@ -108,6 +185,17 @@ func (p *puzzle) allErrors(verbose bool) []Error {
 		}
 	}
 	return errs
+}
+
+// state returns the current state of a puzzle.
+func (p *Puzzle) state() *State {
+	return &State{
+		p.allMetadata(),
+		p.mapping.geometry,
+		p.mapping.sidelen,
+		p.allValues(),
+		p.allErrors(true),
+	}
 }
 
 // assign a value to an (assumed) empty square in a puzzle,
@@ -118,7 +206,7 @@ func (p *puzzle) allErrors(verbose bool) []Error {
 // bind squares based on the assignment.  Any Errors produced by
 // the assignment or the constraint relaxation are added to the
 // puzzle.
-func (p *puzzle) assign(idx, val int) intset {
+func (p *Puzzle) assign(idx, val int) intset {
 	// set up to log the affected squares, so they can be returned.
 	p.logger.start(idx)
 	// after we're done, reset the puzzle logger
@@ -179,15 +267,14 @@ func (p *puzzle) assign(idx, val int) intset {
 }
 
 // copy returns a deep copy of a puzzle
-func (p *puzzle) copy() *puzzle {
-	if p == nil {
-		return nil
-	}
-	// first the puzzle structure
-	c := &puzzle{
-		mapping: p.mapping,          // mappings are invariant and always shared
-		logger:  &indexLogger{},     // loggers are per-puzzle, initialized empty
-		errors:  p.allErrors(false), // errors are per-puzzle, copied from source
+func (p *Puzzle) copy() *Puzzle {
+	// first the basic puzzle structure
+	c := &Puzzle{
+		Metadata: p.allMetadata(),    // metadata is mutable, so never shared
+		mapping:  p.mapping,          // mappings are invariant and always shared
+		logger:   &indexLogger{},     // loggers are per-puzzle, initialized empty
+		errors:   p.allErrors(false), // errors are per-puzzle, copied from source
+		valid:    p.valid,            // valid flag is a boolean
 	}
 	// then the squares
 	c.squares = make([]*square, c.mapping.scount+1) // 1-based indexing
@@ -216,30 +303,126 @@ func (p *puzzle) copy() *puzzle {
 
 /*
 
-Interface entries: if you call these with a nil puzzle pointer,
-you will panic.  That's because the interface entries are
-supposed to be called through the interface wrapper, and you
-should never be wrapping the interface around a nil puzzle
-pointer!
+Public forms of internal puzzle data: these all have JSON
+encodings so the package entries can be invoked via HTTP.
 
 */
 
-// State returns a *State object for the puzzle
-func (p *puzzle) State() State {
-	return State{
-		int(p.mapping.geometry),
-		p.mapping.sidelen,
-		p.allValues(),
-		p.allErrors(true),
+// The State of a puzzle gives you a snapshot of the puzzle at
+// the time of the call; operating on the puzzle will not affect
+// past States.
+//
+// For compactness of encoding, an empty values array indicates
+// an empty puzzle; that is, all squares are unassigned.
+type State struct {
+	Metadata   map[string]string `json:"metadata,omitempty"`
+	Geometry   string            `json:"geometry"`
+	SideLength int               `json:"sidelen"`
+	Values     []int             `json:"values,omitempty"`
+	Errors     []Error           `json:"errors,omitempty"`
+}
+
+// A Square in a puzzle gives the square's index, assigned value
+// (if any), bound value (if any, with sources), and possible
+// values (if more than one).  Puzzle squares are numbered
+// left-to-right, top-to-bottom, starting at 1, and the sequence
+// of squares is returned in that order.
+//
+// Only required fields are specified in a Square, so as to
+// minimize the Square's JSON-encoded form (which is used for
+// transmission of puzzle data from server to client).  If an
+// Aval (user-assigned value) is specified, no other fields
+// should be present.  If the square has a Bval (bound value) and
+// Bsrc (bound value source) then the Pvals should not be
+// present.
+type Square struct {
+	Index int       `json:"index"`
+	Aval  int       `json:"aval,omitempty"`
+	Bval  int       `json:"bval,omitempty"`
+	Bsrc  []GroupID `json:"bsrc,omitempty"`
+	Pvals intset    `json:"pvals,omitempty"`
+}
+
+// A GroupID names a row, column, tile, diagonal, or other set of
+// constrained squares, collectively called groups.  The
+// numbering and cardinality for each type of group is 1-based
+// and determined by the puzzle geometry.
+type GroupID struct {
+	Gtype string `json:"gtype"`
+	Index int    `json:"index"`
+}
+
+// Group IDs implement Stringer
+func (gid GroupID) String() string {
+	if gid.Gtype == "" {
+		return fmt.Sprintf("<group> %d", gid.Index)
 	}
+	return fmt.Sprintf("%s %d", gid.Gtype, gid.Index)
+}
+
+// GType (group type) constants.  These are human-readable but
+// not localized.  As the implementation supports new geometries,
+// more group types may be added.
+const (
+	GtypeRow      = "row"
+	GtypeCol      = "column"
+	GtypeTile     = "tile"
+	GtypeDiagonal = "diagonal"
+)
+
+// A Choice assigns a value to a cell.  The cell is referred to
+// by its index.
+type Choice struct {
+	Index int `json:"index"`
+	Value int `json:"value"`
+}
+
+// An Update to a puzzle is the result of an assignment, giving
+// any changed squares.  If there was a problem performing the
+// assignment, or if performing the assignment produced errors in
+// the underlying puzzle, they are reported here.  (Any puzzle
+// errors will also be available in the puzzle's state.)
+type Update struct {
+	Squares []Square `json:"squares,omitempty"`
+	Errors  []Error  `json:"conflict,omitempty"`
+}
+
+// A Solution is a filled-in puzzle (expressed as its values)
+// plus the sequence of choices for empty squares that were made
+// to get there.  Solutions tend to have far fewer choices than
+// originally empty squares, because most of the empty squares in
+// most puzzles have their values forced (bound) by puzzle
+// structure.  These bound values are present only in the solved
+// puzzle, not in the choice list.
+type Solution struct {
+	Values  []int    `json:"values"`
+	Choices []Choice `json:"choices,omitempty"`
+}
+
+/*
+
+Public operations on Puzzles: if you call these with a nil or
+zero Puzzle, you will get an error back.
+
+*/
+
+// State returns the current state of the puzzle.
+func (p *Puzzle) State() (*State, error) {
+	if !p.isValid() {
+		return nil, argumentError(PuzzleAttribute, InvalidArgumentCondition, p)
+	}
+	return p.state(), nil
 }
 
 // Squares returns a Square for each of squares in a puzzle (in
 // index order).  The return value does not share underlying
 // storage with the puzzle, so future changes to the puzzle do
 // not affect prior returns from Squares.
-func (p *puzzle) Squares() []Square {
-	return p.allSquares()
+func (p *Puzzle) Squares() ([]Square, error) {
+	if !p.isValid() {
+		return nil, argumentError(PuzzleAttribute, InvalidArgumentCondition, p)
+	}
+	return p.allSquares(), nil
 }
 
 // Assign a choice to a puzzle, returning an Update for the
@@ -247,7 +430,10 @@ func (p *puzzle) Squares() []Square {
 // square is already assigned, or the assigned index or value are
 // out of range, the puzzle isn't updated and an Error is
 // returned.
-func (p *puzzle) Assign(choice Choice) (Update, error) {
+func (p *Puzzle) Assign(choice Choice) (*Update, error) {
+	if !p.isValid() {
+		return nil, argumentError(PuzzleAttribute, InvalidArgumentCondition, p)
+	}
 	if count := len(p.errors); count != 0 {
 		err := Error{
 			Scope:     ArgumentScope,
@@ -255,14 +441,14 @@ func (p *puzzle) Assign(choice Choice) (Update, error) {
 			Condition: InvalidPuzzleAssignmentCondition,
 		}
 		err.Message = err.Error()
-		return Update{}, err
+		return nil, err
 	}
 	idx, val := choice.Index, choice.Value
 	if idx < 1 || idx > p.mapping.scount {
-		return Update{}, rangeError(IndexAttribute, idx, 1, p.mapping.scount)
+		return nil, rangeError(IndexAttribute, idx, 1, p.mapping.scount)
 	}
 	if val < 1 || val > p.mapping.sidelen {
-		return Update{}, rangeError(ValueAttribute, val, 1, p.mapping.sidelen)
+		return nil, rangeError(ValueAttribute, val, 1, p.mapping.sidelen)
 	}
 	if p.squares[idx].aval != 0 {
 		err := Error{
@@ -273,17 +459,20 @@ func (p *puzzle) Assign(choice Choice) (Update, error) {
 			Values:    ErrorData{val, idx, p.squares[idx].aval},
 		}
 		err.Message = err.Error()
-		return Update{}, err
+		return nil, err
 	}
 
 	// assigning this value to this square is allowed, so try it
 	is := p.assign(idx, val)
-	return Update{p.indicesToSquares(is), p.allErrors(true)}, nil
+	return &Update{p.indicesToSquares(is), p.allErrors(true)}, nil
 }
 
 // Copy returns a copy of the wrapped puzzle (no shared structure)
-func (p *puzzle) Copy() Puzzle {
-	return p.copy()
+func (p *Puzzle) Copy() (*Puzzle, error) {
+	if !p.isValid() {
+		return nil, argumentError(PuzzleAttribute, InvalidArgumentCondition, p)
+	}
+	return p.copy(), nil
 }
 
 /*
@@ -293,14 +482,14 @@ Puzzle construction
 */
 
 // create takes a mapping and a list of assigned values, one for
-// each square, and creates a new puzzle filled with the given
+// each square, and creates a new Puzzle filled with the given
 // values.  Input values of 0 mean an empty square.  Gives an
-// Error if the values are out of range for the puzzle.
-// Constraint relaxation is done on the puzzle, so that
+// Error if the values are out of range for the Puzzle.
+// Constraint relaxation is done on the Puzzle, so that
 // unassigned squares have the minimal set of possible values,
 // and all possible bindings have been done.  This may lead to
-// the returned puzzle having Errors, which make it unsolvable.
-func create(mapping *puzzleMapping, values []int) (*puzzle, error) {
+// the returned Puzzle having Errors, which make it unsolvable.
+func create(mapping *puzzleMapping, values []int) (*Puzzle, error) {
 	// create the square array.  Errors encountered in this phase
 	// mean that the puzzle can not be created because the inputs
 	// were bad.
@@ -320,8 +509,7 @@ func create(mapping *puzzleMapping, values []int) (*puzzle, error) {
 	// Assemble the groups, which will remove the assigned values
 	// from all of the unassigned squares in those groups.
 	// Errors encountered in this phase and the next mean the
-	// puzzle is not solvable, so they are added to the puzzle
-	// and the puzzle is returned.
+	// puzzle is not solvable.
 	var errs, errors []Error
 	groups := make([]*group, mapping.gcount+1) // 1-based indices
 	for i := 1; i <= mapping.gcount; i++ {
@@ -341,7 +529,61 @@ func create(mapping *puzzleMapping, values []int) (*puzzle, error) {
 	}
 
 	// assemble the puzzle from its pieces
-	return &puzzle{mapping, squares, groups, errors, logger}, nil
+	return &Puzzle{nil, mapping, squares, groups, errors, logger, true}, nil
+}
+
+// New takes a puzzle state and returns the puzzle with that
+// state.  In the case of puzzle states with no errors, this will
+// actually produce a puzzle with exactly the same state.  But in
+// the case of a puzzle state with errors, that won't necessarily
+// be true, because the state may have come via incrementally
+// building the puzzle assignment by assignment, and in that case
+// rebuilding the puzzle from its current values will typically
+// find more errors (because every constraint will be checked,
+// not just the ones that were violated by the last assignment).
+// So if you pass a state with errors to this function, we will
+// replace the constructed puzzle's errors with the state's
+// errors, to ensure that the resulting puzzle has the state you
+// expect.
+func New(state *State) (*Puzzle, error) {
+	if state == nil {
+		return nil, argumentError(StateAttribute, InvalidArgumentCondition, state)
+	}
+	makefn, ok := knownGeometries[state.Geometry]
+	if !ok {
+		return nil, argumentError(GeometryAttribute, UnknownGeometryCondition, state.Geometry)
+	}
+	if state.SideLength == 0 {
+		return nil, argumentError(SideLengthAttribute, InvalidArgumentCondition, 0)
+	}
+	values := state.Values
+	if len(values) == 0 {
+		values = make([]int, state.SideLength*state.SideLength)
+	} else if len(values) != state.SideLength*state.SideLength {
+		return nil, argumentError(PuzzleSizeAttribute, WrongPuzzleSizeCondition, len(values), state.SideLength)
+	}
+	p, e := makefn(values)
+	if e != nil {
+		return nil, e
+	}
+	if len(state.Errors) > 0 {
+		if len(p.errors) < len(state.Errors) {
+			// must have been a bogus state!
+			return nil, argumentError(StateAttribute, MismatchedStateErrorsCondition, state.Errors)
+		}
+		p.errors = make([]Error, len(state.Errors))
+		for i, e := range state.Errors {
+			p.errors[i] = e
+		}
+	}
+	if len(state.Metadata) > 0 {
+		p.Metadata = make(map[string]string, len(state.Metadata))
+		for k, v := range state.Metadata {
+			p.Metadata[k] = v
+		}
+	}
+	p.valid = true
+	return p, nil
 }
 
 /*
@@ -850,6 +1092,18 @@ Errors: used to report problems making and operating on puzzles.
 
 */
 
+// argumentError returns an Error that describes an invalid
+// state or puzzle argument.
+func argumentError(attr ErrorAttribute, cond ErrorCondition, values ...interface{}) Error {
+	return Error{
+		Scope:     ArgumentScope,
+		Structure: AttributeValueStructure,
+		Attribute: attr,
+		Condition: cond,
+		Values:    values,
+	}
+}
+
 // rangeError returns an Error that describes an out-of-range argument.
 func rangeError(attr ErrorAttribute, val int, min int, max int) Error {
 	err := Error{
@@ -887,6 +1141,7 @@ func squareError(s *square, v interface{}, attr ErrorAttribute, cond ErrorCondit
 	return err
 }
 
+// groupError returns an Error that describes an unsatisfiable group.
 func groupError(gid GroupID, v int, cond ErrorCondition) Error {
 	err := Error{
 		Scope:     GroupScope,

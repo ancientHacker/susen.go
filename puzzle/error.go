@@ -79,7 +79,9 @@ const (
 	NonSquareCondition
 	NonRectangleCondition
 	InvalidPuzzleAssignmentCondition
-	EmptyArgumentCondition
+	WrongPuzzleSizeCondition
+	InvalidArgumentCondition
+	MismatchedStateErrorsCondition
 	MaxCondition
 )
 
@@ -104,6 +106,8 @@ const (
 	RetainedValuesAttribute
 	PuzzleSizeAttribute
 	SideLengthAttribute
+	PuzzleAttribute
+	StateAttribute
 	MaxAttribute
 )
 
@@ -180,6 +184,10 @@ func (e Error) Error() string {
 			es += "Retained values"
 		case PuzzleSizeAttribute:
 			es += "Puzzle size"
+		case PuzzleAttribute:
+			es += "Puzzle"
+		case StateAttribute:
+			es += "State"
 		case SideLengthAttribute:
 			es += "Side length"
 		case LocationAttribute:
@@ -217,8 +225,12 @@ func (e Error) Error() string {
 		es += fmt.Sprintf("Not the product of consecutive integers")
 	case InvalidPuzzleAssignmentCondition:
 		es += fmt.Sprintf("Target puzzle has errors; no assignments are allowed")
-	case EmptyArgumentCondition:
-		es += fmt.Sprintf("Required argument value was empty or not supplied")
+	case WrongPuzzleSizeCondition:
+		es += fmt.Sprintf("Doesn't match specified side length (%v)", values)
+	case InvalidArgumentCondition:
+		es += fmt.Sprintf("Required value was missing or invalid")
+	case MismatchedStateErrorsCondition:
+		es += fmt.Sprintf("Puzzle has different errors than state.")
 	default:
 		es += fmt.Sprintf("Supplemental data is %v", values)
 	}

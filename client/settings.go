@@ -1,6 +1,7 @@
 package client
 
 import (
+	"fmt"
 	"html/template"
 	"log"
 	"net/http"
@@ -25,14 +26,30 @@ const (
 )
 
 var (
-	defaultTemplateDirectory = filepath.Join("static", "tmpl")
-	defaultStaticDirectory   = filepath.Join("static")
+	defaultStaticDirectory   = "static"
+	defaultTemplateDirectory = filepath.Join(defaultStaticDirectory, "tmpl")
 	staticResourcePaths      = map[string]string{
 		iconPath:      filepath.Join("special", "susen.ico"),
 		"/robots.txt": filepath.Join("special", "robots.txt"),
 		reportBugPath: filepath.Join("special", "report_bug.html"),
 	}
 )
+
+// VerifyResources - check that resources can be found, return
+// error if not.
+func VerifyResources() error {
+	if fi, err := os.Stat(findStaticDirectory()); err != nil {
+		return err
+	} else if !fi.IsDir() {
+		return fmt.Errorf("Static resource location %q not a directory.", findStaticDirectory())
+	}
+	if fi, err := os.Stat(findTemplateDirectory()); err != nil {
+		return err
+	} else if !fi.IsDir() {
+		return fmt.Errorf("Template resource location %q not a directory.", findTemplateDirectory())
+	}
+	return nil
+}
 
 /*
 

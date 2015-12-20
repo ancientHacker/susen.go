@@ -12,29 +12,29 @@ Puzzle Creation
 
 */
 
-// NewHandler is a POST handler that reads a JSON-encoded integer
-// array from the request body calls New on the argument values
+// NewHandler is a POST handler that reads a JSON-encoded State
+// value from the request body calls New on the argument values
 // to create a new Puzzle.  The new Puzzle's state is sent as a
 // 200 response, and the new puzzle itself is returned to the
 // golang caller.  If the return value from New is an error, then
 // the error is sent as a 400 response and also returned to the
 // caller.
 //
-// If we can't decode the posted value array, we send a 400
-// reponse and return the error to the caller.
+// If we can't decode the posted State, we send a 400 reponse and
+// return the error to the caller.
 //
 // If we can't encode the response to the client (which should
 // never happen), then the client gets an error response and the
 // golang caller gets both the puzzle and the encoding Error (as
 // a signal that the client didn't get the correct response).
-func NewHandler(w http.ResponseWriter, r *http.Request) (Puzzle, error) {
+func NewHandler(w http.ResponseWriter, r *http.Request) (*Puzzle, error) {
 	dec := json.NewDecoder(r.Body)
-	var geoAndVals []int
-	e := dec.Decode(&geoAndVals)
+	var state State
+	e := dec.Decode(&state)
 	if e != nil {
 		return nil, writeError(requestDecodingError, ErrorData{e.Error()}, w, r)
 	}
-	p, e := New(geoAndVals)
+	p, e := New(&state)
 	if e != nil {
 		err, ok := e.(Error)
 		if !ok {
@@ -43,44 +43,44 @@ func NewHandler(w http.ResponseWriter, r *http.Request) (Puzzle, error) {
 		err.Message = err.Error()
 		return nil, writeJSON(err, http.StatusBadRequest, w, r)
 	}
-	return p, StateHandler(p, w, r)
+	return p, p.StateHandler(w, r)
 }
 
 /*
 
-Puzzle Downloads
+Puzzle Download Methods
 
 */
 
 // StateHandler responds with the Puzzle's state.  If we can't
 // encode the response to the client successfully, we give both
 // the client and the golang caller an Error response.
-func StateHandler(p Puzzle, w http.ResponseWriter, r *http.Request) error {
-	if p == nil {
+func (p *Puzzle) StateHandler(w http.ResponseWriter, r *http.Request) error {
+	if !p.isValid() {
 		return writeError(noPuzzleError, ErrorData{r.URL.Path, "No puzzle"}, w, r)
 	}
-	return writeJSON(p.State(), http.StatusOK, w, r)
+	return writeJSON(p.state(), http.StatusOK, w, r)
 }
 
 // SquaresHandler responds with the Puzzle's squares.  If we
 // can't encode the response to the client successfully, we give
 // both the client and the golang caller an Error response.
-func SquaresHandler(p Puzzle, w http.ResponseWriter, r *http.Request) error {
-	if p == nil {
+func (p *Puzzle) SquaresHandler(w http.ResponseWriter, r *http.Request) error {
+	if !p.isValid() {
 		return writeError(noPuzzleError, ErrorData{r.URL.Path, "No puzzle"}, w, r)
 	}
-	return writeJSON(p.Squares(), http.StatusOK, w, r)
+	return writeJSON(p.allSquares(), http.StatusOK, w, r)
 }
 
 // SolutionsHandler responds with the Puzzle's solutions (or the
 // Error produced by computing the puzzle's solutions).  If we
 // can't encode the response to the client successfully, we give
 // both the client and the golang caller an Error response.
-func SolutionsHandler(p Puzzle, w http.ResponseWriter, r *http.Request) error {
-	if p == nil {
+func (p *Puzzle) SolutionsHandler(w http.ResponseWriter, r *http.Request) error {
+	if !p.isValid() {
 		return writeError(noPuzzleError, ErrorData{r.URL.Path, "No puzzle"}, w, r)
 	}
-	return writeJSON(p.Solutions(), http.StatusOK, w, r)
+	return writeJSON(p.allSolutions(), http.StatusOK, w, r)
 }
 
 /*
@@ -100,26 +100,24 @@ Puzzle Updates
 // never happen), then the client gets an error response and the
 // golang caller gets both the update and the encoding Error (as
 // a signal that the client didn't get the update).
-func AssignHandler(p Puzzle, w http.ResponseWriter, r *http.Request) (Update, error) {
-	if p == nil {
-		return Update{},
-			writeError(noPuzzleError, ErrorData{r.URL.Path, "No puzzle"}, w, r)
+func (p *Puzzle) AssignHandler(w http.ResponseWriter, r *http.Request) (*Update, error) {
+	if !p.isValid() {
+		return nil, writeError(noPuzzleError, ErrorData{r.URL.Path, "No puzzle"}, w, r)
 	}
 	dec := json.NewDecoder(r.Body)
 	var choice Choice
 	e := dec.Decode(&choice)
 	if e != nil {
-		return Update{}, writeError(requestDecodingError, ErrorData{e.Error()}, w, r)
+		return nil, writeError(requestDecodingError, ErrorData{e.Error()}, w, r)
 	}
 	update, e := p.Assign(choice)
 	if e != nil {
 		err, ok := e.(Error)
 		if !ok {
-			return Update{},
-				writeError(errorFormatError, ErrorData{"AssignHandler", e.Error()}, w, r)
+			return nil, writeError(errorFormatError, ErrorData{"AssignHandler", e.Error()}, w, r)
 		}
 		err.Message = err.Error()
-		return Update{}, writeJSON(err, http.StatusBadRequest, w, r)
+		return nil, writeJSON(err, http.StatusBadRequest, w, r)
 	}
 	return update, writeJSON(update, http.StatusOK, w, r)
 }
