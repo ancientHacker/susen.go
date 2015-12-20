@@ -39,13 +39,13 @@ func TestVstr(t *testing.T) {
 
 func TestPuzzleString(t *testing.T) {
 	// check for the null cases
-	s := (*puzzle)(nil).String()
+	s := (*Puzzle)(nil).String()
 	e := ""
 	if s != e {
 		t.Errorf("Unexpected empty puzzle string: %q, Expected: %q", s, e)
 	}
 	// do a 4x4 test with all the different states except unknown
-	p, err := helperNewSudokuPuzzle(rotation4Puzzle1PartialAssign2Values)
+	p, err := New(&State{nil, SudokuGeometryName, 4, rotation4Puzzle1PartialAssign2Values, nil})
 	if err != nil {
 		t.Fatalf("Puzzle creation failed: %v", err)
 	}
@@ -59,7 +59,7 @@ func TestPuzzleString(t *testing.T) {
 		t.Errorf("Unexpected puzzle string:\n%vExpected:\n%v", s, e)
 	}
 	// do a 9x9 empty puzzle test to cover unknown and the formatting
-	p, err = helperNewEmptySudokuPuzzle(9)
+	p, err = New(&State{nil, SudokuGeometryName, 9, nil, nil})
 	if err != nil {
 		t.Fatalf("Puzzle creation failed: %v", err)
 	}

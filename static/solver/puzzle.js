@@ -7,28 +7,53 @@ var puzzleErrors = null;
 var guessContent = null;
 var puzzleSideLength = 0;
 var squaresURL = "/api/squares/";
+var stateURL = "/api/state/";
 var assignURL = "/api/assign/";
 var backURL = "/api/back/";
 var resetURL = "/api/reset/";
 var homeURL = "/home/";
 var solverURL = "/solver/";
 
+function receivePuzzleState() {
+    if (this.readyState == 4) {
+	if (this.status == 200) {
+	    // console.log("Got puzzle state:", this.responseText);
+            var state = JSON.parse(this.responseText);
+	    if ("errors" in state) {
+		puzzleErrors = state.errors
+		message = puzzleErrorMessage()
+		setFeedback("Puzzle can't be solved. " + message)
+	    } else {
+		puzzleErrors = null
+		setFeedback("Click a square to select it.");
+	    }
+	} else {
+	    setFeedback("Fetch of puzzle state failed:<br />" + result.message);
+	    setTimeout(function(){window.location = solverURL;}, 4000);
+	}
+    }
+}
+
+var getStateRequest = new XMLHttpRequest();
+getStateRequest.onreadystatechange = receivePuzzleState;
+
 function receivePuzzleSquares() {
     if (this.readyState == 4) {
 	if (this.status == 200) {
+	    LoadState()		// get errors while decoding
 	    // console.log("Got puzzle squares:", this.responseText);
             var squares = JSON.parse(this.responseText);
 	    fillPuzzle(squares);
 	    setFeedback("Click a square to select it.");
 	} else {
 	    setFeedback("Fetch of puzzle content failed:<br />" + result.message);
-	    setTimeout(function(){window.location = solverURL;}, 2000);
+	    setTimeout(function(){window.location = solverURL;}, 4000);
 	}
     }
 }
 
-var getPuzzleRequest = new XMLHttpRequest();
-getPuzzleRequest.onreadystatechange = receivePuzzleSquares;
+var getSquaresRequest = new XMLHttpRequest();
+getSquaresRequest.onreadystatechange = receivePuzzleSquares;
 
 function receivePuzzleUpdate() {
     if (this.readyState == 4) {
@@ -53,13 +78,20 @@ function receivePuzzleUpdate() {
 var postAssignRequest = new XMLHttpRequest();
 postAssignRequest.onreadystatechange = receivePuzzleUpdate;
 
+function LoadState() {
+    url = stateURL;
+    console.log("GET request for", url)
+    getStateRequest.open("GET", url, true);
+    getStateRequest.send(null);
+}
+
 function LoadPuzzle(url) {
     if (!url) {
 	url = squaresURL;
     }
     console.log("GET request for", url);
-    getPuzzleRequest.open("GET", url, true);
-    getPuzzleRequest.send(null);
+    getSquaresRequest.open("GET", url, true);
+    getSquaresRequest.send(null);
 }
 
 function fillPuzzle(squares) {
@@ -412,5 +444,5 @@ function initializePage(sideLen) {
 	console.log("Warning: no side length specified, guessing 9!")
 	puzzleSideLength = 9
     }
-    LoadPuzzle()
+    LoadPuzzle();
 }

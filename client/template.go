@@ -50,15 +50,15 @@ func init() {
 // SolverPage executes the solver page template over the passed
 // session and puzzle info, and returns the solver page content as a
 // string.
-func SolverPage(sessionID string, puzzleID string, state puzzle.State) string {
+func SolverPage(sessionID string, puzzleID string, state *puzzle.State) string {
 	var tp templatePuzzle
 	var err error
-	if state.Geometry == puzzle.SudokuGeometryCode {
+	if state.Geometry == puzzle.SudokuGeometryName {
 		tp, err = sudokuTemplatePuzzle(state.Values)
-	} else if state.Geometry == puzzle.DudokuGeometryCode {
+	} else if state.Geometry == puzzle.DudokuGeometryName {
 		tp, err = dudokuTemplatePuzzle(state.Values)
 	} else {
-		err = fmt.Errorf("Can't generate puzzle grid for Geometry Code %v", state.Geometry)
+		err = fmt.Errorf("Can't generate puzzle grid for geometry %q", state.Geometry)
 	}
 	if err != nil {
 		return errorPage(err)

@@ -122,7 +122,7 @@ func TestSquarePuzzleMapping(t *testing.T) {
 		[]int{9, 13, 26}, []int{9, 14, 26}, []int{9, 15, 26},
 		[]int{9, 16, 27}, []int{9, 17, 27}, []int{9, 18, 27},
 	}
-	sm9 := puzzleMapping{SudokuGeometryCode, 9, 81, 27, gd9, gm9}
+	sm9 := puzzleMapping{SudokuGeometryName, 9, 81, 27, gd9, gm9}
 	sm9c := computeSquarePuzzleMapping(9, 3)
 	sm9a, err := squarePuzzleMapping(81)
 	if err != nil {
@@ -242,7 +242,7 @@ func TestRectanglePuzzleMapping(t *testing.T) {
 		[]int{6, 7, 17}, []int{6, 8, 17}, []int{6, 9, 17},
 		[]int{6, 10, 18}, []int{6, 11, 18}, []int{6, 12, 18},
 	}
-	sm6 := puzzleMapping{DudokuGeometryCode, 6, 36, 18, gd6, gm6}
+	sm6 := puzzleMapping{DudokuGeometryName, 6, 36, 18, gd6, gm6}
 	sm6c := computeRectanglePuzzleMapping(6, 2, 3)
 	sm6a, err := rectanglePuzzleMapping(36)
 	if err != nil {

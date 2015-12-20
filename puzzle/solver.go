@@ -66,7 +66,7 @@ step 4.
 // A choice is a puzzle, a square to choose, the choice to try
 // first in that square, and the next choices to try after that.
 type choice struct {
-	puz    *puzzle
+	puz    *Puzzle
 	cindex int
 	cvalue int
 	cnext  intset
@@ -79,7 +79,7 @@ type thread []choice
 // and a stack of prior choices (which can be empty), this finds
 // the next possible solution and returns the puzzle and stack at
 // time of solution (or unsolvable error).
-func solve(p *puzzle, t thread) (*puzzle, thread) {
+func solve(p *Puzzle, t thread) (*Puzzle, thread) {
 	for {
 		if len(p.errors) == 0 && assignKnown(p) {
 			return p, t
@@ -98,7 +98,7 @@ func solve(p *puzzle, t thread) (*puzzle, thread) {
 // Solutions finds all solutions to a given puzzle.  The
 // puzzle is copied first, so it's not altered during the
 // solutions process
-func (p *puzzle) Solutions() []Solution {
+func (p *Puzzle) allSolutions() []Solution {
 	var solutions []Solution
 	var t thread
 	for p, t = solve(p.copy(), t); len(p.errors) == 0; p, t = solve(p, t) {
@@ -111,6 +111,16 @@ func (p *puzzle) Solutions() []Solution {
 	return solutions
 }
 
+// Solutions finds all solutions to a given puzzle.  The
+// puzzle is copied first, so it's not altered during the
+// solutions process
+func (p *Puzzle) Solutions() ([]Solution, error) {
+	if !p.isValid() {
+		return nil, argumentError(PuzzleAttribute, InvalidArgumentCondition)
+	}
+	return p.allSolutions(), nil
+}
+
 // assignKnown takes a solvable puzzle and tries to solve it by
 // assigning all the known empty squares (bound to single-valued)
 // to their known value and then looping to see if those
@@ -119,7 +129,7 @@ func (p *puzzle) Solutions() []Solution {
 // values, then it has solved the puzzle and returns true.  If
 // there are empty squares left, or if one of its assignments
 // make the puzzle unsolvable, then it returns false.
-func assignKnown(p *puzzle) bool {
+func assignKnown(p *Puzzle) bool {
 	for {
 		known, unknown := 0, 0
 		for i := 1; i <= p.mapping.scount; i++ {
@@ -150,7 +160,7 @@ func assignKnown(p *puzzle) bool {
 // popChoice resets a puzzle to the next choice after the current
 // choice in a thread has failed.  If there is no next choice,
 // the incoming puzzle is returned, along with the empty thread.
-func popChoice(p *puzzle, t thread) (*puzzle, thread) {
+func popChoice(p *Puzzle, t thread) (*Puzzle, thread) {
 	for len(t) > 0 {
 		top := &t[len(t)-1]
 		if len(top.cnext) == 0 {
@@ -169,7 +179,7 @@ func popChoice(p *puzzle, t thread) (*puzzle, thread) {
 // pushChoice chooses an unbound square to assign, pushes a
 // puzzle copy and the choice on the stack, and then applies that
 // choice to the puzzle.
-func pushChoice(p *puzzle, t thread) (*puzzle, thread) {
+func pushChoice(p *Puzzle, t thread) (*Puzzle, thread) {
 	cindex, ccount := 0, p.mapping.sidelen+1
 	for i := 1; i <= p.mapping.scount; i++ {
 		if p.squares[i].aval == 0 && p.squares[i].bval == 0 {
@@ -204,7 +214,7 @@ func pushChoice(p *puzzle, t thread) (*puzzle, thread) {
 
 // newSolution constructs a solution from a solved puzzle and its
 // solving thread.
-func newSolution(p *puzzle, t thread) Solution {
+func newSolution(p *Puzzle, t thread) Solution {
 	S := Solution{Values: p.allValues()}
 	if len(t) > 0 {
 		S.Choices = make([]Choice, len(t))
