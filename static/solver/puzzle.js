@@ -1,11 +1,12 @@
-var hoverHints;
-var selectHints;
-var guessHints;
-var puzzleID;
-var puzzleContent = null;
-var puzzleErrors = null;
-var guessContent = null;
-var puzzleSideLength = 0;
+var hoverHints;			// are we giving hover hints?
+var selectHints;		// are we giving selection hints?
+var guessHints;			// are we giving guess hints?
+var puzzleID;			// puzzle's name
+var boundCount = 0;		// how many single-value-only unassigned squares are in the puzzle
+var puzzleContent = null;	// squares in the puzzle
+var puzzleErrors = null;	// errors in the puzzle
+var guessContent = null;	// allowed guess info for a selected square
+var puzzleSideLength = 0;	// side length of the puzzle
 var squaresURL = "/api/squares/";
 var stateURL = "/api/state/";
 var assignURL = "/api/assign/";
@@ -96,8 +97,15 @@ function LoadPuzzle(url) {
 
 function fillPuzzle(squares) {
     selectCell(null)
-    if (squares)
+    if (squares) {
 	puzzleContent = squares;
+	boundCount = 0;
+	for (i = 0; i < puzzleContent.length; i++) {
+	    if ("bval" in squares[i] || ("pvals" in squares[i] && squares[i].pvals.length == 1)) {
+		boundCount++;
+	    }
+	}
+    }
     else
 	puzzleContent = null;
     refillPuzzle();
@@ -116,8 +124,16 @@ function updatePuzzle(squares) {
     selectCell(null)
     if (squares && puzzleContent) {
 	for (i = 0; i < squares.length; i++) {
-	    if (squares[i].index > 0 && squares[i].index < puzzleContent.length) {
-		puzzleContent[squares[i].index-1] = squares[i]
+	    if (squares[i].index > 0 && squares[i].index <= puzzleContent.length) {
+		var pcIdx = squares[i].index - 1;
+		var wasBound = "bval" in puzzleContent[pcIdx] ||
+		    ("pvals" in puzzleContent[pcIdx] && puzzleContent[pcIdx].pvals.length == 1);
+		var isBound = "bval" in squares[i] ||
+		    ("pvals" in squares[i] && squares[i].pvals.length == 1);
+		puzzleContent[squares[i].index-1] = squares[i];
+		if  (wasBound != isBound) {
+		    if (wasBound) boundCount--; else boundCount++;
+		}
 	    }
 	}
     }
@@ -137,10 +153,16 @@ function refillPuzzle() {
 		cell.setAttribute("hint", "one");
 	    } else if ('pvals' in puzzleContent[pcIdx]) {
 		cell.innerHTML = "&nbsp;";
-		if (puzzleContent[pcIdx].pvals.length == 1)
+		plen = puzzleContent[pcIdx].pvals.length
+		if (plen == 1)
 		    cell.setAttribute("hint", "one");
-		else
+		else if (boundCount > 0) {
 		    cell.setAttribute("hint", "many");
+		} else if (plen == 2) {
+		    cell.setAttribute("hint", "two")
+		} else {
+		    cell.setAttribute("hint", "many");
+		}
 	    } else {
 		cell.innerHTML = "&empty;";
 		cell.setAttribute("hint", "zero");
