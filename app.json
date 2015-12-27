@@ -4,8 +4,8 @@
     "scripts": {
     },
     "env": {
-	"REDISTOGO_ENV": "dev"
-	"APPLICATION_ENV": "dev"
+	"REDISTOGO_ENV": "dev",
+	"APPLICATION_ENV": "dev",
 	"HEROKU_APP_NAME": {
 	    "required": true
 	},
