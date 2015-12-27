@@ -23,7 +23,7 @@ type groupDescriptor struct {
 // groups, and a mapping from each index to the groups that
 // contain it.
 type puzzleMapping struct {
-	geometry byte
+	geometry string
 	sidelen  int
 	scount   int
 	gcount   int
@@ -38,60 +38,33 @@ Registered geometries
 */
 
 const (
-	SudokuGeometryCode = 0
-	DudokuGeometryCode = 1
+	SudokuGeometryName = "sudoku"
+	DudokuGeometryName = "dudoku"
 )
 
+// knownGeometries is the lookup table for constructors
+var knownGeometries = map[string]func([]int) (*Puzzle, error){
+	"":                 newSudokuPuzzle,
+	SudokuGeometryName: newSudokuPuzzle,
+	DudokuGeometryName: newDudokuPuzzle,
+}
+
 // newSudokuPuzzle creates a Sudoku puzzle from the given values
-func newSudokuPuzzle(values []int) (Puzzle, error) {
+func newSudokuPuzzle(values []int) (*Puzzle, error) {
 	mapping, err := squarePuzzleMapping(len(values))
 	if err != nil {
 		return nil, err
 	}
-	puzzle, err := create(mapping, values)
-	if err != nil {
-		return nil, err
-	}
-	return puzzle, nil
-}
-
-// register the Sudoku puzzle mapping
-func init() {
-	gd := GeometryDescriptor{
-		Names: []string{"Sudoku", "sudoku", "square", ""},
-		Code:  SudokuGeometryCode,
-		New:   newSudokuPuzzle,
-	}
-	err := RegisterGeometry(&gd)
-	if err != nil {
-		panic(err) // if we can't register, we can't start up
-	}
+	return create(mapping, values)
 }
 
 // newDudokuPuzzle creates a Dudoku puzzle from the given values
-func newDudokuPuzzle(values []int) (Puzzle, error) {
+func newDudokuPuzzle(values []int) (*Puzzle, error) {
 	mapping, err := rectanglePuzzleMapping(len(values))
 	if err != nil {
 		return nil, err
 	}
-	puzzle, err := create(mapping, values)
-	if err != nil {
-		return nil, err
-	}
-	return puzzle, nil
-}
-
-// register the Dudoku puzzle mapping
-func init() {
-	gd := GeometryDescriptor{
-		Names: []string{"Dudoku", "dudoku", "rectangular"},
-		Code:  DudokuGeometryCode,
-		New:   newDudokuPuzzle,
-	}
-	err := RegisterGeometry(&gd)
-	if err != nil {
-		panic(err) // if we can't register, we can't start up
-	}
+	return create(mapping, values)
 }
 
 /*
@@ -156,7 +129,7 @@ func computeSquarePuzzleMapping(slen, tlen int) *puzzleMapping {
 		}
 		gs[tgi] = groupDescriptor{tgi, GroupID{GtypeTile, i + 1}, tile}
 	}
-	return &puzzleMapping{SudokuGeometryCode, slen, scount, gcount, gs, im}
+	return &puzzleMapping{SudokuGeometryName, slen, scount, gcount, gs, im}
 }
 
 // squarePuzzleMapping returns the puzzle map for a square puzzle
@@ -289,7 +262,7 @@ func computeRectanglePuzzleMapping(slen, low, high int) *puzzleMapping {
 		}
 		gs[tgi] = groupDescriptor{tgi, GroupID{GtypeTile, i + 1}, tile}
 	}
-	return &puzzleMapping{DudokuGeometryCode, slen, scount, gcount, gs, im}
+	return &puzzleMapping{DudokuGeometryName, slen, scount, gcount, gs, im}
 }
 
 // rectanglePuzzleMapping returns the puzzle map for a square puzzle

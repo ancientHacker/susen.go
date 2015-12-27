@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/ancientHacker/susen.go/puzzle"
 	"html/template"
+	"os"
 	"path/filepath"
 )
 
@@ -19,13 +20,14 @@ solver pages
 // findSolverPageTemplate for template location details.
 var solverPageTemplate *template.Template
 
-// A templateSolverPage contains the values to file the solver
+// A templateSolverPage contains the values to fill the solver
 // page template.
 type templateSolverPage struct {
 	SessionID, PuzzleID       string
 	Title, TopHead            string
 	IconFile, CssFile, JsFile string
 	Puzzle                    templatePuzzle
+	ApplicationFooter         string
 }
 
 // templatePuzzle is the structure expected by the puzzle grid
@@ -50,29 +52,30 @@ func init() {
 // SolverPage executes the solver page template over the passed
 // session and puzzle info, and returns the solver page content as a
 // string.
-func SolverPage(sessionID string, puzzleID string, state puzzle.State) string {
+func SolverPage(sessionID string, puzzleID string, state *puzzle.State) string {
 	var tp templatePuzzle
 	var err error
-	if state.Geometry == puzzle.SudokuGeometryCode {
+	if state.Geometry == puzzle.SudokuGeometryName {
 		tp, err = sudokuTemplatePuzzle(state.Values)
-	} else if state.Geometry == puzzle.DudokuGeometryCode {
+	} else if state.Geometry == puzzle.DudokuGeometryName {
 		tp, err = dudokuTemplatePuzzle(state.Values)
 	} else {
-		err = fmt.Errorf("Can't generate puzzle grid for Geometry Code %v", state.Geometry)
+		err = fmt.Errorf("Can't generate puzzle grid for geometry %q", state.Geometry)
 	}
 	if err != nil {
 		return errorPage(err)
 	}
 
 	tsp := templateSolverPage{
-		SessionID: sessionID,
-		PuzzleID:  puzzleID,
-		Title:     fmt.Sprintf("%s: Solver", applicationName),
-		TopHead:   fmt.Sprintf("%s v%s Puzzle Solver", applicationName, applicationVersion),
-		IconFile:  iconPath,
-		CssFile:   "/solver.css",
-		JsFile:    "/solver.js",
-		Puzzle:    tp,
+		SessionID:         sessionID,
+		PuzzleID:          puzzleID,
+		Title:             fmt.Sprintf("%s: Solver", brandName),
+		TopHead:           fmt.Sprintf("Puzzle Solver"),
+		IconFile:          iconPath,
+		CssFile:           "/solver.css",
+		JsFile:            "/solver.js",
+		Puzzle:            tp,
+		ApplicationFooter: applicationFooter(),
 	}
 
 	tmpl, err := loadPageTemplate("solver")
@@ -239,16 +242,18 @@ error pages
 type templateErrorPage struct {
 	Title, TopHead, Message string
 	IconFile, ReportBugPage string
+	ApplicationFooter       string
 }
 
 // return error page content
 func errorPage(e error) string {
 	tep := templateErrorPage{
-		Title:         fmt.Sprintf("%s: Error", applicationName),
-		TopHead:       fmt.Sprintf("%s v%s Error Page", applicationName, applicationVersion),
-		Message:       e.Error(),
-		IconFile:      iconPath,
-		ReportBugPage: reportBugPath,
+		Title:             fmt.Sprintf("%s: Error", brandName),
+		TopHead:           fmt.Sprintf("Error Page"),
+		Message:           e.Error(),
+		IconFile:          iconPath,
+		ReportBugPage:     reportBugPath,
+		ApplicationFooter: applicationFooter(),
 	}
 
 	tmpl, err := loadPageTemplate("error")
@@ -262,4 +267,107 @@ func errorPage(e error) string {
 		return fmt.Sprintf("A templating error has occurred: %v", err)
 	}
 	return buf.String()
+}
+
+/*
+
+home page
+
+*/
+
+// The homePageTemplate contains the template for a home
+// page.  It's initialized when needed; see the definition of
+// findHomePageTemplate for template location details.
+var homePageTemplate *template.Template
+
+// A templateHomePage contains the values to file the home
+// page template.
+type templateHomePage struct {
+	SessionID, PuzzleID       string
+	Title, TopHead            string
+	IconFile, CssFile, JsFile string
+	PuzzleIDs                 []string
+	ApplicationFooter         string
+}
+
+// add home statics to the static list
+func init() {
+	staticResourcePaths["/home.js"] = filepath.Join("home", "home.js")
+	staticResourcePaths["/home.css"] = filepath.Join("home", "home.css")
+}
+
+// HomePage executes the home page template over the passed
+// session and puzzle info, and returns the home page content as
+// a string.  If there is an error, what's returned is the error
+// page content as a string.
+func HomePage(sessionID string, puzzleID string, puzzleIDs []string) string {
+	tsp := templateHomePage{
+		SessionID:         sessionID,
+		PuzzleID:          puzzleID,
+		Title:             fmt.Sprintf("%s: Home", brandName),
+		TopHead:           fmt.Sprintf("%s", brandName),
+		IconFile:          iconPath,
+		CssFile:           "/home.css",
+		JsFile:            "/home.js",
+		PuzzleIDs:         puzzleIDs,
+		ApplicationFooter: applicationFooter(),
+	}
+
+	tmpl, err := loadPageTemplate("home")
+	if err != nil {
+		return errorPage(fmt.Errorf("Couldn't load the %q template: %v", "home", err))
+	}
+	buf := new(bytes.Buffer)
+	err = tmpl.Execute(buf, tsp)
+	if err != nil {
+		return errorPage(err)
+	}
+	return buf.String()
+}
+
+/*
+
+application footer
+
+*/
+
+// applicationFooter - the application footer that shows at the
+// bottom of all pages.
+func applicationFooter() string {
+	appName := os.Getenv(applicationNameEnvVar)
+	appEnv := os.Getenv(applicationEnvEnvVar)
+	appVersion := os.Getenv(applicationVersionEnvVar)
+	appInstance := os.Getenv(applicationInstanceEnvVar)
+	appBuild := os.Getenv(applicationBuildEnvVar)
+
+	if appName == "" {
+		appName = brandName
+	}
+
+	if appEnv == "" {
+		appEnv = "local"
+	}
+
+	if appVersion != "" {
+		appVersion = " " + appVersion
+	}
+	if len(appBuild) >= 7 {
+		appBuild = appBuild[:7]
+	}
+
+	if appInstance != "" {
+		appInstance = " (dyno " + appInstance + ")"
+	}
+
+	switch appEnv {
+	case "local":
+		return "[" + appName + " local]"
+	case "dev":
+		return "[" + appName + " CI/CD]"
+	case "stg":
+		return "[" + appName + appVersion + " <" + appBuild + ">]"
+	case "prd":
+		return "[" + appName + appVersion + " <" + appBuild + ">" + appInstance + "]"
+	}
+	return "[" + appName + " <??>]"
 }

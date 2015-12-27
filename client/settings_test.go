@@ -14,7 +14,7 @@ import (
 
 /*
 
-template lookup
+resource locations
 
 */
 
@@ -22,8 +22,70 @@ template lookup
 // module's directory which is a child of the top.  This applies
 // to all the tests in this module.
 func init() {
+	defaultStaticDirectory = filepath.Join("..", "static")
 	defaultTemplateDirectory = filepath.Join("..", "static", "tmpl")
 }
+
+func TestVerifyResources(t *testing.T) {
+	defer func(td, sd string) {
+		os.Unsetenv(defaultTemplateDirectoryEnvVar)
+		os.Unsetenv(defaultStaticDirectoryEnvVar)
+		defaultTemplateDirectory = td
+		defaultStaticDirectory = sd
+	}(defaultTemplateDirectory, defaultStaticDirectory)
+
+	// should succeed with initalized defaults from above
+	if err := VerifyResources(); err != nil {
+		t.Errorf("Couldn't verify resources in %q & %q: %v",
+			findStaticDirectory(), findTemplateDirectory(), err)
+	}
+
+	// should fail with either or both being a non-existent directory
+	defaultStaticDirectory = "/no-such-directory"
+	if err := VerifyResources(); err == nil {
+		t.Errorf("Incorrectly verified resources in %q & %q",
+			findStaticDirectory(), findTemplateDirectory())
+	}
+	defaultStaticDirectory = defaultTemplateDirectory
+	defaultTemplateDirectory = "/no-such-directory"
+	if err := VerifyResources(); err == nil {
+		t.Errorf("Incorrectly verified resources in %q & %q",
+			findStaticDirectory(), findTemplateDirectory())
+	}
+	defaultStaticDirectory = "/no-such-directory"
+	defaultTemplateDirectory = "/no-such-directory"
+	if err := VerifyResources(); err == nil {
+		t.Errorf("Incorrectly verified resources in %q & %q",
+			findStaticDirectory(), findTemplateDirectory())
+	}
+
+	// should succeed with overrides
+	os.Setenv(defaultTemplateDirectoryEnvVar, "testdata")
+	os.Setenv(defaultStaticDirectoryEnvVar, "testdata")
+	if err := VerifyResources(); err != nil {
+		t.Errorf("Couldn't verify resources in %q & %q: %v",
+			findStaticDirectory(), findTemplateDirectory(), err)
+	}
+
+	// should fail with just one being an existing non-directory
+	os.Setenv(defaultTemplateDirectoryEnvVar, "settings_test.go")
+	if err := VerifyResources(); err == nil {
+		t.Errorf("Incorrectly verified resources in %q & %q",
+			findStaticDirectory(), findTemplateDirectory())
+	}
+	os.Setenv(defaultTemplateDirectoryEnvVar, "testdata")
+	os.Setenv(defaultStaticDirectoryEnvVar, "settings_test.go")
+	if err := VerifyResources(); err == nil {
+		t.Errorf("Incorrectly verified resources in %q & %q",
+			findStaticDirectory(), findTemplateDirectory())
+	}
+}
+
+/*
+
+template lookup
+
+*/
 
 func TestTemplateLookup(t *testing.T) {
 	defer func() {
@@ -79,13 +141,6 @@ func TestTemplateEnvVarOverride(t *testing.T) {
 static lookup
 
 */
-
-// testing setup: change default directory since we run from this
-// module's directory which is a child of the top.  This applies
-// to all the tests in this module.
-func init() {
-	defaultStaticDirectory = filepath.Join("..", "static")
-}
 
 // helper used in two test functions below
 func CoreStaticLookup(t *testing.T, shouldPass bool) {

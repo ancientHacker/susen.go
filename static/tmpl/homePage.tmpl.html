@@ -1,0 +1,46 @@
+<html>
+  <head>
+    <meta http-equiv="content-type" content="text/html; charset=utf-8">
+    <title>{{.Title}}</title>
+    <link rel="shortcut icon" type="image/vnd.microsoft.icon" href="{{.IconFile}}" />
+    <link rel="stylesheet" type="text/css" href="{{.CssFile}}">
+    <script src="{{.JsFile}}"></script>
+  </head>
+  <body sessionID="{{.SessionID}}" puzzleID="{{.PuzzleID}}" onload="initializePage()">
+    <h1>{{.TopHead}}</h1>
+    <div class="home">
+      <div class="left">
+	<div class="activity">
+	  <h3>Solve a Puzzle</h3>
+	  <p>Current puzzle: <a href="/solver/">{{.PuzzleID}}</a>
+	  <p>Start new puzzle:
+	    <div class="solveButton" id="1-star" onclick="newPuzzle('1-star')">1-star</div>
+	    <div class="solveButton" id="2-star" onclick="newPuzzle('2-star')">2-star</div>
+	    <div class="solveButton" id="3-star" onclick="newPuzzle('3-star')">3-star</div>
+	    <div class="solveButton" id="4-star" onclick="newPuzzle('4-star')">4-star</div>
+	    <div class="solveButton" id="5-star" onclick="newPuzzle('5-star')">5-star</div>
+	    <div class="solveButton" id="6-star" onclick="newPuzzle('6-star')">6-star</div></p>
+	</div>
+      </div>
+      <div class="right">
+	<div class="options">
+	  <div>Hover hints:
+	    <input id="hoverOn" type="radio" onclick="clickHoverHints(true)">On
+	    <input id="hoverOff" type="radio" onclick="clickHoverHints(false)">Off
+	  </div>
+	  <div>Select hints:
+	    <input id="selectOn" type="radio" onclick="clickSelectHints(true)">On
+	    <input id="selectOff" type="radio" onclick="clickSelectHints(false)">Off
+	  </div>
+	  <div>Guess hints:
+	    <input id="guessOn" type="radio" onclick="clickGuessHints(true)">On
+	    <input id="guessOff" type="radio" onclick="clickGuessHints(false)">Off
+	  </div>
+	</div>
+      </div>
+    </div>
+    <div class="footer">
+      <p>{{.ApplicationFooter}}</p>
+    </div>
+  </body>
+</html>
