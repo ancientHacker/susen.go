@@ -83,6 +83,52 @@ func TestSolverPage(t *testing.T) {
 
 /*
 
+footer
+
+*/
+
+type footerTestcase struct {
+	name, version, instance, build, env string
+	footer                              string
+}
+
+func TestApplicationFooter(t *testing.T) {
+	testcases := []footerTestcase{
+		{"", "", "", "", "",
+			"[" + brandName + " local]"},
+		{"susen-staging-pr-30",
+			"v29",
+			"",
+			"ca0fd7123f918d1b6d3e65f3de47d52db09ae068",
+			"dev",
+			"[susen-staging-pr-30 CI/CD]"},
+		{"susen-staging",
+			"v29",
+			"1vac4117-c29f-4312-521e-ba4d8638c1ac",
+			"ca0fd7123f918d1b6d3e65f3de47d52db09ae068",
+			"stg",
+			"[susen-staging v29 <ca0fd71>]"},
+		{"susen-production",
+			"v22",
+			"1vac4117-c29f-4312-521e-ba4d8638c1ac",
+			"ca0fd7123f918d1b6d3e65f3de47d52db09ae068",
+			"prd",
+			"[susen-production v22 <ca0fd71> (dyno 1vac4117-c29f-4312-521e-ba4d8638c1ac)]"},
+	}
+	for i, tc := range testcases {
+		os.Setenv(applicationNameEnvVar, tc.name)
+		os.Setenv(applicationVersionEnvVar, tc.version)
+		os.Setenv(applicationInstanceEnvVar, tc.instance)
+		os.Setenv(applicationBuildEnvVar, tc.build)
+		os.Setenv(applicationEnvEnvVar, tc.env)
+		if footer := applicationFooter(); footer != tc.footer {
+			t.Errorf("Case %d: got %q, expected %q", i, footer, tc.footer)
+		}
+	}
+}
+
+/*
+
 helpers
 
 */

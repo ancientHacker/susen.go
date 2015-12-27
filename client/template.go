@@ -335,10 +335,10 @@ application footer
 // bottom of all pages.
 func applicationFooter() string {
 	appName := os.Getenv(applicationNameEnvVar)
+	appEnv := os.Getenv(applicationEnvEnvVar)
 	appVersion := os.Getenv(applicationVersionEnvVar)
 	appInstance := os.Getenv(applicationInstanceEnvVar)
 	appBuild := os.Getenv(applicationBuildEnvVar)
-	appEnv := os.Getenv(applicationEnvEnvVar)
 
 	if appName == "" {
 		appName = brandName
@@ -348,30 +348,26 @@ func applicationFooter() string {
 		appEnv = "local"
 	}
 
-	if appVersion == "" {
-		if appEnv == "dev" {
-			appVersion = " <CI latest>"
-		} else {
-			appVersion = " <dev build>"
-		}
-	} else {
+	if appVersion != "" {
 		appVersion = " " + appVersion
 	}
-
 	if len(appBuild) >= 7 {
-		appBuild = " " + appBuild[:7]
-	} else {
-		appBuild = ""
+		appBuild = appBuild[:7]
 	}
 
-	if appInstance == "" {
-		appInstance = " <local>"
-	} else {
-		if appEnv == "prd" {
-			appInstance = " <" + appInstance + ">"
-		} else {
-			appInstance = " <" + appEnv + appBuild + ">"
-		}
+	if appInstance != "" {
+		appInstance = " (dyno " + appInstance + ")"
 	}
-	return "[" + appName + appVersion + appInstance + "]"
+
+	switch appEnv {
+	case "local":
+		return "[" + appName + " local]"
+	case "dev":
+		return "[" + appName + " CI/CD]"
+	case "stg":
+		return "[" + appName + appVersion + " <" + appBuild + ">]"
+	case "prd":
+		return "[" + appName + appVersion + " <" + appBuild + ">" + appInstance + "]"
+	}
+	return "[" + appName + " <??>]"
 }
