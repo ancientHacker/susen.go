@@ -4,7 +4,20 @@
     "scripts": {
     },
     "env": {
-	"REDISTOGO_ENV": "dev"
+	"REDISTOGO_ENV": "dev",
+	"APPLICATION_ENV": "dev",
+	"HEROKU_APP_NAME": {
+	    "required": true
+	},
+	"HEROKU_RELEASE_VERSION": {
+	    "required": false
+	},
+	"HEROKU_SLUG_COMMIT": {
+	    "required": false
+	},
+	"HEROKU_DYNO_ID": {
+	    "required": false
+	}
     },
     "addons": [
 	"papertrail",

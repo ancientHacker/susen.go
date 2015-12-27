@@ -41,10 +41,10 @@ td[hover="one"]:hover {
     background-color: #99ff99;
 }
 td[hover="two"]:hover {
-    background-color: #99ff99;
+    background-color: #ffff99;
 }
 td[hover="many"]:hover {
-    background-color: #ffff99;
+    background-color: #ff6666;
 }
 td[hover="opaque"]:hover {
     background-color: #f1f6fd;
@@ -52,6 +52,9 @@ td[hover="opaque"]:hover {
 
 td[selected="none"] {
     background-color: #a6bcdb;
+}
+td[hover="zero"]:hover {
+    background-color: #ff6666;
 }
 td[selected="one"] {
     background-color: #99ff99;
@@ -160,4 +163,13 @@ div[guess="maybe"] {
 
 .stepButton.warning:hover {
     background-color: #ff6666;
+}
+
+.footer {
+    position: absolute;
+    bottom: 2px;
+}
+
+.footer p {
+    color: #b3b3b3;
 }

@@ -35,3 +35,12 @@
     background: #b8d1f3;
     margin-bottom: 12px
 }
+
+.footer {
+    position: absolute;
+    bottom: 2px;
+}
+
+.footer p {
+    color: #b3b3b3;
+}

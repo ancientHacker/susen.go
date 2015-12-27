@@ -16,16 +16,20 @@ Common client settings
 */
 
 const (
-	applicationName                = "Sūsen"
-	applicationVersion             = "0.7"
-	templatePageSuffix             = "Page.tmpl.html"
 	defaultTemplateDirectoryEnvVar = "TEMPLATE_DIRECTORY"
 	defaultStaticDirectoryEnvVar   = "STATIC_DIRECTORY"
-	iconPath                       = "/favicon.ico"
-	reportBugPath                  = "/bugreport.html"
+	templatePageSuffix             = "Page.tmpl.html"
+	applicationNameEnvVar          = "HEROKU_APP_NAME"
+	applicationVersionEnvVar       = "HEROKU_RELEASE_VERSION"
+	applicationBuildEnvVar         = "HEROKU_SLUG_COMMIT"
+	applicationInstanceEnvVar      = "HEROKU_DYNO_ID"
+	applicationEnvEnvVar           = "APPLICATION_ENV"
 )
 
 var (
+	brandName                = "Sūsen"
+	iconPath                 = "/favicon.ico"
+	reportBugPath            = "/bugreport.html"
 	defaultStaticDirectory   = "static"
 	defaultTemplateDirectory = filepath.Join(defaultStaticDirectory, "tmpl")
 	staticResourcePaths      = map[string]string{
