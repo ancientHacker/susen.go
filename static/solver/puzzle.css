@@ -164,3 +164,12 @@ div[guess="maybe"] {
 .stepButton.warning:hover {
     background-color: #ff6666;
 }
+
+.footer {
+    position: absolute;
+    bottom: 2px;
+}
+
+.footer p {
+    color: #b3b3b3;
+}
