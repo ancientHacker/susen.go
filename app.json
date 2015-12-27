@@ -5,6 +5,7 @@
     },
     "env": {
 	"REDISTOGO_ENV": "dev"
+	"APPLICATION_ENV": "dev"
     },
     "addons": [
 	"papertrail",

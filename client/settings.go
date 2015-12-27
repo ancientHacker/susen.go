@@ -23,7 +23,7 @@ const (
 	applicationVersionEnvVar       = "HEROKU_RELEASE_VERSION"
 	applicationBuildEnvVar         = "HEROKU_SLUG_COMMIT"
 	applicationInstanceEnvVar      = "HEROKU_DYNO_ID"
-	applicationEnvEnvVar           = "APPLICATION_ENVIRONMENT"
+	applicationEnvEnvVar           = "APPLICATION_ENV"
 )
 
 var (
