@@ -344,8 +344,16 @@ func applicationFooter() string {
 		appName = brandName
 	}
 
+	if appEnv == "" {
+		appEnv = "local"
+	}
+
 	if appVersion == "" {
-		appVersion = " <dev build>"
+		if appEnv == "dev" {
+			appVersion = " <CI latest>"
+		} else {
+			appVersion = " <dev build>"
+		}
 	} else {
 		appVersion = " " + appVersion
 	}
@@ -354,10 +362,6 @@ func applicationFooter() string {
 		appBuild = " " + appBuild[:7]
 	} else {
 		appBuild = ""
-	}
-
-	if appEnv == "" {
-		appEnv = "local"
 	}
 
 	if appInstance == "" {

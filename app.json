@@ -7,16 +7,16 @@
 	"REDISTOGO_ENV": "dev",
 	"APPLICATION_ENV": "dev",
 	"HEROKU_APP_NAME": {
-	    "required": true
+	    "required": true,
 	},
 	"HEROKU_RELEASE_VERSION": {
-	    "required": true
+	    "required": false,
 	},
 	"HEROKU_SLUG_COMMIT": {
-	    "required": true
+	    "required": false,
 	},
 	"HEROKU_DYNO_ID": {
-	    "required": true
+	    "required": false
 	}
     },
     "addons": [
