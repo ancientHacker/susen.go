@@ -6,6 +6,18 @@
     "env": {
 	"REDISTOGO_ENV": "dev"
 	"APPLICATION_ENV": "dev"
+	"HEROKU_APP_NAME": {
+	    "required": true
+	},
+	"HEROKU_RELEASE_VERSION": {
+	    "required": true
+	},
+	"HEROKU_SLUG_COMMIT": {
+	    "required": true
+	},
+	"HEROKU_DYNO_ID": {
+	    "required": true
+	}
     },
     "addons": [
 	"papertrail",
