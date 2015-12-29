@@ -1,3 +1,21 @@
+// susen.go - a web-based Sudoku game and teaching tool.
+// Copyright (C) 2015 Daniel C. Brotsky.
+//
+// This program is free software; you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation; either version 2 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License along
+// with this program; if not, write to the Free Software Foundation, Inc.,
+// 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+// Licensed under the LGPL v3.  See the LICENSE file for details
+
 package puzzle
 
 import (
@@ -81,7 +99,7 @@ const (
 	InvalidPuzzleAssignmentCondition
 	WrongPuzzleSizeCondition
 	InvalidArgumentCondition
-	MismatchedStateErrorsCondition
+	MismatchedSummaryErrorsCondition
 	MaxCondition
 )
 
@@ -107,7 +125,7 @@ const (
 	PuzzleSizeAttribute
 	SideLengthAttribute
 	PuzzleAttribute
-	StateAttribute
+	SummaryAttribute
 	MaxAttribute
 )
 
@@ -186,8 +204,8 @@ func (e Error) Error() string {
 			es += "Puzzle size"
 		case PuzzleAttribute:
 			es += "Puzzle"
-		case StateAttribute:
-			es += "State"
+		case SummaryAttribute:
+			es += "Summary"
 		case SideLengthAttribute:
 			es += "Side length"
 		case LocationAttribute:
@@ -229,8 +247,8 @@ func (e Error) Error() string {
 		es += fmt.Sprintf("Doesn't match specified side length (%v)", values)
 	case InvalidArgumentCondition:
 		es += fmt.Sprintf("Required value was missing or invalid")
-	case MismatchedStateErrorsCondition:
-		es += fmt.Sprintf("State has errors but puzzle created from it does not")
+	case MismatchedSummaryErrorsCondition:
+		es += fmt.Sprintf("Summary has errors but puzzle created from it does not")
 	default:
 		es += fmt.Sprintf("Supplemental data is %v", values)
 	}

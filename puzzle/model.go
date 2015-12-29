@@ -46,17 +46,17 @@
 // square being equal in length to the area of one tile (e.g, 4x3
 // tiles and a 12x12 square).
 //
-// Another Sudoku variant, not yet implemented, uses the standard
+// Another Sudoku variant, not yet implemented, uses the Sudoku
 // geometry but adds the diagonals as two additional groups.
 //
 // If a square in a group is the only possible location for a
 // needed value, we say that the square is bound by the group,
 // and the implementation tracks these bound squares.  If an
 // assignment of some other value is made to that square, the
-// puzzle will not be solvable, and is deemed invalid.  Invalid
-// puzzles can also arise from assignments of the same value to
-// multiple squares in a group.  The implementation will not
-// perform operations on invalid puzzles.
+// puzzle will not be solvable, and is said to have errors.
+// Errors in puzzles can also arise from assignments of the same
+// value to multiple squares in a group.  The implementation will
+// not perform operations on puzzles with errors.
 package puzzle
 
 /*
@@ -187,14 +187,22 @@ func (p *Puzzle) allErrors(verbose bool) []Error {
 	return errs
 }
 
-// state returns the current state of a puzzle.
-func (p *Puzzle) state() *State {
-	return &State{
-		p.allMetadata(),
-		p.mapping.geometry,
-		p.mapping.sidelen,
-		p.allValues(),
-		p.allErrors(true),
+// summary returns the current summary of a puzzle.
+func (p *Puzzle) summary() *Summary {
+	return &Summary{
+		Metadata:   p.allMetadata(),
+		Geometry:   p.mapping.geometry,
+		SideLength: p.mapping.sidelen,
+		Values:     p.allValues(),
+		Errors:     p.allErrors(true),
+	}
+}
+
+// state returns the current state (full content) of a puzzle.
+func (p *Puzzle) state() *Content {
+	return &Content{
+		Squares: p.allSquares(),
+		Errors:  p.allErrors(true),
 	}
 }
 
@@ -249,17 +257,25 @@ func (p *Puzzle) assign(idx, val int) intset {
 		if errs := p.groups[gi].assign(p.squares, idx); len(errs) > 0 {
 			// group assign Errors make the puzzle unsolvable
 			p.errors = append(p.errors, errs...)
+			// all we need is the first error to know we're unsolvable!
+			break
 		}
 	}
 
 	/// Part 3: Analyze all the affected groups.  This allows
 	/// them to discover solvability problems and also required
 	/// bindings induced by the assignment.
-	for gi, count := range affected {
-		if count > 0 {
-			if errs := p.groups[gi].analyze(p.squares); len(errs) > 0 {
-				// group analyze Errors make the puzzle unsolvable
-				p.errors = append(p.errors, errs...)
+	if len(p.errors) == 0 {
+		// no need to analyze if we already have errors; in fact,
+		// it may duplicate some of the already found errors.
+		for gi, count := range affected {
+			if count > 0 {
+				if errs := p.groups[gi].analyze(p.squares); len(errs) > 0 {
+					// group analyze Errors make the puzzle unsolvable
+					p.errors = append(p.errors, errs...)
+					// all we need is the first error to know we're unsolvable!
+					break
+				}
 			}
 		}
 	}
@@ -308,13 +324,14 @@ encodings so the package entries can be invoked via HTTP.
 
 */
 
-// The State of a puzzle gives you a snapshot of the puzzle at
-// the time of the call; operating on the puzzle will not affect
-// past States.
+// A Summary gives just the data needed to reconstruct a puzzle
+// in its current state.  Because the order in which values are
+// assigned to an unsolvable puzzle determines its errors, the
+// summary of such puzzles includes their errors.
 //
 // For compactness of encoding, an empty values array indicates
 // an empty puzzle; that is, all squares are unassigned.
-type State struct {
+type Summary struct {
 	Metadata   map[string]string `json:"metadata,omitempty"`
 	Geometry   string            `json:"geometry"`
 	SideLength int               `json:"sidelen"`
@@ -377,14 +394,16 @@ type Choice struct {
 	Value int `json:"value"`
 }
 
-// An Update to a puzzle is the result of an assignment, giving
-// any changed squares.  If there was a problem performing the
-// assignment, or if performing the assignment produced errors in
-// the underlying puzzle, they are reported here.  (Any puzzle
-// errors will also be available in the puzzle's state.)
-type Update struct {
-	Squares []Square `json:"squares,omitempty"`
-	Errors  []Error  `json:"conflict,omitempty"`
+// A Content structure gives the details of the puzzle's squares
+// and errors.  When you ask for the Summary of a puzzle, you get a
+// Content structure that contains all of the squares, and you
+// get all of the known errors.  When you assign to a puzzle, you
+// get a Content structure with only the squares that were
+// updated by the assignment, and any errors that were noticed
+// during the assignment.
+type Content struct {
+	Squares []Square `json:"squares"`
+	Errors  []Error  `json:"errors,omitempty"`
 }
 
 // A Solution is a filled-in puzzle (expressed as its values)
@@ -406,31 +425,31 @@ zero Puzzle, you will get an error back.
 
 */
 
-// State returns the current state of the puzzle.
-func (p *Puzzle) State() (*State, error) {
+// Summary returns the current summary of the puzzle.
+func (p *Puzzle) Summary() (*Summary, error) {
+	if !p.isValid() {
+		return nil, argumentError(PuzzleAttribute, InvalidArgumentCondition, p)
+	}
+	return p.summary(), nil
+}
+
+// State returns the entire content of the puzzle.  The return
+// value does not share underlying storage with the puzzle, so
+// future changes to the puzzle do not affect prior returns from
+// this function.
+func (p *Puzzle) State() (*Content, error) {
 	if !p.isValid() {
 		return nil, argumentError(PuzzleAttribute, InvalidArgumentCondition, p)
 	}
 	return p.state(), nil
 }
 
-// Squares returns a Square for each of squares in a puzzle (in
-// index order).  The return value does not share underlying
-// storage with the puzzle, so future changes to the puzzle do
-// not affect prior returns from Squares.
-func (p *Puzzle) Squares() ([]Square, error) {
-	if !p.isValid() {
-		return nil, argumentError(PuzzleAttribute, InvalidArgumentCondition, p)
-	}
-	return p.allSquares(), nil
-}
-
-// Assign a choice to a puzzle, returning an Update for the
+// Assign a choice to a puzzle, returning an Content for the
 // puzzle.  If the puzzle is already unsolvable, the target
 // square is already assigned, or the assigned index or value are
 // out of range, the puzzle isn't updated and an Error is
 // returned.
-func (p *Puzzle) Assign(choice Choice) (*Update, error) {
+func (p *Puzzle) Assign(choice Choice) (*Content, error) {
 	if !p.isValid() {
 		return nil, argumentError(PuzzleAttribute, InvalidArgumentCondition, p)
 	}
@@ -464,7 +483,7 @@ func (p *Puzzle) Assign(choice Choice) (*Update, error) {
 
 	// assigning this value to this square is allowed, so try it
 	is := p.assign(idx, val)
-	return &Update{p.indicesToSquares(is), p.allErrors(true)}, nil
+	return &Content{p.indicesToSquares(is), p.allErrors(true)}, nil
 }
 
 // Copy returns a copy of the wrapped puzzle (no shared structure)
@@ -532,53 +551,53 @@ func create(mapping *puzzleMapping, values []int) (*Puzzle, error) {
 	return &Puzzle{nil, mapping, squares, groups, errors, logger, true}, nil
 }
 
-// New takes a puzzle state and returns the puzzle with that
-// state.  In the case of puzzle states with no errors, this will
-// actually produce a puzzle with exactly the same state.  But in
-// the case of a puzzle state with errors, that won't necessarily
-// be true, because the state may have come via incrementally
+// New takes a puzzle summary and returns the puzzle with that
+// summary.  In the case of puzzle summaries with no errors, this will
+// actually produce a puzzle with exactly the same summary.  But in
+// the case of a puzzle summary with errors, that won't necessarily
+// be true, because the summary may have come via incrementally
 // building the puzzle assignment by assignment, and in that case
 // rebuilding the puzzle from its current values will typically
 // find more errors (because every constraint will be checked,
 // not just the ones that were violated by the last assignment).
-// So if you pass a state with errors to this function, we will
-// replace the constructed puzzle's errors with the state's
-// errors, to ensure that the resulting puzzle has the state you
+// So if you pass a summary with errors to this function, we will
+// replace the constructed puzzle's errors with the summary's
+// errors, to ensure that the resulting puzzle has the summary you
 // expect.
-func New(state *State) (*Puzzle, error) {
-	if state == nil {
-		return nil, argumentError(StateAttribute, InvalidArgumentCondition, state)
+func New(summary *Summary) (*Puzzle, error) {
+	if summary == nil {
+		return nil, argumentError(SummaryAttribute, InvalidArgumentCondition, summary)
 	}
-	makefn, ok := knownGeometries[state.Geometry]
+	makefn, ok := knownGeometries[summary.Geometry]
 	if !ok {
-		return nil, argumentError(GeometryAttribute, UnknownGeometryCondition, state.Geometry)
+		return nil, argumentError(GeometryAttribute, UnknownGeometryCondition, summary.Geometry)
 	}
-	if state.SideLength == 0 {
+	if summary.SideLength == 0 {
 		return nil, argumentError(SideLengthAttribute, InvalidArgumentCondition, 0)
 	}
-	values := state.Values
+	values := summary.Values
 	if len(values) == 0 {
-		values = make([]int, state.SideLength*state.SideLength)
-	} else if len(values) != state.SideLength*state.SideLength {
-		return nil, argumentError(PuzzleSizeAttribute, WrongPuzzleSizeCondition, len(values), state.SideLength)
+		values = make([]int, summary.SideLength*summary.SideLength)
+	} else if len(values) != summary.SideLength*summary.SideLength {
+		return nil, argumentError(PuzzleSizeAttribute, WrongPuzzleSizeCondition, len(values), summary.SideLength)
 	}
 	p, e := makefn(values)
 	if e != nil {
 		return nil, e
 	}
-	if len(state.Errors) > 0 {
+	if len(summary.Errors) > 0 {
 		if len(p.errors) == 0 {
-			// must have been a bogus state - no errors in the puzzle!
-			return nil, argumentError(StateAttribute, MismatchedStateErrorsCondition, state.Errors)
+			// must have been a bogus summary - no errors in the puzzle!
+			return nil, argumentError(SummaryAttribute, MismatchedSummaryErrorsCondition, summary.Errors)
 		}
-		p.errors = make([]Error, len(state.Errors))
-		for i, e := range state.Errors {
+		p.errors = make([]Error, len(summary.Errors))
+		for i, e := range summary.Errors {
 			p.errors[i] = e
 		}
 	}
-	if len(state.Metadata) > 0 {
-		p.Metadata = make(map[string]string, len(state.Metadata))
-		for k, v := range state.Metadata {
+	if len(summary.Metadata) > 0 {
+		p.Metadata = make(map[string]string, len(summary.Metadata))
+		for k, v := range summary.Metadata {
 			p.Metadata[k] = v
 		}
 	}
@@ -654,8 +673,8 @@ func newGroup(gd *groupDescriptor, ss []*square) (*group, []Error) {
 }
 
 // analyze a group for solvability.  For each needed value in a
-// group, we find all look at which of the free squares in the
-// group to see how many are candidates:
+// group, we first look at which of the free squares in the group
+// to see how many are candidates:
 //
 // - if there are none, the puzzle cannot be solved, and we
 // return an Error to indicate this.
@@ -1093,7 +1112,7 @@ Errors: used to report problems making and operating on puzzles.
 */
 
 // argumentError returns an Error that describes an invalid
-// state or puzzle argument.
+// summary or puzzle argument.
 func argumentError(attr ErrorAttribute, cond ErrorCondition, values ...interface{}) Error {
 	return Error{
 		Scope:     ArgumentScope,

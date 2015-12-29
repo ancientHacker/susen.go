@@ -1,7 +1,26 @@
+// susen.go - a web-based Sudoku game and teaching tool.
+// Copyright (C) 2015 Daniel C. Brotsky.
+//
+// This program is free software; you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation; either version 2 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License along
+// with this program; if not, write to the Free Software Foundation, Inc.,
+// 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+// Licensed under the LGPL v3.  See the LICENSE file for details
+
 package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"github.com/ancientHacker/susen.go/Godeps/_workspace/src/github.com/garyburd/redigo/redis"
 	"github.com/ancientHacker/susen.go/client"
 	"github.com/ancientHacker/susen.go/puzzle"
@@ -59,9 +78,15 @@ request handlers
 
 */
 
-var apiEndpointRegexp = regexp.MustCompile("^/api/+([a-z]+)/*$")
+var apiEndpointRegexp = regexp.MustCompile("^/+api/+([a-z]+)/*$")
 
 func serveHttp(w http.ResponseWriter, r *http.Request) {
+	defer func() {
+		if err := recover(); err != nil {
+			errorHandler(err, w, r)
+		}
+	}()
+
 	if client.StaticHandler(w, r) {
 		return
 	}
@@ -70,53 +95,53 @@ func serveHttp(w http.ResponseWriter, r *http.Request) {
 }
 
 func (session *susenSession) apiHandler(w http.ResponseWriter, r *http.Request) {
-	sendSquares := func() {
-		session.puzzle.SquaresHandler(w, r)
-		log.Printf("Returned current squares for %s:%q step %d", session.SID, session.PID, session.Step)
-	}
 	sendState := func() {
 		session.puzzle.StateHandler(w, r)
 		log.Printf("Returned current state for %s:%q step %d", session.SID, session.PID, session.Step)
 	}
+	sendSummary := func() {
+		session.puzzle.SummaryHandler(w, r)
+		log.Printf("Returned current summary for %s:%q step %d", session.SID, session.PID, session.Step)
+	}
 	sendNotAllowed := func() {
 		http.Error(w, apiEndpointUnknown(r.URL.Path), http.StatusMethodNotAllowed)
-		log.Printf("Endpoint %q cannot accept %s: returned a Method Not Allowed error.", r.URL.Path, r.Method)
+		log.Printf("Endpoint %q cannot accept %s: returned a MethodNotAllowed error.", r.URL.Path, r.Method)
 	}
 	sendNotFound := func() {
 		http.Error(w, apiEndpointUnknown(r.URL.Path), http.StatusNotFound)
-		log.Printf("Endpoint %q unknown: returned a Not Found error.", r.URL.Path)
+		log.Printf("Endpoint %q unknown: returned a NotFound error.", r.URL.Path)
 	}
 
 	matches := apiEndpointRegexp.FindStringSubmatch(r.URL.Path)
 	if matches == nil {
 		http.Error(w, apiEndpointUnknown(r.URL.Path), http.StatusNotFound)
-		log.Printf("Unknown endpoint %q: returned a Not Found error.", r.URL.Path)
+		log.Printf("Unknown endpoint %q: returned a NotFound error.", r.URL.Path)
 		return
 	}
 	switch matches[1] {
 	case "reset":
 		if r.Method == "GET" {
 			session.startPuzzle("")
-			sendSquares()
+			sendState()
 		} else {
 			sendNotAllowed()
 		}
 	case "back":
 		if r.Method == "GET" {
 			session.removeStep()
-			sendSquares()
-		} else {
-			sendNotAllowed()
-		}
-	case "squares":
-		if r.Method == "GET" {
-			sendSquares()
+			sendState()
 		} else {
 			sendNotAllowed()
 		}
 	case "state":
 		if r.Method == "GET" {
 			sendState()
+		} else {
+			sendNotAllowed()
+		}
+	case "summary":
+		if r.Method == "GET" {
+			sendSummary()
 		} else {
 			sendNotAllowed()
 		}
@@ -141,7 +166,7 @@ func (session *susenSession) apiHandler(w http.ResponseWriter, r *http.Request) 
 }
 
 func (session *susenSession) solverHandler(w http.ResponseWriter, r *http.Request) {
-	body := client.SolverPage(session.SID, session.PID, session.state)
+	body := client.SolverPage(session.SID, session.PID, session.summary)
 	hs := w.Header()
 	hs.Add("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
@@ -178,6 +203,21 @@ func (session *susenSession) rootHandler(w http.ResponseWriter, r *http.Request)
 	}
 }
 
+func errorHandler(err interface{}, w http.ResponseWriter, r *http.Request) {
+	var body string
+	switch err.(type) {
+	case error:
+		body = client.ErrorPage(err.(error))
+	default:
+		body = client.ErrorPage(fmt.Errorf("%v", err))
+	}
+	hs := w.Header()
+	hs.Add("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(http.StatusInternalServerError)
+	w.Write([]byte(body))
+	log.Printf("Returned server error page for %s of %q.", r.Method, r.URL.Path)
+}
+
 /*
 
 session handling
@@ -188,13 +228,13 @@ session handling
 // Behind the scenes, we persist all the prior steps the user has
 // taken, so he can go back (undo) prior choices.
 type susenSession struct {
-	SID     string         // session ID
-	PID     string         // ID of puzzle being solved
-	Step    int            // current step
-	state   *puzzle.State  // state upon arriving at current step
-	puzzle  *puzzle.Puzzle // puzzle for current step
-	Created string         // RFC3339 time when the session was created
-	Saved   string         // RFC3339 time when the session was last saved
+	SID     string          // session ID
+	PID     string          // ID of puzzle being solved
+	Step    int             // current step
+	summary *puzzle.Summary // summary upon arriving at current step
+	puzzle  *puzzle.Puzzle  // puzzle for current step
+	Created string          // RFC3339 time when the session was created
+	Saved   string          // RFC3339 time when the session was last saved
 }
 
 // We use a cookie to associate sessions with clients (by storing
@@ -272,47 +312,50 @@ func sessionSelect(w http.ResponseWriter, r *http.Request) *susenSession {
 	return session
 }
 
-// startPuzzle: set the puzzle ID for the current session and clear any
-// existing solver steps for that puzzle ID.  If the given puzzle
-// ID is empty, try using the session's current puzzle ID.  If
-// the given puzzle ID is not valid, use the default puzzle ID.
+// startPuzzle: set the puzzle ID for the current session and
+// clear any existing solver steps for that puzzle ID.  If the
+// given puzzle ID is empty, try using the session's current
+// puzzle ID.  If the given puzzle ID is the special value
+// "default" (or unknown), use the default puzzle ID.
 func (session *susenSession) startPuzzle(pid string) {
 	// change to the given pid, making sure it's valid
 	if pid == "" {
 		pid = session.PID
+	} else if pid == "default" {
+		pid = defaultPuzzleID
 	}
-	session.state = puzzleStates[pid]
-	if session.state != nil {
+	session.summary = puzzleSummaries[pid]
+	if session.summary != nil {
 		session.PID = pid
 	} else {
-		session.PID, session.state = defaultPuzzleID, puzzleStates[defaultPuzzleID]
+		session.PID, session.summary = defaultPuzzleID, puzzleSummaries[defaultPuzzleID]
 	}
 
-	// make the puzzle for the state
-	p, e := puzzle.New(session.state)
+	// make the puzzle for the summary
+	p, e := puzzle.New(session.summary)
 	if e != nil {
 		log.Printf("Failed to create puzzle %q: %v", pid, e)
-		shutdown(runtimeFailureShutdown)
+		panic(e)
 	}
 	session.puzzle = p
 	session.redisStartPuzzle()
 	log.Printf("Reset session %v to start solving puzzle %q.", session.SID, session.PID)
 }
 
-// addStep:  a new current step with the current puzzle state.
+// addStep: add a new current step with the current puzzle.
 func (session *susenSession) addStep() {
-	state, err := session.puzzle.State()
+	summary, err := session.puzzle.Summary()
 	if err != nil {
-		log.Printf("Failed to get state of %s:%q step %d: %v", session.SID, session.PID, session.Step, err)
-		shutdown(runtimeFailureShutdown)
+		log.Printf("Failed to get summary of %s:%q step %d: %v", session.SID, session.PID, session.Step, err)
+		panic(err)
 	}
-	session.state = state
+	session.summary = summary
 	session.redisAddStep()
 	log.Printf("Added session %v:%v step %d.", session.SID, session.PID, session.Step)
 }
 
 // removeStep: remove the last step and restore the prior step's
-// puzzle state.
+// puzzle.
 func (session *susenSession) removeStep() {
 	if session.Step > 1 {
 		session.redisRemoveStep()
@@ -330,8 +373,8 @@ persistence layer
 // puzzle data
 var (
 	defaultPuzzleID = "1-star"
-	puzzleStates    = map[string]*puzzle.State{
-		"1-star": &puzzle.State{
+	puzzleSummaries = map[string]*puzzle.Summary{
+		"1-star": &puzzle.Summary{
 			Geometry:   puzzle.SudokuGeometryName,
 			SideLength: 9,
 			Values: []int{
@@ -345,7 +388,7 @@ var (
 				0, 8, 7, 3, 0, 2, 9, 0, 0,
 				5, 0, 2, 9, 0, 0, 0, 0, 6,
 			}},
-		"2-star": &puzzle.State{
+		"2-star": &puzzle.Summary{
 			Geometry:   puzzle.SudokuGeometryName,
 			SideLength: 9,
 			Values: []int{
@@ -359,7 +402,7 @@ var (
 				6, 4, 0, 2, 0, 0, 0, 0, 0,
 				0, 3, 0, 9, 0, 1, 0, 8, 0,
 			}},
-		"3-star": &puzzle.State{
+		"3-star": &puzzle.Summary{
 			Geometry:   puzzle.SudokuGeometryName,
 			SideLength: 9,
 			Values: []int{
@@ -373,7 +416,7 @@ var (
 				0, 0, 0, 0, 0, 0, 0, 6, 0,
 				4, 0, 0, 0, 1, 6, 0, 0, 3,
 			}},
-		"4-star": &puzzle.State{
+		"4-star": &puzzle.Summary{
 			Geometry:   puzzle.SudokuGeometryName,
 			SideLength: 9,
 			Values: []int{
@@ -387,7 +430,7 @@ var (
 				3, 0, 0, 5, 0, 9, 7, 0, 0,
 				0, 0, 6, 0, 1, 0, 4, 2, 3,
 			}},
-		"5-star": &puzzle.State{
+		"5-star": &puzzle.Summary{
 			Geometry:   puzzle.SudokuGeometryName,
 			SideLength: 9,
 			Values: []int{
@@ -401,7 +444,7 @@ var (
 				0, 2, 0, 3, 0, 9, 0, 0, 8,
 				0, 0, 0, 0, 0, 0, 0, 0, 0,
 			}},
-		"6-star": &puzzle.State{
+		"6-star": &puzzle.Summary{
 			Geometry:   puzzle.SudokuGeometryName,
 			SideLength: 9,
 			Values: []int{
@@ -479,15 +522,19 @@ func redisClose() {
 }
 
 // redisExecute: execute the body with the redis connection.
-// If the body returns an error, shutdown the server.
+// Meant to be used inside a handler, because errors in execution
+// will panic back to the handler level.
 func redisExecute(body func() error) {
-	// wrap the body in panic protection for runtime failures.
-	paniced := false
-	wrapper := func() error {
+	// wrap the body against runtime and database failures
+	wrapper := func() (err error) {
 		defer func() {
-			if err := recover(); err != nil {
+			if r := recover(); r != nil {
+				if e, ok := r.(error); ok {
+					err = e
+				} else {
+					err = fmt.Errorf("%v", r)
+				}
 				log.Printf("Caught panic during redisExecute: %v", err)
-				paniced = true
 			}
 		}()
 		// Because redis connections can go away without warning,
@@ -506,14 +553,11 @@ func redisExecute(body func() error) {
 		return body()
 	}
 	// grab the mutex and execute the body
-	// if if fails, shut down
 	rdMutex.Lock()
 	defer func(err error) {
 		rdMutex.Unlock()
-		if paniced {
-			shutdown(runtimeFailureShutdown)
-		} else if err != nil {
-			shutdown(redisFailureShutdown)
+		if err != nil {
+			panic(err)
 		}
 	}(wrapper())
 }
@@ -544,14 +588,14 @@ func (session *susenSession) redisLookup() (found bool) {
 			log.Printf("Redis error on GET of session %q pid: %v", session.SID, err)
 			return err
 		}
-		log.Printf("No redis saved state for session %q", session.SID)
+		log.Printf("No redis saved summary for session %q", session.SID)
 		return nil
 	}
 	redisExecute(body)
 	return
 }
 
-// redisLoadStep: load the current step from the saved state
+// redisLoadStep: load the current step from the saved summary
 func (session *susenSession) redisLoadStep() {
 	var bytes []byte
 	body := func() (err error) {
@@ -582,7 +626,7 @@ func (session *susenSession) redisStartPuzzle() {
 	redisExecute(body)
 }
 
-// redisAddStep: add the current step to the saved state
+// redisAddStep: add the current step to the saved summary
 func (session *susenSession) redisAddStep() {
 	session.Saved = time.Now().Format(time.RFC3339)
 	session.Step++
@@ -604,7 +648,7 @@ func (session *susenSession) redisRemoveStep() {
 	var bytes []byte
 	session.Saved = time.Now().Format(time.RFC3339)
 	session.Step--
-	session.state = nil // free the current step's state
+	session.summary = nil // free the current step's summary
 	body := func() (err error) {
 		rdc.Send("HMSET", redis.Args{}.Add(session.redisKey()).AddFlat(session)...)
 		rdc.Send("LTRIM", session.redisStepsKey(), 0, -2)
@@ -620,30 +664,30 @@ func (session *susenSession) redisRemoveStep() {
 
 // redisMarshalStep - get JSON for the current step
 func (session *susenSession) redisMarshalStep() []byte {
-	bytes, err := json.Marshal(session.state)
+	bytes, err := json.Marshal(session.summary)
 	if err != nil {
-		log.Printf("Failed to marshal state of %s:%q step %d (%+v) as JSON: %v",
-			session.SID, session.PID, session.Step, *session.state, err)
-		shutdown(runtimeFailureShutdown)
+		log.Printf("Failed to marshal summary of %s:%q step %d (%+v) as JSON: %v",
+			session.SID, session.PID, session.Step, *session.summary, err)
+		panic(err)
 	}
 	return bytes
 }
 
 // redisUnmarshalStep - get puzzle for the saved step
 func (session *susenSession) redisUnmarshalStep(bytes []byte) {
-	var state *puzzle.State
-	err := json.Unmarshal(bytes, &state)
+	var summary *puzzle.Summary
+	err := json.Unmarshal(bytes, &summary)
 	if err != nil {
 		log.Printf("Failed to unmarshal saved JSON of %s:%q step %d: %v",
 			session.SID, session.PID, session.Step, err)
-		shutdown(runtimeFailureShutdown)
+		panic(err)
 	}
-	session.state = state
-	session.puzzle, err = puzzle.New(session.state)
+	session.summary = summary
+	session.puzzle, err = puzzle.New(session.summary)
 	if err != nil {
 		log.Printf("Failed to create puzzle for %s:%q step %d (%+v): %v",
-			session.SID, session.PID, session.Step, *session.state, err)
-		shutdown(runtimeFailureShutdown)
+			session.SID, session.PID, session.Step, *session.summary, err)
+		panic(err)
 	}
 }
 
@@ -674,7 +718,7 @@ func shutdown(reason shutdownCause) {
 	rdMutex.Lock()
 	redisClose()
 
-	// run alternateShutdown instead, if defined
+	// for testing: run alternateShutdown instead, if defined
 	if alternateShutdown != nil {
 		alternateShutdown(reason)
 		panic(reason) // shouldn't get here
@@ -718,6 +762,8 @@ various low-level utilities
 
 */
 
+// apiEndpointUnknown: a pre-serialized JSON Error used when
+// someone calls a non-existent API endpoint.
 func apiEndpointUnknown(endpoint string) string {
 	return `{"scope": "1", "structure": "1", "condition": "1", "values": ["No such endpoint"], ` +
 		`"message": "No such endpoint: ` + endpoint + `"}`
