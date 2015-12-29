@@ -1,3 +1,21 @@
+// susen.go - a web-based Sudoku game and teaching tool.
+// Copyright (C) 2015 Daniel C. Brotsky.
+//
+// This program is free software; you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation; either version 2 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License along
+// with this program; if not, write to the Free Software Foundation, Inc.,
+// 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+// Licensed under the LGPL v3.  See the LICENSE file for details
+
 package puzzle
 
 import (
@@ -45,7 +63,7 @@ func TestPuzzleString(t *testing.T) {
 		t.Errorf("Unexpected empty puzzle string: %q, Expected: %q", s, e)
 	}
 	// do a 4x4 test with all the different states except unknown
-	p, err := New(&State{nil, SudokuGeometryName, 4, rotation4Puzzle1PartialAssign2Values, nil})
+	p, err := New(&Summary{nil, SudokuGeometryName, 4, rotation4Puzzle1PartialAssign2Values, nil})
 	if err != nil {
 		t.Fatalf("Puzzle creation failed: %v", err)
 	}
@@ -59,7 +77,7 @@ func TestPuzzleString(t *testing.T) {
 		t.Errorf("Unexpected puzzle string:\n%vExpected:\n%v", s, e)
 	}
 	// do a 9x9 empty puzzle test to cover unknown and the formatting
-	p, err = New(&State{nil, SudokuGeometryName, 9, nil, nil})
+	p, err = New(&Summary{nil, SudokuGeometryName, 9, nil, nil})
 	if err != nil {
 		t.Fatalf("Puzzle creation failed: %v", err)
 	}

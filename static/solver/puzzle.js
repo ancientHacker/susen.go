@@ -7,7 +7,6 @@ var puzzleContent = null;	// squares in the puzzle
 var puzzleErrors = null;	// errors in the puzzle
 var guessContent = null;	// allowed guess info for a selected square
 var puzzleSideLength = 0;	// side length of the puzzle
-var squaresURL = "/api/squares/";
 var stateURL = "/api/state/";
 var assignURL = "/api/assign/";
 var backURL = "/api/back/";
@@ -19,17 +18,22 @@ function receivePuzzleState() {
     if (this.readyState == 4) {
 	if (this.status == 200) {
 	    // console.log("Got puzzle state:", this.responseText);
-            var state = JSON.parse(this.responseText);
-	    if ("errors" in state) {
-		puzzleErrors = state.errors
+            var result = JSON.parse(this.responseText);
+	    fillPuzzle(result.squares);
+	    if ("errors" in result) {
+		puzzleErrors = result.errors
 		message = puzzleErrorMessage()
-		setFeedback("Puzzle can't be solved. " + message)
+		setFeedback("Puzzle can't be solved. " + message);
 	    } else {
 		puzzleErrors = null
 		setFeedback("Click a square to select it.");
 	    }
+	} else if (this.status >= 400 && this.status < 500) {
+            var result = JSON.parse(this.responseText);
+	    setFeedback("Couldn't load puzzle; will retry in 4 seconds:<br />" + result.message);
+	    setTimeout(function(){window.location = solverURL;}, 4000);
 	} else {
-	    setFeedback("Fetch of puzzle state failed:<br />" + result.message);
+	    setFeedback("Couldn't load puzzle; will retry in 4 seconds:<br />Internal Server Error.");
 	    setTimeout(function(){window.location = solverURL;}, 4000);
 	}
     }
@@ -38,40 +42,27 @@ function receivePuzzleState() {
 var getStateRequest = new XMLHttpRequest();
 getStateRequest.onreadystatechange = receivePuzzleState;
 
-function receivePuzzleSquares() {
-    if (this.readyState == 4) {
-	if (this.status == 200) {
-	    LoadState()		// get errors while decoding
-	    // console.log("Got puzzle squares:", this.responseText);
-            var squares = JSON.parse(this.responseText);
-	    fillPuzzle(squares);
-	    setFeedback("Click a square to select it.");
-	} else {
-	    setFeedback("Fetch of puzzle content failed:<br />" + result.message);
-	    setTimeout(function(){window.location = solverURL;}, 4000);
-	}
-    }
-}
-
-var getSquaresRequest = new XMLHttpRequest();
-getSquaresRequest.onreadystatechange = receivePuzzleSquares;
-
 function receivePuzzleUpdate() {
     if (this.readyState == 4) {
-	// console.log("Got puzzle update:", this.responseText);
-        var result = JSON.parse(this.responseText);
 	if (this.status == 200) {
+	    // console.log("Got puzzle update:", this.responseText);
+            var result = JSON.parse(this.responseText);
 	    updatePuzzle(result.squares);
-	    if ("conflict" in result) {
-		puzzleErrors = result.conflict
+	    if ("errors" in result) {
+		puzzleErrors = result.errors
 		message = puzzleErrorMessage()
-		setFeedback("Assign caused conflicts. " + message);
+		setFeedback("Assign made puzzle unsolvable. " + message);
 	    } else {
+		puzzleErrors = null
 		setFeedback("Assign successful; puzzle updated.");
 	    }
-	} else {
+	} else if (this.status >= 400 && this.status <= 500) {
+            var result = JSON.parse(this.responseText);
 	    setFeedback("Assign failed:<br />" + result.message);
-	    setTimeout(function(){window.location = solverURL;}, 2000);
+	    setTimeout(function(){window.location = solverURL;}, 4000);
+	} else {
+	    setFeedback("Couldn't load puzzle; will retry in 4 seconds:<br />Internal Server Error.");
+	    setTimeout(function(){window.location = solverURL;}, 4000);
 	}
     }
 }
@@ -79,20 +70,13 @@ function receivePuzzleUpdate() {
 var postAssignRequest = new XMLHttpRequest();
 postAssignRequest.onreadystatechange = receivePuzzleUpdate;
 
-function LoadState() {
-    url = stateURL;
-    console.log("GET request for", url)
-    getStateRequest.open("GET", url, true);
-    getStateRequest.send(null);
-}
-
 function LoadPuzzle(url) {
     if (!url) {
-	url = squaresURL;
+	url = stateURL;
     }
     console.log("GET request for", url);
-    getSquaresRequest.open("GET", url, true);
-    getSquaresRequest.send(null);
+    getStateRequest.open("GET", url, true);
+    getStateRequest.send(null);
 }
 
 function fillPuzzle(squares) {

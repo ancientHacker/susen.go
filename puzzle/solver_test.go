@@ -1,3 +1,21 @@
+// susen.go - a web-based Sudoku game and teaching tool.
+// Copyright (C) 2015 Daniel C. Brotsky.
+//
+// This program is free software; you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation; either version 2 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License along
+// with this program; if not, write to the Free Software Foundation, Inc.,
+// 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+// Licensed under the LGPL v3.  See the LICENSE file for details
+
 package puzzle
 
 import (
@@ -237,7 +255,7 @@ func TestAssignKnown(t *testing.T) {
 		assignKnownTestcase{4, solveSimpleSecondValues, solveSimpleSecondCompleteValues},
 	}
 	for i, tc := range tcs {
-		p, e := New(&State{Geometry: SudokuGeometryName, SideLength: tc.sidelen, Values: tc.before})
+		p, e := New(&Summary{Geometry: SudokuGeometryName, SideLength: tc.sidelen, Values: tc.before})
 		if e != nil {
 			t.Fatalf("TestBindAll case %d: Failed to create test puzzle: %v", i+1, e)
 		}
@@ -258,7 +276,7 @@ func TestAssignKnown(t *testing.T) {
 }
 
 func TestPopThread(t *testing.T) {
-	pin, e := New(&State{Geometry: "sudoku", SideLength: 4, Values: solveSimpleStartValues})
+	pin, e := New(&Summary{Geometry: "sudoku", SideLength: 4, Values: solveSimpleStartValues})
 	if e != nil {
 		t.Fatalf("TestPopThread: Failed to create puzzle: %v", e)
 	}
@@ -298,7 +316,7 @@ func TestPopThread(t *testing.T) {
 
 func TestPushThread(t *testing.T) {
 	// first test has an early square with 2 possibles
-	pin, e := New(&State{Geometry: "sudoku", SideLength: 4, Values: solveSimpleStartValues})
+	pin, e := New(&Summary{Geometry: "sudoku", SideLength: 4, Values: solveSimpleStartValues})
 	if e != nil {
 		t.Fatalf("TestPushThread: Failed to create 1st puzzle: %v", e)
 	}
@@ -316,7 +334,7 @@ func TestPushThread(t *testing.T) {
 			p.allValues(), solveSimpleFirstValues)
 	}
 	// second test all squares have 4 possibles
-	pin, e = New(&State{Geometry: "sudoku", SideLength: 4, Values: empty4PuzzleValues})
+	pin, e = New(&Summary{Geometry: "sudoku", SideLength: 4, Values: empty4PuzzleValues})
 	if e != nil {
 		t.Fatalf("TestPushThread: Failed to create 2nd puzzle: %v", e)
 	}
@@ -351,7 +369,7 @@ func TestSolve(t *testing.T) {
 	var th thread
 	var e error
 	// first check behavior on a puzzle with problems
-	p, e = New(&State{Geometry: "sudoku", SideLength: 4, Values: conflicting4Puzzle1})
+	p, e = New(&Summary{Geometry: "sudoku", SideLength: 4, Values: conflicting4Puzzle1})
 	if e != nil {
 		t.Fatalf("TestSolve: Failed to create conflicting puzzle: %v", e)
 	}
@@ -360,7 +378,7 @@ func TestSolve(t *testing.T) {
 	}
 	pc := p.copy()
 	p, th = solve(p, th)
-	if th != nil || !reflect.DeepEqual(p.state(), pc.state()) {
+	if th != nil || !reflect.DeepEqual(p.summary(), pc.summary()) {
 		t.Errorf("TestSolve: solving conflicting puzzle gave different puzzle:\n%v", p)
 	}
 
@@ -398,7 +416,7 @@ func TestSolve(t *testing.T) {
 			}
 			p, th = popChoice(p, th)
 		} else {
-			p, e = New(&State{Geometry: SudokuGeometryName, SideLength: tc.sidelen, Values: tc.start})
+			p, e = New(&Summary{Geometry: SudokuGeometryName, SideLength: tc.sidelen, Values: tc.start})
 			if e != nil {
 				t.Fatalf("TestSolve case %d: Failed to create puzzle: %v", i+1, e)
 			}
@@ -411,19 +429,23 @@ func TestSolve(t *testing.T) {
 			if len(p.errors) > 0 {
 				t.Fatalf("TestSolve case %d: Failed to solve puzzle: %v", i+1, p.errors)
 			}
-			if !reflect.DeepEqual(p.allValues(), tc.finish) {
-				t.Errorf("TestSolve case %d: Solved puzzle is %v (expected %v)",
-					i+1, p.allValues(), tc.finish)
-			}
-			if len(th) != tc.elen {
-				t.Errorf("TestSolve case %d: Solution length %d (expected %d): %+v",
-					i+1, len(th), tc.elen, th)
-			} else if tc.elen > 0 {
-				if th[tc.elen-1].cindex != tc.elasti ||
-					th[tc.elen-1].cvalue != tc.elastv ||
-					!reflect.DeepEqual(th[tc.elen-1].cnext, tc.elastn) {
-					t.Errorf("TestSolve case %d: Last choice is wrong: %+v",
-						i+1, th[tc.elen-1])
+			if tc.finish == nil {
+				t.Errorf("TestSolve case %d: solution was: %v\n%s\n", i+1, p.allValues(), p)
+			} else {
+				if !reflect.DeepEqual(p.allValues(), tc.finish) {
+					t.Errorf("TestSolve case %d: Solved puzzle is %v (expected %v)",
+						i+1, p.allValues(), tc.finish)
+				}
+				if len(th) != tc.elen {
+					t.Errorf("TestSolve case %d: Solution length %d (expected %d): %+v",
+						i+1, len(th), tc.elen, th)
+				} else if tc.elen > 0 {
+					if th[tc.elen-1].cindex != tc.elasti ||
+						th[tc.elen-1].cvalue != tc.elastv ||
+						!reflect.DeepEqual(th[tc.elen-1].cnext, tc.elastn) {
+						t.Errorf("TestSolve case %d: Last choice is wrong: %+v",
+							i+1, th[tc.elen-1])
+					}
 				}
 			}
 		} else {
@@ -488,7 +510,7 @@ func TestSolutions(t *testing.T) {
 	}
 
 	for i, tc := range tcs {
-		p, e := New(&State{Geometry: SudokuGeometryName, SideLength: tc.sidelen, Values: tc.start})
+		p, e := New(&Summary{Geometry: SudokuGeometryName, SideLength: tc.sidelen, Values: tc.start})
 		if e != nil {
 			t.Fatalf("test %d: Failed to create puzzle: %v", i+1, e)
 		}

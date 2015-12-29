@@ -1,3 +1,21 @@
+// susen.go - a web-based Sudoku game and teaching tool.
+// Copyright (C) 2015 Daniel C. Brotsky.
+//
+// This program is free software; you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation; either version 2 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License along
+// with this program; if not, write to the Free Software Foundation, Inc.,
+// 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+// Licensed under the LGPL v3.  See the LICENSE file for details
+
 package client
 
 import (
@@ -29,7 +47,7 @@ var (
 )
 
 func TestErrorPage(t *testing.T) {
-	body := errorPage(fmt.Errorf("Test Error 0"))
+	body := ErrorPage(fmt.Errorf("Test Error 0"))
 	if !sameAsResultFile(body, "TestErrorPage0.html") {
 		t.Errorf("Test Error 0: got unexpected result body:\n%v\n", body)
 	}
@@ -44,7 +62,7 @@ func TestHomePage(t *testing.T) {
 }
 
 func TestSolverPage(t *testing.T) {
-	p0, e := puzzle.New(&puzzle.State{
+	p0, e := puzzle.New(&puzzle.Summary{
 		Geometry:   puzzle.SudokuGeometryName,
 		SideLength: 4,
 		Values:     rotation4Puzzle1PartialValues,
@@ -53,16 +71,16 @@ func TestSolverPage(t *testing.T) {
 		t.Fatalf("Failed to create p0: %v", e)
 	}
 	session0, puzzle0 := "httpx-Test0", "test-0"
-	state0, e := p0.State()
+	summary0, e := p0.Summary()
 	if e != nil {
-		t.Fatalf("Failed to get state of p0: %v", e)
+		t.Fatalf("Failed to get summary of p0: %v", e)
 	}
-	body0 := SolverPage(session0, puzzle0, state0)
+	body0 := SolverPage(session0, puzzle0, summary0)
 	if !sameAsResultFile(body0, "TestSolverPage0.html") {
 		t.Errorf("Test Solver 0: got unexpected result body:\n%v\n", body0)
 	}
 
-	p1, e := puzzle.New(&puzzle.State{
+	p1, e := puzzle.New(&puzzle.Summary{
 		Geometry:   puzzle.SudokuGeometryName,
 		SideLength: 9,
 		Values:     oneStarValues,
@@ -71,11 +89,11 @@ func TestSolverPage(t *testing.T) {
 		t.Fatalf("Failed to create p1: %v", e)
 	}
 	session1, puzzle1 := "https-Test1", "test-1"
-	state1, e := p1.State()
+	summary1, e := p1.Summary()
 	if e != nil {
-		t.Fatalf("Failed to get state of p1: %v", e)
+		t.Fatalf("Failed to get summary of p1: %v", e)
 	}
-	body1 := SolverPage(session1, puzzle1, state1)
+	body1 := SolverPage(session1, puzzle1, summary1)
 	if !sameAsResultFile(body1, "TestSolverPage1.html") {
 		t.Errorf("Test Solver 1: got unexpected result body:\n%v\n", body1)
 	}
