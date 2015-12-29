@@ -1,3 +1,21 @@
+// susen.go - a web-based Sudoku game and teaching tool.
+// Copyright (C) 2015 Daniel C. Brotsky.
+//
+// This program is free software; you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation; either version 2 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License along
+// with this program; if not, write to the Free Software Foundation, Inc.,
+// 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+// Licensed under the LGPL v3.  See the LICENSE file for details
+
 package puzzle
 
 import (
@@ -13,7 +31,7 @@ import (
 
 /*
 
-helper puzzle type: gives errors doing json encoding of state.
+helper puzzle type: gives errors doing json encoding of summary.
 
 */
 
@@ -27,11 +45,11 @@ var badError = Error{Message: "unencodable error", Values: ErrorData{unencodable
 
 type badEncoderPuzzle Puzzle
 
-func (b *badEncoderPuzzle) State() (*State, error) {
-	return &State{nil, SudokuGeometryName, 0, []int{}, nil}, nil
+func (b *badEncoderPuzzle) Summary() (*Summary, error) {
+	return &Summary{nil, SudokuGeometryName, 0, []int{}, nil}, nil
 }
 
-func (b *badEncoderPuzzle) Squares() ([]Square, error) {
+func (b *badEncoderPuzzle) State() (*Content, error) {
 	return nil, nil
 }
 
@@ -39,7 +57,7 @@ func (b *badEncoderPuzzle) Solutions() ([]Solution, error) {
 	return nil, nil
 }
 
-func (b *badEncoderPuzzle) Assign(choice Choice) (*Update, error) {
+func (b *badEncoderPuzzle) Assign(choice Choice) (*Content, error) {
 	return nil, badError
 }
 
@@ -67,12 +85,12 @@ GET handlers
 */
 
 func TestPuzzleGetHandlers(t *testing.T) {
-	tests := []*State{
-		&State{nil, SudokuGeometryName, 4, rotation4Puzzle1PartialAssign1Values, nil},
-		&State{nil, SudokuGeometryName, 4, rotation4Puzzle1Complete1, nil},
-		&State{nil, SudokuGeometryName, 4, empty4PuzzleValues, nil},
-		&State{nil, SudokuGeometryName, 9, oneStarValues, nil},
-		&State{nil, SudokuGeometryName, 9, sixStarValues, nil},
+	tests := []*Summary{
+		&Summary{nil, SudokuGeometryName, 4, rotation4Puzzle1PartialAssign1Values, nil},
+		&Summary{nil, SudokuGeometryName, 4, rotation4Puzzle1Complete1, nil},
+		&Summary{nil, SudokuGeometryName, 4, empty4PuzzleValues, nil},
+		&Summary{nil, SudokuGeometryName, 9, oneStarValues, nil},
+		&Summary{nil, SudokuGeometryName, 9, sixStarValues, nil},
 	}
 	for i, test := range tests {
 		p, e := New(test)
@@ -81,15 +99,15 @@ func TestPuzzleGetHandlers(t *testing.T) {
 		}
 
 		handlers := []func(http.ResponseWriter, *http.Request) error{
+			p.SummaryHandler,
 			p.StateHandler,
-			p.SquaresHandler,
 			p.SolutionsHandler,
 		}
-		ostate, istate := State{}, *p.state()
-		osquares, isquares := []Square{}, p.allSquares()
+		osummary, isummary := Summary{}, *p.summary()
+		ostate, istate := Content{}, *p.state()
 		osolns, isolns := []Solution{}, p.allSolutions()
-		outputs := []interface{}{&ostate, &osquares, &osolns}
-		inputs := []interface{}{&istate, &isquares, &isolns}
+		outputs := []interface{}{&osummary, &ostate, &osolns}
+		inputs := []interface{}{&isummary, &istate, &isolns}
 		for j, handler := range handlers {
 			handlerFunc := func(w http.ResponseWriter, r *http.Request) {
 				err := handler(w, r)
@@ -128,8 +146,8 @@ func TestGetHandlerErrors(t *testing.T) {
 	var p *Puzzle
 
 	handlers := []func(http.ResponseWriter, *http.Request) error{
+		p.SummaryHandler,
 		p.StateHandler,
-		p.SquaresHandler,
 		p.SolutionsHandler,
 	}
 	for _, handler := range handlers {
@@ -161,20 +179,21 @@ POST handlers
 */
 
 func TestNewHandler(t *testing.T) {
-	testcases := []*State{
-		&State{nil, SudokuGeometryName, 4, empty4PuzzleValues, nil},
-		&State{nil, SudokuGeometryName, 4, rotation4Puzzle1PartialAssign1Values, nil},
-		&State{nil, SudokuGeometryName, 4, rotation4Puzzle1Complete1, nil},
+	testcases := []*Summary{
+		&Summary{nil, SudokuGeometryName, 4, empty4PuzzleValues, nil},
+		&Summary{nil, SudokuGeometryName, 4, rotation4Puzzle1PartialAssign1Values, nil},
+		&Summary{nil, SudokuGeometryName, 4, rotation4Puzzle1Complete1, nil},
 	}
 	for i, tc := range testcases {
 		pe, err := New(tc)
 		if err != nil {
 			t.Fatalf("case %d: Failed to create puzzle: %v", i, err)
 		}
+		pesum, pestate := pe.summary(), pe.state()
 
 		bytes, err := json.Marshal(tc)
 		if err != nil {
-			t.Fatalf("case %d: Failed to encode state: %v", i, err)
+			t.Fatalf("case %d: Failed to encode summary: %v", i, err)
 		}
 
 		handlerFunc := func(w http.ResponseWriter, r *http.Request) {
@@ -182,18 +201,11 @@ func TestNewHandler(t *testing.T) {
 			if e != nil {
 				t.Fatalf("Failed to create puzzle in handler: %v", e)
 			}
-			if !reflect.DeepEqual(p.state(), pe.state()) {
-				t.Errorf("Created puzzle has state %v, expected %v", p.state(), pe.state())
+			if psum := p.summary(); !reflect.DeepEqual(psum, pesum) {
+				t.Errorf("test %d: Created puzzle has summary %+v, expected %+v", i, *psum, *pesum)
 			}
-			ps, pes := p.allSquares(), pe.allSquares()
-			if !reflect.DeepEqual(ps, pes) {
-				t.Errorf("test %d: Unexpected squares:", i)
-				for i := range ps {
-					if !reflect.DeepEqual(ps[i], pes[i]) {
-						t.Errorf("Square %d: is %+v, expected %+v",
-							ps[i].Index, ps[i], pes[i])
-					}
-				}
+			if pstate := p.state(); !reflect.DeepEqual(pstate, pestate) {
+				t.Errorf("test %d: Created puzzle has state %+v, expected %+v", i, *pstate, *pestate)
 			}
 		}
 		ts := httptest.NewServer(http.HandlerFunc(handlerFunc))
@@ -212,17 +224,17 @@ func TestNewHandler(t *testing.T) {
 		b, e := ioutil.ReadAll(r.Body)
 		r.Body.Close()
 		if e != nil {
-			t.Fatalf("test %d: Read error on state: %v", i, e)
+			t.Fatalf("test %d: Read error on summary: %v", i, e)
 		}
 		t.Logf("%s\n", b)
 
-		var state State
+		var state *Content
 		e = json.Unmarshal(b, &state)
 		if e != nil {
 			t.Fatalf("test %d: Unmarshal failed: %v", i, e)
 		}
-		if !reflect.DeepEqual(&state, pe.state()) {
-			t.Errorf("test %d: State was %+v, expected %+v:", i, state, pe.state())
+		if !reflect.DeepEqual(state, pestate) {
+			t.Errorf("test %d: Summary was %+v, expected %+v:", i, *state, *pestate)
 		}
 	}
 }
@@ -235,7 +247,7 @@ type testNewHandlerErrorTestcase struct {
 
 func TestNewHandlerErrors(t *testing.T) {
 	testcases := []testNewHandlerErrorTestcase{
-		{"bad input", `"string not state"`, DecodeAttribute},
+		{"bad input", `"string not summary"`, DecodeAttribute},
 		{"unknown geometry", `{"geometry":"nope","sidelen":4}`, GeometryAttribute},
 		{"values incompatible", `{"geometry":"sudoku","sidelen":4,"values":[1, 2, 3]}`, PuzzleSizeAttribute},
 	}
@@ -244,7 +256,7 @@ func TestNewHandlerErrors(t *testing.T) {
 		handlerFunc := func(w http.ResponseWriter, r *http.Request) {
 			p, e := NewHandler(w, r)
 			if e == nil {
-				t.Errorf("Test %s: Successfully created puzzle: %v", tc.name, p.state())
+				t.Errorf("Test %s: Successfully created puzzle: %v", tc.name, p.summary())
 			}
 		}
 		ts := httptest.NewServer(http.HandlerFunc(handlerFunc))
@@ -277,11 +289,11 @@ func TestNewHandlerErrors(t *testing.T) {
 
 func TestAssignHandler(t *testing.T) {
 	choices := []Choice{{13, 2}, {10, 4}, {15, 4}}
-	p1, err := New(&State{Geometry: "sudoku", SideLength: 4, Values: rotation4Puzzle1PartialValues})
+	p1, err := New(&Summary{Geometry: "sudoku", SideLength: 4, Values: rotation4Puzzle1PartialValues})
 	if err != nil {
 		t.Fatalf("Failed to create initial puzzle1: %v", err)
 	}
-	p2, err := New(&State{Geometry: "sudoku", SideLength: 4, Values: rotation4Puzzle1PartialValues})
+	p2, err := New(&Summary{Geometry: "sudoku", SideLength: 4, Values: rotation4Puzzle1PartialValues})
 	if err != nil {
 		t.Fatalf("Failed to create initial puzzle2: %v", err)
 	}
@@ -322,23 +334,23 @@ func TestAssignHandler(t *testing.T) {
 		b, e := ioutil.ReadAll(r.Body)
 		r.Body.Close()
 		if e != nil {
-			t.Fatalf("test %d: Read error on state: %v", i, e)
+			t.Fatalf("test %d: Read error on summary: %v", i, e)
 		}
 		t.Logf("%s\n", b)
 
-		var update *Update
+		var update *Content
 		e = json.Unmarshal(b, &update)
 		if e != nil {
 			t.Fatalf("test %d: Unmarshal failed: %v", i, e)
 		}
 		if !reflect.DeepEqual(update, up2) {
-			t.Errorf("test %d: Update was %+v, expected %+v:", i, update, up2)
+			t.Errorf("test %d: Content was %+v, expected %+v:", i, update, up2)
 		}
 	}
 }
 
 func TestAssignHandlerErrors(t *testing.T) {
-	p, err := New(&State{Geometry: "sudoku", SideLength: 4, Values: rotation4Puzzle1PartialValues})
+	p, err := New(&Summary{Geometry: "sudoku", SideLength: 4, Values: rotation4Puzzle1PartialValues})
 	if err != nil {
 		t.Fatalf("Failed to create initial puzzle: %v", err)
 	}

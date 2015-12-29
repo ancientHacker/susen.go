@@ -1,3 +1,21 @@
+// susen.go - a web-based Sudoku game and teaching tool.
+// Copyright (C) 2015 Daniel C. Brotsky.
+//
+// This program is free software; you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation; either version 2 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License along
+// with this program; if not, write to the Free Software Foundation, Inc.,
+// 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+// Licensed under the LGPL v3.  See the LICENSE file for details
+
 package puzzle
 
 /*
@@ -901,6 +919,17 @@ var (
 		0, 0, 0, 4,
 		0, 0, 4, 0,
 		0, 4, 0, 0,
+	}
+	pathological9Puzzle = []int{
+		4, 0, 0, 0, 0, 3, 5, 0, 2,
+		0, 0, 9, 5, 0, 6, 3, 4, 0,
+		0, 0, 0, 0, 0, 0, 0, 0, 8,
+		1, 7, 0, 2, 3, 4, 8, 6, 0,
+		0, 0, 4, 6, 8, 5, 2, 0, 0,
+		0, 2, 8, 7, 9, 1, 0, 0, 0,
+		9, 0, 0, 0, 0, 0, 0, 0, 0,
+		0, 8, 7, 3, 0, 2, 9, 0, 0,
+		5, 0, 2, 9, 0, 0, 0, 0, 6,
 	}
 )
 
@@ -2452,7 +2481,7 @@ func TestNewSudoku(t *testing.T) {
 		},
 	}
 	for _, ec := range errcases {
-		p, e := New(&State{
+		p, e := New(&Summary{
 			Metadata:   ec.metadata,
 			Geometry:   SudokuGeometryName,
 			SideLength: ec.sidelen,
@@ -2467,7 +2496,7 @@ func TestNewSudoku(t *testing.T) {
 			}
 		} else {
 			if e == nil {
-				t.Fatalf("newSudoku case %s create didn't fail': %v", ec.metadata["name"], *p.state())
+				t.Fatalf("newSudoku case %s create didn't fail': %v", ec.metadata["name"], *p.summary())
 			}
 			if e.(Error).Condition != ec.cond {
 				t.Errorf("newSudoku case %s, create failure wrong error: %v", ec.metadata["name"], e)
@@ -2496,7 +2525,7 @@ func TestNewSudoku(t *testing.T) {
 		},
 	}
 	for _, tc := range testcases {
-		p, e := New(&State{
+		p, e := New(&Summary{
 			Metadata:   tc.metadata,
 			Geometry:   SudokuGeometryName,
 			SideLength: tc.sidelen,
@@ -2557,7 +2586,7 @@ func TestNewEmptySudoku(t *testing.T) {
 		},
 	}
 	for _, tc := range testcases {
-		p, e := New(&State{
+		p, e := New(&Summary{
 			Metadata:   tc.metadata,
 			Geometry:   SudokuGeometryName,
 			SideLength: tc.sidelen,
@@ -2602,44 +2631,44 @@ Puzzle Operations
 
 */
 
-type stateTestcase struct {
+type summaryTestcase struct {
 	metadata map[string]string
 	vals     []int
-	estate   State
+	esummary Summary
 }
 
-func TestState(t *testing.T) {
-	testcases := []stateTestcase{
-		stateTestcase{
+func TestSummary(t *testing.T) {
+	testcases := []summaryTestcase{
+		summaryTestcase{
 			map[string]string{"name": "test 1"},
 			rotation4Puzzle1PartialAssign1Values,
-			State{nil, SudokuGeometryName, 4, rotation4Puzzle1PartialAssign1Values, nil},
+			Summary{nil, SudokuGeometryName, 4, rotation4Puzzle1PartialAssign1Values, nil},
 		},
-		stateTestcase{
+		summaryTestcase{
 			map[string]string{"name": "test 2"},
 			empty4PuzzleValues,
-			State{nil, SudokuGeometryName, 4, empty4PuzzleValues, nil},
+			Summary{nil, SudokuGeometryName, 4, empty4PuzzleValues, nil},
 		},
-		stateTestcase{
+		summaryTestcase{
 			map[string]string{"name": "test 3"},
 			rotation4Puzzle1Complete1,
-			State{nil, SudokuGeometryName, 4, rotation4Puzzle1Complete1, nil},
+			Summary{nil, SudokuGeometryName, 4, rotation4Puzzle1Complete1, nil},
 		},
 	}
 	for _, tc := range testcases {
-		p, e := New(&State{
+		p, e := New(&Summary{
 			Metadata:   tc.metadata,
 			Geometry:   SudokuGeometryName,
 			SideLength: 4,
 			Values:     tc.vals,
 		})
 		if e != nil {
-			t.Fatalf("State case %s creation failed: %s", tc.metadata["name"], e.Error())
+			t.Fatalf("Summary case %s creation failed: %s", tc.metadata["name"], e.Error())
 		}
-		state := p.state()
-		tc.estate.Metadata = tc.metadata
-		if !reflect.DeepEqual(*state, tc.estate) {
-			t.Errorf("State case %s returned %v, expected %v", tc.metadata["name"], *state, tc.estate)
+		summary := p.summary()
+		tc.esummary.Metadata = tc.metadata
+		if !reflect.DeepEqual(*summary, tc.esummary) {
+			t.Errorf("Summary case %s returned %v, expected %v", tc.metadata["name"], *summary, tc.esummary)
 		}
 	}
 }
@@ -2674,7 +2703,7 @@ func TestInternalAssign(t *testing.T) {
 		},
 	}
 	// we apply the testcases in sequence to a base setup
-	p, e := New(&State{nil, SudokuGeometryName, 4, rotation4Puzzle1PartialValues, nil})
+	p, e := New(&Summary{nil, SudokuGeometryName, 4, rotation4Puzzle1PartialValues, nil})
 	if e != nil {
 		t.Fatalf("Creation of rotation4Puzzle1 failed: %s", e.Error())
 	}
@@ -2727,7 +2756,7 @@ func BenchmarkInternalAssign(b *testing.B) {
 		assignInternalBenchcase{"test 3", 15, 4},
 	}
 	// we apply the benchcases in sequence to a base setup
-	master, e := New(&State{nil, SudokuGeometryName, 4, rotation4Puzzle1PartialValues, nil})
+	master, e := New(&Summary{nil, SudokuGeometryName, 4, rotation4Puzzle1PartialValues, nil})
 	if e != nil {
 		b.Fatalf("Creation of rotation4Puzzle1 failed: %s", e.Error())
 	}
@@ -2761,7 +2790,7 @@ func TestExternalAssign(t *testing.T) {
 	if e.(Error).Scope != ArgumentScope {
 		t.Errorf("Assign to puzzle with one issue returned wrong error: %v", e.Error())
 	}
-	pi, e = New(&State{nil, SudokuGeometryName, 4, rotation4Puzzle1PartialValues, nil})
+	pi, e = New(&Summary{nil, SudokuGeometryName, 4, rotation4Puzzle1PartialValues, nil})
 	if e != nil {
 		t.Fatalf("Creation of valid 4 puzzle produced error: %v", e)
 	}
@@ -2801,7 +2830,7 @@ func TestExternalAssign(t *testing.T) {
 		},
 	}
 	// we apply the testcases in sequence to a base setup
-	p, e := New(&State{nil, SudokuGeometryName, 4, rotation4Puzzle1PartialValues, nil})
+	p, e := New(&Summary{nil, SudokuGeometryName, 4, rotation4Puzzle1PartialValues, nil})
 	if e != nil {
 		t.Fatalf("Creation of rotation4Puzzle1 failed: %s", e.Error())
 	}
@@ -2820,7 +2849,7 @@ func TestExternalAssign(t *testing.T) {
 	}
 }
 
-type squaresTestcase struct {
+type stateTestcase struct {
 	name   string
 	ai, av int
 	ss     []Square
@@ -2828,39 +2857,44 @@ type squaresTestcase struct {
 
 // depends on assignment so follows it
 // also tests internal allSquares
-func TestSquares(t *testing.T) {
-	testcases := []squaresTestcase{
-		squaresTestcase{
+func TestState(t *testing.T) {
+	testcases := []stateTestcase{
+		stateTestcase{
 			"test 1", 13, 2,
 			rotation4Puzzle1PartialAssign1CapitalSquares,
 		},
-		squaresTestcase{
+		stateTestcase{
 			"test 2", 10, 4,
 			rotation4Puzzle1PartialAssign2CapitalSquares,
 		},
-		squaresTestcase{
+		stateTestcase{
 			"test 3", 15, 4,
 			rotation4Puzzle1PartialAssign3CapitalSquares,
 		},
 	}
 	// we apply the testcases in sequence to a base setup
-	p, e := New(&State{nil, SudokuGeometryName, 4, rotation4Puzzle1PartialValues, nil})
+	p, e := New(&Summary{nil, SudokuGeometryName, 4, rotation4Puzzle1PartialValues, nil})
 	if e != nil {
 		t.Fatalf("Creation of rotation4Puzzle1 failed: %s", e.Error())
 	}
 	for _, tc := range testcases {
 		_, e := p.Assign(Choice{tc.ai, tc.av})
 		if e != nil {
-			t.Fatalf("invalid Squares %s: Assign(&Choice{%d, %d}) failed: %s",
+			t.Fatalf("invalid State %s: Assign(&Choice{%d, %d}) failed: %s",
 				tc.name, tc.ai, tc.av, e.Error())
 		}
-		ss := p.allSquares()
+		state, err := p.State()
+		if err != nil || len(state.Errors) > 0 {
+			t.Fatalf("invalid State %s: State call failed or returned errors: %v, %v",
+				tc.name, err, state.Errors)
+		}
+		ss := state.Squares
 		if len(ss) != len(tc.ss) {
-			t.Fatalf("Squares %s: gave %d squares, expected %d.",
+			t.Fatalf("State %s: gave %d squares, expected %d.",
 				tc.name, len(ss), len(tc.ss))
 		}
 		if !reflect.DeepEqual(ss, tc.ss) {
-			t.Errorf("Squares case %s unexpected squares:", tc.name)
+			t.Errorf("State case %s unexpected squares:", tc.name)
 			for i := range ss {
 				if !reflect.DeepEqual(ss[i], tc.ss[i]) {
 					t.Errorf("%s Square %d: is %+v, expected %+v",
@@ -2916,7 +2950,7 @@ func TestPuzzleInternalCopy(t *testing.T) {
 		},
 	}
 	for _, tc := range testcases {
-		p, e := New(&State{nil, SudokuGeometryName, 4, tc.vals, nil})
+		p, e := New(&Summary{nil, SudokuGeometryName, 4, tc.vals, nil})
 		if e != nil {
 			t.Fatalf("puzzleCopy %s failed to make puzzle: %v", tc.name, e)
 		}
@@ -2950,7 +2984,7 @@ func TestPuzzleInternalCopy(t *testing.T) {
 }
 
 func TestPuzzleExternalCopy(t *testing.T) {
-	in, e := New(&State{nil, SudokuGeometryName, 4, rotation4Puzzle1PartialValues, nil})
+	in, e := New(&Summary{nil, SudokuGeometryName, 4, rotation4Puzzle1PartialValues, nil})
 	if e != nil {
 		t.Fatalf("Creation of rotation4Puzzle1 failed: %s", e.Error())
 	}
@@ -2982,14 +3016,14 @@ func TestNewErrorCases(t *testing.T) {
 	}
 
 	// bad geometry
-	_, e = New(&State{Geometry: "notachance", SideLength: 9})
+	_, e = New(&Summary{Geometry: "notachance", SideLength: 9})
 	err, ok = e.(Error)
 	if !ok || err.Condition != UnknownGeometryCondition {
 		t.Errorf("Wrong error on bad geometry: %v", e)
 	}
 
 	// input state with errors but puzzle does not have any
-	es0 := &State{
+	es0 := &Summary{
 		Metadata:   nil,
 		Geometry:   SudokuGeometryName,
 		SideLength: 4,
@@ -3003,13 +3037,13 @@ func TestNewErrorCases(t *testing.T) {
 		}}}
 	p, e := New(es0)
 	if e == nil {
-		t.Errorf("No error creating good puzzle from state with errors")
-	} else if e.(Error).Condition != MismatchedStateErrorsCondition {
-		t.Errorf("Wrong error creating good puzzle from state with errors: %v", e)
+		t.Errorf("No error creating good puzzle from summary with errors")
+	} else if e.(Error).Condition != MismatchedSummaryErrorsCondition {
+		t.Errorf("Wrong error creating good puzzle from summary with errors: %v", e)
 	}
 
-	// input state with too few errors
-	es1 := &State{
+	// input summary with too few errors
+	es1 := &Summary{
 		Metadata:   map[string]string{"name": "test 4"},
 		Geometry:   SudokuGeometryName,
 		SideLength: 4,
@@ -3043,9 +3077,9 @@ func TestNewErrorCases(t *testing.T) {
 	if e != nil {
 		t.Fatalf("Error creating puzzle with errors: %v", e)
 	}
-	s := p.state()
+	s := p.summary()
 	if !reflect.DeepEqual(s, es1) {
-		t.Errorf("State of new puzzle doesn't match: %+v, %+v", *s, *es1)
+		t.Errorf("Summary of new puzzle doesn't match: %+v, %+v", *s, *es1)
 	}
 
 	// restore known geometries after test
@@ -3057,7 +3091,7 @@ func TestNewErrorCases(t *testing.T) {
 	knownGeometries = map[string]func([]int) (*Puzzle, error){
 		"test": func(_ []int) (*Puzzle, error) { return nil, Error{Message: "test error"} },
 	}
-	_, e = New(&State{Geometry: "test", SideLength: 9})
+	_, e = New(&Summary{Geometry: "test", SideLength: 9})
 	err, ok = e.(Error)
 	if !ok || err.Scope != UnknownScope || err.Message != "test error" {
 		t.Errorf("Wrong error on test geometry: %v", e)
@@ -3126,9 +3160,9 @@ func TestEndToEndPuzzleAssignment(t *testing.T) {
 	for _, test := range tests {
 		if test.init == nil {
 			t.Log("NEW TEST (starter puzzle empty)")
-			p, _ = New(&State{nil, SudokuGeometryName, 4, nil, nil})
+			p, _ = New(&Summary{nil, SudokuGeometryName, 4, nil, nil})
 		} else {
-			p, _ = New(&State{nil, SudokuGeometryName, 4, test.init, nil})
+			p, _ = New(&Summary{nil, SudokuGeometryName, 4, test.init, nil})
 			t.Logf("NEW TEST, starter puzzle:\n%v", p)
 		}
 		for _, assign := range test.setup {
@@ -3159,13 +3193,13 @@ func TestExternalNil(t *testing.T) {
 
 	var err error
 	for i, p := range testcases {
+		_, err = p.Summary()
+		if err == nil || err.(Error).Condition != InvalidArgumentCondition {
+			t.Errorf("case %v Summary: No error or incorrect condition on invalid puzzle: %v", i, err)
+		}
 		_, err = p.State()
 		if err == nil || err.(Error).Condition != InvalidArgumentCondition {
 			t.Errorf("case %v State: No error or incorrect condition on invalid puzzle: %v", i, err)
-		}
-		_, err = p.Squares()
-		if err == nil || err.(Error).Condition != InvalidArgumentCondition {
-			t.Errorf("case %v Squares: No error or incorrect condition on invalid puzzle: %v", i, err)
 		}
 		_, err = p.Assign(Choice{1, 1})
 		if err == nil || err.(Error).Condition != InvalidArgumentCondition {
@@ -3175,5 +3209,30 @@ func TestExternalNil(t *testing.T) {
 		if err == nil || err.(Error).Condition != InvalidArgumentCondition {
 			t.Errorf("case %v Copy: No error or incorrect condition on invalid puzzle: %v", i, err)
 		}
+	}
+}
+
+/*
+
+issue-specific tests
+
+*/
+
+func TestIssue32(t *testing.T) {
+	// pathological input state has errors after assign but puzzle does not
+	es := &Summary{
+		Metadata:   nil,
+		Geometry:   SudokuGeometryName,
+		SideLength: 9,
+		Values:     pathological9Puzzle,
+	}
+	p, err := New(es)
+	if err != nil {
+		t.Fatalf("Failed to create pathological9puzzle")
+	}
+	if len(p.errors) == 0 {
+		t.Logf("Issue 32: pathological9puzzle was created without errors:\n%s", p)
+	} else {
+		t.Errorf("Issue 32 fixed: pathological9puzzle was created with errors: %v", p.errors)
 	}
 }

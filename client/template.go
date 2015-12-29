@@ -1,3 +1,21 @@
+// susen.go - a web-based Sudoku game and teaching tool.
+// Copyright (C) 2015 Daniel C. Brotsky.
+//
+// This program is free software; you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation; either version 2 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License along
+// with this program; if not, write to the Free Software Foundation, Inc.,
+// 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+// Licensed under the LGPL v3.  See the LICENSE file for details
+
 package client
 
 import (
@@ -52,18 +70,18 @@ func init() {
 // SolverPage executes the solver page template over the passed
 // session and puzzle info, and returns the solver page content as a
 // string.
-func SolverPage(sessionID string, puzzleID string, state *puzzle.State) string {
+func SolverPage(sessionID string, puzzleID string, summary *puzzle.Summary) string {
 	var tp templatePuzzle
 	var err error
-	if state.Geometry == puzzle.SudokuGeometryName {
-		tp, err = sudokuTemplatePuzzle(state.Values)
-	} else if state.Geometry == puzzle.DudokuGeometryName {
-		tp, err = dudokuTemplatePuzzle(state.Values)
+	if summary.Geometry == puzzle.SudokuGeometryName {
+		tp, err = sudokuTemplatePuzzle(summary.Values)
+	} else if summary.Geometry == puzzle.DudokuGeometryName {
+		tp, err = dudokuTemplatePuzzle(summary.Values)
 	} else {
-		err = fmt.Errorf("Can't generate puzzle grid for geometry %q", state.Geometry)
+		err = fmt.Errorf("Can't generate puzzle grid for geometry %q", summary.Geometry)
 	}
 	if err != nil {
-		return errorPage(err)
+		return ErrorPage(err)
 	}
 
 	tsp := templateSolverPage{
@@ -80,12 +98,12 @@ func SolverPage(sessionID string, puzzleID string, state *puzzle.State) string {
 
 	tmpl, err := loadPageTemplate("solver")
 	if err != nil {
-		return errorPage(fmt.Errorf("Couldn't load the %q template: %v", "solver", err))
+		return ErrorPage(fmt.Errorf("Couldn't load the %q template: %v", "solver", err))
 	}
 	buf := new(bytes.Buffer)
 	err = tmpl.Execute(buf, tsp)
 	if err != nil {
-		return errorPage(err)
+		return ErrorPage(err)
 	}
 	return buf.String()
 }
@@ -246,10 +264,10 @@ type templateErrorPage struct {
 }
 
 // return error page content
-func errorPage(e error) string {
+func ErrorPage(e error) string {
 	tep := templateErrorPage{
 		Title:             fmt.Sprintf("%s: Error", brandName),
-		TopHead:           fmt.Sprintf("Error Page"),
+		TopHead:           fmt.Sprintf("Unexpected Server Error"),
 		Message:           e.Error(),
 		IconFile:          iconPath,
 		ReportBugPage:     reportBugPath,
@@ -315,12 +333,12 @@ func HomePage(sessionID string, puzzleID string, puzzleIDs []string) string {
 
 	tmpl, err := loadPageTemplate("home")
 	if err != nil {
-		return errorPage(fmt.Errorf("Couldn't load the %q template: %v", "home", err))
+		return ErrorPage(fmt.Errorf("Couldn't load the %q template: %v", "home", err))
 	}
 	buf := new(bytes.Buffer)
 	err = tmpl.Execute(buf, tsp)
 	if err != nil {
-		return errorPage(err)
+		return ErrorPage(err)
 	}
 	return buf.String()
 }

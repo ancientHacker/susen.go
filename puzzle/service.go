@@ -1,3 +1,21 @@
+// susen.go - a web-based Sudoku game and teaching tool.
+// Copyright (C) 2015 Daniel C. Brotsky.
+//
+// This program is free software; you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation; either version 2 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License along
+// with this program; if not, write to the Free Software Foundation, Inc.,
+// 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+// Licensed under the LGPL v3.  See the LICENSE file for details
+
 package puzzle
 
 import (
@@ -12,15 +30,15 @@ Puzzle Creation
 
 */
 
-// NewHandler is a POST handler that reads a JSON-encoded State
+// NewHandler is a POST handler that reads a JSON-encoded Summary
 // value from the request body calls New on the argument values
-// to create a new Puzzle.  The new Puzzle's state is sent as a
+// to create a new Puzzle.  The new Puzzle's State is sent as a
 // 200 response, and the new puzzle itself is returned to the
 // golang caller.  If the return value from New is an error, then
 // the error is sent as a 400 response and also returned to the
 // caller.
 //
-// If we can't decode the posted State, we send a 400 reponse and
+// If we can't decode the posted Summary, we send a 400 reponse and
 // return the error to the caller.
 //
 // If we can't encode the response to the client (which should
@@ -29,12 +47,12 @@ Puzzle Creation
 // a signal that the client didn't get the correct response).
 func NewHandler(w http.ResponseWriter, r *http.Request) (*Puzzle, error) {
 	dec := json.NewDecoder(r.Body)
-	var state State
-	e := dec.Decode(&state)
+	var summary Summary
+	e := dec.Decode(&summary)
 	if e != nil {
 		return nil, writeError(requestDecodingError, ErrorData{e.Error()}, w, r)
 	}
-	p, e := New(&state)
+	p, e := New(&summary)
 	if e != nil {
 		err, ok := e.(Error)
 		if !ok {
@@ -52,7 +70,17 @@ Puzzle Download Methods
 
 */
 
-// StateHandler responds with the Puzzle's state.  If we can't
+// SummaryHandler responds with the Puzzle's summary.  If we can't
+// encode the response to the client successfully, we give both
+// the client and the golang caller an Error response.
+func (p *Puzzle) SummaryHandler(w http.ResponseWriter, r *http.Request) error {
+	if !p.isValid() {
+		return writeError(noPuzzleError, ErrorData{r.URL.Path, "No puzzle"}, w, r)
+	}
+	return writeJSON(p.summary(), http.StatusOK, w, r)
+}
+
+// StateHandler responds with the Puzzle's content.  If we can't
 // encode the response to the client successfully, we give both
 // the client and the golang caller an Error response.
 func (p *Puzzle) StateHandler(w http.ResponseWriter, r *http.Request) error {
@@ -60,16 +88,6 @@ func (p *Puzzle) StateHandler(w http.ResponseWriter, r *http.Request) error {
 		return writeError(noPuzzleError, ErrorData{r.URL.Path, "No puzzle"}, w, r)
 	}
 	return writeJSON(p.state(), http.StatusOK, w, r)
-}
-
-// SquaresHandler responds with the Puzzle's squares.  If we
-// can't encode the response to the client successfully, we give
-// both the client and the golang caller an Error response.
-func (p *Puzzle) SquaresHandler(w http.ResponseWriter, r *http.Request) error {
-	if !p.isValid() {
-		return writeError(noPuzzleError, ErrorData{r.URL.Path, "No puzzle"}, w, r)
-	}
-	return writeJSON(p.allSquares(), http.StatusOK, w, r)
 }
 
 // SolutionsHandler responds with the Puzzle's solutions (or the
@@ -90,7 +108,7 @@ Puzzle Updates
 */
 
 // AssignHandler is a POST handler that assigns a posted choice
-// to a puzzle.  The poster and the caller both get the Update
+// to a puzzle.  The poster and the caller both get the Content
 // object returned from the assignment (or the error).
 //
 // If we can't decode the posted choice, we send a 400 reponse
@@ -100,7 +118,7 @@ Puzzle Updates
 // never happen), then the client gets an error response and the
 // golang caller gets both the update and the encoding Error (as
 // a signal that the client didn't get the update).
-func (p *Puzzle) AssignHandler(w http.ResponseWriter, r *http.Request) (*Update, error) {
+func (p *Puzzle) AssignHandler(w http.ResponseWriter, r *http.Request) (*Content, error) {
 	if !p.isValid() {
 		return nil, writeError(noPuzzleError, ErrorData{r.URL.Path, "No puzzle"}, w, r)
 	}
