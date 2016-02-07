@@ -147,7 +147,7 @@ var (
 		2, 3, 7, 9, 5, 1, 6, 8, 4,
 	}
 	fiveStarValues = []int{
-		2, 0, 0, 8, 0, 0, 0, 5, 0,
+		2, 0, 0, 8, 3, 0, 0, 5, 0,
 		0, 8, 5, 0, 0, 0, 0, 0, 0,
 		0, 3, 6, 7, 5, 0, 0, 0, 1,
 		0, 0, 3, 0, 4, 0, 0, 9, 8,
@@ -156,6 +156,34 @@ var (
 		5, 0, 0, 0, 0, 7, 1, 2, 0,
 		0, 0, 0, 0, 0, 0, 5, 6, 0,
 		0, 2, 0, 0, 0, 0, 0, 0, 4,
+	}
+	fiveStarSolution1 = Solution{
+		[]int{
+			2, 4, 7, 8, 3, 1, 9, 5, 6,
+			1, 8, 5, 6, 2, 9, 3, 4, 7,
+			9, 3, 6, 7, 5, 4, 2, 8, 1,
+			7, 5, 3, 1, 4, 2, 6, 9, 8,
+			6, 9, 8, 3, 7, 5, 4, 1, 2,
+			4, 1, 2, 9, 6, 8, 7, 3, 5,
+			5, 6, 9, 4, 8, 7, 1, 2, 3,
+			8, 7, 4, 2, 1, 3, 5, 6, 9,
+			3, 2, 1, 5, 9, 6, 8, 7, 4,
+		},
+		[]Choice{Choice{2, 4}},
+	}
+	fiveStarSolution2 = Solution{
+		[]int{
+			2, 7, 4, 8, 3, 1, 9, 5, 6,
+			1, 8, 5, 6, 2, 9, 3, 4, 7,
+			9, 3, 6, 7, 5, 4, 2, 8, 1,
+			7, 5, 3, 1, 4, 2, 6, 9, 8,
+			6, 9, 8, 3, 7, 5, 4, 1, 2,
+			4, 1, 2, 9, 6, 8, 7, 3, 5,
+			5, 6, 9, 4, 8, 7, 1, 2, 3,
+			8, 4, 7, 2, 1, 3, 5, 6, 9,
+			3, 2, 1, 5, 9, 6, 8, 7, 4,
+		},
+		[]Choice{Choice{2, 7}},
 	}
 	sixStarValues = []int{
 		9, 0, 0, 4, 5, 0, 0, 0, 8,
@@ -181,6 +209,17 @@ var (
 			4, 9, 2, 7, 1, 6, 8, 5, 3,
 		},
 		[]Choice{Choice{2, 6}},
+	}
+	multiSolutionValues = []int{
+		2, 0, 0, 8, 0, 0, 0, 5, 0,
+		0, 8, 5, 0, 0, 0, 0, 0, 0,
+		0, 3, 6, 7, 5, 0, 0, 0, 1,
+		0, 0, 3, 0, 4, 0, 0, 9, 8,
+		0, 0, 0, 3, 0, 5, 0, 0, 0,
+		4, 1, 0, 0, 6, 0, 7, 0, 0,
+		5, 0, 0, 0, 0, 7, 1, 2, 0,
+		0, 0, 0, 0, 0, 0, 5, 6, 0,
+		0, 2, 0, 0, 0, 0, 0, 0, 4,
 	}
 	chronOneValues = []int{
 		9, 4, 8, 0, 5, 0, 2, 0, 0,
@@ -422,9 +461,9 @@ func TestSolve(t *testing.T) {
 			}
 			th = nil
 		}
-		t.Logf("TestSolve case %d: start thread %v, puzzle:\n%v", i+1, th, p)
+		// t.Logf("TestSolve case %d: start thread %v, puzzle:\n%v", i+1, th, p)
 		p, th = solve(p, th)
-		t.Logf("TestSolve case %d: finish thread %v, puzzle:\n%v", i+1, th, p)
+		// t.Logf("TestSolve case %d: finish thread %v, puzzle:\n%v", i+1, th, p)
 		if tc.done {
 			if len(p.errors) > 0 {
 				t.Fatalf("TestSolve case %d: Failed to solve puzzle: %v", i+1, p.errors)
@@ -502,11 +541,20 @@ func TestSolutions(t *testing.T) {
 				multiChoiceSolution4,
 			},
 		},
-		// then the pathological puzzle with 12 solutions, just to
-		// make sure we can handle choices that lead nowhere.
 		solutionsTestcase{
-			9, fiveStarValues, 0, nil,
+			9, fiveStarValues, 2,
+			[]Solution{
+				fiveStarSolution1,
+				fiveStarSolution2,
+			},
 		},
+		// then the pathological puzzle with 14 solutions, just to
+		// make sure we can handle choices that lead nowhere.
+		/* removed to clean the verbose output, use when needed
+		solutionsTestcase{
+			9, multiSolutionValues, 0, nil,
+		},
+		*/
 	}
 
 	for i, tc := range tcs {

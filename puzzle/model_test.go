@@ -1512,8 +1512,7 @@ func TestSquareAssign(t *testing.T) {
 			t.Errorf("Assign of %v to %+v didn't err", e.toassign, *e.square)
 		} else {
 			if !helperCheckCondition(e.cond, errs) {
-				t.Logf("Assign of %v to %+v: %v", e.toassign, *e.square, errs)
-				t.Errorf("Wrong error!")
+				t.Errorf("Wrong error assigning %v to %+v: %v", e.toassign, *e.square, errs)
 			}
 		}
 	}
@@ -1605,8 +1604,7 @@ func TestSquareBind(t *testing.T) {
 			t.Errorf("Binding %v to %+v didn't return error", e.tobind, *e.square)
 		} else {
 			if !helperCheckCondition(e.cond, errs) {
-				t.Logf("Bind of %v to %+v: %v", e.tobind, *e.square, errs)
-				t.Errorf("Wrong error!")
+				t.Errorf("Wrong error binding %v to %+v: %v", e.tobind, *e.square, errs)
 			}
 		}
 	}
@@ -1699,8 +1697,7 @@ func TestSquareRemove(t *testing.T) {
 			t.Errorf("Removal of %v from %v didn't return error", e.toremove, *e.square)
 		} else {
 			if !helperCheckCondition(e.cond, errs) {
-				t.Logf("Removal of %v from %+v: %v", e.toremove, *e.square, errs)
-				t.Errorf("Wrong error!")
+				t.Errorf("Wrong error removing %v from %+v: %v", e.toremove, *e.square, errs)
 			}
 		}
 	}
@@ -1782,8 +1779,7 @@ func TestSquareSubtract(t *testing.T) {
 			t.Errorf("Removal of %v from %v didn't return error", e.tosubtract, *e.square)
 		} else {
 			if !helperCheckCondition(e.cond, errs) {
-				t.Logf("Removal of %v from %+v: %v", e.tosubtract, *e.square, errs)
-				t.Errorf("Wrong error!")
+				t.Errorf("Wrong error removing %v from %+v: %v", e.tosubtract, *e.square, errs)
 			}
 		}
 	}
@@ -1898,8 +1894,7 @@ func TestSquareIntersect(t *testing.T) {
 				e.tointersect, *e.square)
 		} else {
 			if !helperCheckCondition(e.cond, errs) {
-				t.Logf("Intersection of %v with %+v: %v", e.tointersect, *e.square, errs)
-				t.Errorf("Wrong error!")
+				t.Errorf("Wrong error intersecting %v & %v: %v", e.tointersect, *e.square, errs)
 			}
 		}
 	}
@@ -3131,14 +3126,23 @@ type assignseq struct {
 func TestEndToEndPuzzleAssignment(t *testing.T) {
 	var p *Puzzle
 
-	tryassign := func(i, v int) error {
+	tryassign := func(i, v int, mustSucceed bool) {
+		start := p.copy()
 		_, e := p.Assign(Choice{i, v})
-		if e == nil {
-			t.Logf("Assign(Choice{%d, %d}) succeeded:\n%v", i, v, p)
+		if mustSucceed {
+			if e != nil {
+				t.Fatalf("On puzzle:\n%v\nAssign(Choice{%d, %d}) failed: %v",
+					start, i, v, e.Error())
+			} else if len(p.errors) > 0 {
+				t.Fatalf("On puzzle:\n%v\nAssign(Choice{%d, %d}) failed: %v",
+					start, i, v, p.errors)
+			}
 		} else {
-			t.Logf("Assign(Choice{%d, %d}) failed: %s\n%v", i, v, e.Error(), p)
+			if e == nil && len(p.errors) == 0 {
+				t.Errorf("On puzzle:\n%v\nAssign(Choice{%d, %d}) didn't fail.",
+					start, i, v)
+			}
 		}
-		return e
 	}
 
 	tests := []assignseq{
@@ -3170,26 +3174,14 @@ func TestEndToEndPuzzleAssignment(t *testing.T) {
 	}
 	for _, test := range tests {
 		if test.init == nil {
-			t.Log("NEW TEST (starter puzzle empty)")
 			p, _ = New(&Summary{nil, SudokuGeometryName, 4, nil, nil})
 		} else {
 			p, _ = New(&Summary{nil, SudokuGeometryName, 4, test.init, nil})
-			t.Logf("NEW TEST, starter puzzle:\n%v", p)
 		}
 		for _, assign := range test.setup {
-			e := tryassign(assign.ai, assign.av)
-			if e != nil {
-				t.Fatalf("Assign(Choice{%d, %d}) failed: %v",
-					assign.ai, assign.av, e.Error())
-			} else if len(p.errors) > 0 {
-				t.Fatalf("Assign(Choice{%d, %d}) failed: %v",
-					assign.ai, assign.av, p.errors)
-			}
+			tryassign(assign.ai, assign.av, true)
 		}
-		e := tryassign(test.final.ai, test.final.av)
-		if e == nil && len(p.errors) == 0 {
-			t.Errorf("Assign(Choice{%d, %d}) didn't fail", test.final.ai, test.final.av)
-		}
+		tryassign(test.final.ai, test.final.av, false)
 	}
 }
 
@@ -3244,7 +3236,5 @@ func TestIssue32(t *testing.T) {
 	}
 	if len(p.errors) == 0 {
 		t.Errorf("Issue 32: pathological9puzzle was created without errors:\n%s", p)
-	} else {
-		t.Logf("Issue 32 fixed: pathological9puzzle was created with errors:\n%s\n%v", p, p.errors)
 	}
 }

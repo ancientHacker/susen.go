@@ -47,32 +47,32 @@ func TestSquarePuzzleMapping(t *testing.T) {
 	if _, err := squarePuzzleMapping(13); err == nil {
 		t.Fatalf("Creating a square puzzle mapping for puzzle size 13 did not fail.")
 	} else {
-		t.Logf("squarePuzzleMapping(13): %v", err)
 		if err.(Error).Condition != NonSquareCondition {
+			t.Logf("squarePuzzleMapping(13): %v", err)
 			t.Errorf("Incorrect error!")
 		}
 	}
 	if _, err := squarePuzzleMapping(1); err == nil {
 		t.Fatalf("Creating a square puzzle mapping for puzzle size 1 did not fail.")
 	} else {
-		t.Logf("squarePuzzleMapping(1): %v", err)
 		if err.(Error).Condition != TooSmallCondition {
+			t.Logf("squarePuzzleMapping(1): %v", err)
 			t.Errorf("Incorrect error!")
 		}
 	}
 	if _, err := squarePuzzleMapping(16 * 16 * 16 * 16); err == nil {
 		t.Fatalf("Creating a square puzzle mapping for puzzle size 65,536 did not fail.")
 	} else {
-		t.Logf("squarePuzzleMapping(65536): %v", err)
 		if err.(Error).Condition != TooLargeCondition {
+			t.Logf("squarePuzzleMapping(65536): %v", err)
 			t.Errorf("Incorrect error!")
 		}
 	}
 	if _, err := squarePuzzleMapping(13 * 13); err == nil {
 		t.Fatalf("Creating a square puzzle mapping for sidelen 13 did not fail.")
 	} else {
-		t.Logf("squarePuzzleMapping(13 x 13): %v", err)
 		if err.(Error).Attribute != SideLengthAttribute {
+			t.Logf("squarePuzzleMapping(13 x 13): %v", err)
 			t.Errorf("Incorrect error!")
 		}
 	}
@@ -191,32 +191,32 @@ func TestRectanglePuzzleMapping(t *testing.T) {
 	if _, err := rectanglePuzzleMapping(13); err == nil {
 		t.Fatalf("Creating a rectangular puzzle mapping for puzzle size 13 did not fail.")
 	} else {
-		t.Logf("rectanglePuzzleMapping(13): %v", err)
 		if err.(Error).Condition != NonSquareCondition {
+			t.Logf("rectanglePuzzleMapping(13): %v", err)
 			t.Errorf("Incorrect error!")
 		}
 	}
 	if _, err := rectanglePuzzleMapping(1); err == nil {
 		t.Fatalf("Creating a rectangle puzzle mapping for puzzle size 1 did not fail.")
 	} else {
-		t.Logf("rectanglePuzzleMapping(1): %v", err)
 		if err.(Error).Condition != TooSmallCondition {
+			t.Logf("rectanglePuzzleMapping(1): %v", err)
 			t.Errorf("Incorrect error!")
 		}
 	}
 	if _, err := rectanglePuzzleMapping(16 * 17 * 16 * 17); err == nil {
 		t.Fatalf("Creating a rectangle puzzle mapping for puzzle size 73,984 did not fail.")
 	} else {
-		t.Logf("rectanglePuzzleMapping(73,984): %v", err)
 		if err.(Error).Condition != TooLargeCondition {
+			t.Logf("rectanglePuzzleMapping(73,984): %v", err)
 			t.Errorf("Incorrect error!")
 		}
 	}
 	if _, err := rectanglePuzzleMapping(13 * 13); err == nil {
 		t.Fatalf("Creating a rectangle puzzle mapping for sidelen 13 did not fail.")
 	} else {
-		t.Logf("rectanglePuzzleMapping(13 * 13): %v", err)
 		if err.(Error).Condition != NonRectangleCondition {
+			t.Logf("rectanglePuzzleMapping(13 * 13): %v", err)
 			t.Errorf("Incorrect error!")
 		}
 	}

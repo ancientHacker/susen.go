@@ -42,7 +42,7 @@ func TestErrorNoPanicNoEmpty(t *testing.T) {
 						Condition: ErrorCondition(co),
 					}
 					m := e.Error()
-					t.Log(m)
+					// t.Log(m)
 					if len(m) == 0 {
 						t.Errorf("Empty error message for %+v", e)
 					}

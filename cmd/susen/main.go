@@ -366,7 +366,7 @@ func (session *susenSession) removeStep() {
 
 /*
 
-persistence layer
+session persistence layer
 
 */
 
