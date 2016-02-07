@@ -234,7 +234,7 @@ func (e Error) Error() string {
 	case NoGroupValueCondition:
 		es += fmt.Sprintf("No square can contain %v", nextVal())
 	case DuplicateGroupValuesCondition:
-		es += fmt.Sprintf("Multiple squares have value %v", nextVal())
+		es += fmt.Sprintf("Multiple squares have or need value %v", nextVal())
 	case UnknownGeometryCondition:
 		es += fmt.Sprintf("Not a known geometry")
 	case NonSquareCondition:

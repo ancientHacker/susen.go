@@ -1511,8 +1511,8 @@ func TestSquareAssign(t *testing.T) {
 		if errs := input.assign(e.toassign); len(errs) == 0 {
 			t.Errorf("Assign of %v to %+v didn't err", e.toassign, *e.square)
 		} else {
-			t.Logf("Assign of %v to %+v: %v", e.toassign, *e.square, errs)
 			if !helperCheckCondition(e.cond, errs) {
+				t.Logf("Assign of %v to %+v: %v", e.toassign, *e.square, errs)
 				t.Errorf("Wrong error!")
 			}
 		}
@@ -1604,8 +1604,8 @@ func TestSquareBind(t *testing.T) {
 		if errs := input.bind(e.tobind, e.bsrcin); len(errs) == 0 {
 			t.Errorf("Binding %v to %+v didn't return error", e.tobind, *e.square)
 		} else {
-			t.Logf("Bind of %v to %+v: %v", e.tobind, *e.square, errs)
 			if !helperCheckCondition(e.cond, errs) {
+				t.Logf("Bind of %v to %+v: %v", e.tobind, *e.square, errs)
 				t.Errorf("Wrong error!")
 			}
 		}
@@ -1698,8 +1698,8 @@ func TestSquareRemove(t *testing.T) {
 		if errs := input.remove(e.toremove); len(errs) == 0 {
 			t.Errorf("Removal of %v from %v didn't return error", e.toremove, *e.square)
 		} else {
-			t.Logf("Removal of %v from %+v: %v", e.toremove, *e.square, errs)
 			if !helperCheckCondition(e.cond, errs) {
+				t.Logf("Removal of %v from %+v: %v", e.toremove, *e.square, errs)
 				t.Errorf("Wrong error!")
 			}
 		}
@@ -1781,8 +1781,8 @@ func TestSquareSubtract(t *testing.T) {
 		if errs := input.subtract(e.tosubtract); len(errs) == 0 {
 			t.Errorf("Removal of %v from %v didn't return error", e.tosubtract, *e.square)
 		} else {
-			t.Logf("Removal of %v from %+v: %v", e.tosubtract, *e.square, errs)
 			if !helperCheckCondition(e.cond, errs) {
+				t.Logf("Removal of %v from %+v: %v", e.tosubtract, *e.square, errs)
 				t.Errorf("Wrong error!")
 			}
 		}
@@ -1897,8 +1897,8 @@ func TestSquareIntersect(t *testing.T) {
 			t.Errorf("Intersection of %v with %v didn't return error",
 				e.tointersect, *e.square)
 		} else {
-			t.Logf("Intersection of %v with %+v: %v", e.tointersect, *e.square, errs)
 			if !helperCheckCondition(e.cond, errs) {
+				t.Logf("Intersection of %v with %+v: %v", e.tointersect, *e.square, errs)
 				t.Errorf("Wrong error!")
 			}
 		}
@@ -2134,8 +2134,8 @@ func TestGroupAnalyze(t *testing.T) {
 			&groupDescriptor{1, GroupID{"error", 1}, []int{1, 2, 3, 4}},
 			[]*square{
 				nil,
-				newFilledSquare(2, 4, 1, nil),
 				newFilledSquare(1, 4, 2, nil),
+				newFilledSquare(2, 4, 1, nil),
 				&square{index: 3, pvals: intset{1, 3}},
 				&square{index: 4, pvals: intset{2, 3}},
 			},
@@ -2145,12 +2145,23 @@ func TestGroupAnalyze(t *testing.T) {
 			&groupDescriptor{1, GroupID{"error", 2}, []int{1, 2, 3, 4}},
 			[]*square{
 				nil,
-				newFilledSquare(2, 4, 1, nil),
 				newFilledSquare(1, 4, 2, nil),
+				newFilledSquare(2, 4, 1, nil),
 				&square{index: 3, pvals: intset{1, 3}},
 				&square{index: 4, pvals: intset{3, 4}, bval: 3, bsrc: helperBsrc(2)},
 			},
 			NoGroupValueCondition,
+		},
+		groupAnalyzeErrcase{ // duplicate binding
+			&groupDescriptor{1, GroupID{"error", 2}, []int{1, 2, 3, 4}},
+			[]*square{
+				nil,
+				newFilledSquare(1, 4, 2, nil),
+				&square{index: 2, pvals: intset{3, 4}, bval: 3, bsrc: helperBsrc(2)},
+				&square{index: 3, pvals: intset{3}},
+				&square{index: 4, pvals: intset{1, 4}},
+			},
+			DuplicateGroupValuesCondition,
 		},
 	}
 	for _, ec := range errcases {
@@ -3219,7 +3230,8 @@ issue-specific tests
 */
 
 func TestIssue32(t *testing.T) {
-	// pathological input state has errors after assign but puzzle does not
+	// pathological input state used to have errors after assign but puzzle does not,
+	// but with analyze improvements we should now catch the errors! Yay!
 	es := &Summary{
 		Metadata:   nil,
 		Geometry:   SudokuGeometryName,
@@ -3231,8 +3243,8 @@ func TestIssue32(t *testing.T) {
 		t.Fatalf("Failed to create pathological9puzzle")
 	}
 	if len(p.errors) == 0 {
-		t.Logf("Issue 32: pathological9puzzle was created without errors:\n%s", p)
+		t.Errorf("Issue 32: pathological9puzzle was created without errors:\n%s", p)
 	} else {
-		t.Errorf("Issue 32 fixed: pathological9puzzle was created with errors: %v", p.errors)
+		t.Logf("Issue 32 fixed: pathological9puzzle was created with errors:\n%s\n%v", p, p.errors)
 	}
 }
