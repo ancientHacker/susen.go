@@ -46,7 +46,7 @@ var badError = Error{Message: "unencodable error", Values: ErrorData{unencodable
 type badEncoderPuzzle Puzzle
 
 func (b *badEncoderPuzzle) Summary() (*Summary, error) {
-	return &Summary{nil, SudokuGeometryName, 0, []int{}, nil}, nil
+	return &Summary{nil, StandardGeometryName, 0, []int{}, nil}, nil
 }
 
 func (b *badEncoderPuzzle) State() (*Content, error) {
@@ -86,11 +86,11 @@ GET handlers
 
 func TestPuzzleGetHandlers(t *testing.T) {
 	tests := []*Summary{
-		&Summary{nil, SudokuGeometryName, 4, rotation4Puzzle1PartialAssign1Values, nil},
-		&Summary{nil, SudokuGeometryName, 4, rotation4Puzzle1Complete1, nil},
-		&Summary{nil, SudokuGeometryName, 4, empty4PuzzleValues, nil},
-		&Summary{nil, SudokuGeometryName, 9, oneStarValues, nil},
-		&Summary{nil, SudokuGeometryName, 9, sixStarValues, nil},
+		&Summary{nil, StandardGeometryName, 4, rotation4Puzzle1PartialAssign1Values, nil},
+		&Summary{nil, StandardGeometryName, 4, rotation4Puzzle1Complete1, nil},
+		&Summary{nil, StandardGeometryName, 4, empty4PuzzleValues, nil},
+		&Summary{nil, StandardGeometryName, 9, oneStarValues, nil},
+		&Summary{nil, StandardGeometryName, 9, sixStarValues, nil},
 	}
 	for i, test := range tests {
 		p, e := New(test)
@@ -181,9 +181,9 @@ POST handlers
 
 func TestNewHandler(t *testing.T) {
 	testcases := []*Summary{
-		&Summary{nil, SudokuGeometryName, 4, empty4PuzzleValues, nil},
-		&Summary{nil, SudokuGeometryName, 4, rotation4Puzzle1PartialAssign1Values, nil},
-		&Summary{nil, SudokuGeometryName, 4, rotation4Puzzle1Complete1, nil},
+		&Summary{nil, StandardGeometryName, 4, empty4PuzzleValues, nil},
+		&Summary{nil, StandardGeometryName, 4, rotation4Puzzle1PartialAssign1Values, nil},
+		&Summary{nil, StandardGeometryName, 4, rotation4Puzzle1Complete1, nil},
 	}
 	for i, tc := range testcases {
 		pe, err := New(tc)
@@ -249,7 +249,7 @@ func TestNewHandlerErrors(t *testing.T) {
 	testcases := []testNewHandlerErrorTestcase{
 		{"bad input", `"string not summary"`, DecodeAttribute},
 		{"unknown geometry", `{"geometry":"nope","sidelen":4}`, GeometryAttribute},
-		{"values incompatible", `{"geometry":"sudoku","sidelen":4,"values":[1, 2, 3]}`, PuzzleSizeAttribute},
+		{"values incompatible", `{"geometry":"square","sidelen":4,"values":[1, 2, 3]}`, PuzzleSizeAttribute},
 	}
 
 	for _, tc := range testcases {
@@ -288,11 +288,11 @@ func TestNewHandlerErrors(t *testing.T) {
 
 func TestAssignHandler(t *testing.T) {
 	choices := []Choice{{13, 2}, {10, 4}, {15, 4}}
-	p1, err := New(&Summary{Geometry: "sudoku", SideLength: 4, Values: rotation4Puzzle1PartialValues})
+	p1, err := New(&Summary{Geometry: StandardGeometryName, SideLength: 4, Values: rotation4Puzzle1PartialValues})
 	if err != nil {
 		t.Fatalf("Failed to create initial puzzle1: %v", err)
 	}
-	p2, err := New(&Summary{Geometry: "sudoku", SideLength: 4, Values: rotation4Puzzle1PartialValues})
+	p2, err := New(&Summary{Geometry: StandardGeometryName, SideLength: 4, Values: rotation4Puzzle1PartialValues})
 	if err != nil {
 		t.Fatalf("Failed to create initial puzzle2: %v", err)
 	}
@@ -348,7 +348,7 @@ func TestAssignHandler(t *testing.T) {
 }
 
 func TestAssignHandlerErrors(t *testing.T) {
-	p, err := New(&Summary{Geometry: "sudoku", SideLength: 4, Values: rotation4Puzzle1PartialValues})
+	p, err := New(&Summary{Geometry: StandardGeometryName, SideLength: 4, Values: rotation4Puzzle1PartialValues})
 	if err != nil {
 		t.Fatalf("Failed to create initial puzzle: %v", err)
 	}

@@ -73,10 +73,10 @@ func init() {
 func SolverPage(sessionID string, puzzleID string, summary *puzzle.Summary) string {
 	var tp templatePuzzle
 	var err error
-	if summary.Geometry == puzzle.SudokuGeometryName {
-		tp, err = sudokuTemplatePuzzle(summary.Values)
-	} else if summary.Geometry == puzzle.DudokuGeometryName {
-		tp, err = dudokuTemplatePuzzle(summary.Values)
+	if summary.Geometry == puzzle.StandardGeometryName {
+		tp, err = standardTemplatePuzzle(summary.Values)
+	} else if summary.Geometry == puzzle.RectangularGeometryName {
+		tp, err = rectangularTemplatePuzzle(summary.Values)
 	} else {
 		err = fmt.Errorf("Can't generate puzzle grid for geometry %q", summary.Geometry)
 	}
@@ -110,14 +110,14 @@ func SolverPage(sessionID string, puzzleID string, summary *puzzle.Summary) stri
 
 /*
 
-Sudoku puzzle templates
+Standard puzzle templates
 
 */
 
-// sudokuTemplatePuzzle takes the values of a puzzle and returns
+// standardTemplatePuzzle takes the values of a puzzle and returns
 // the appropriate templatePuzzle.  Errors mean the given values
-// have the wrong shape to be a sudokuPuzzle.
-func sudokuTemplatePuzzle(vals []int) (templatePuzzle, error) {
+// have the wrong shape to be a standardPuzzle.
+func standardTemplatePuzzle(vals []int) (templatePuzzle, error) {
 	slen, ok := findIntSquareRoot(len(vals))
 	if !ok {
 		return nil, fmt.Errorf("Puzzle square count is %v: not a square.", len(vals))
@@ -180,14 +180,14 @@ func findIntSquareRoot(val int) (int, bool) {
 
 /*
 
-Dudoku puzzle templates
+Rectangular puzzle templates
 
 */
 
-// dudokuTemplatePuzzle takes the values of a puzzle and returns
+// rectangularTemplatePuzzle takes the values of a puzzle and returns
 // the appropriate templatePuzzle.  Errors mean the given values
-// have the wrong shape to be a dudokuPuzzle.
-func dudokuTemplatePuzzle(vals []int) (templatePuzzle, error) {
+// have the wrong shape to be a rectangularPuzzle.
+func rectangularTemplatePuzzle(vals []int) (templatePuzzle, error) {
 	slen, ok := findIntSquareRoot(len(vals))
 	if !ok {
 		return nil, fmt.Errorf("Puzzle square count is %v: not a square.", len(vals))

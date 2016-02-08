@@ -34,19 +34,19 @@
 // full range of possible values.
 //
 // All Sudoku geometries have a group for each row and column.
-// The standard geometry, called here the Sudoku geometry,
+// The standard geometry, called here the Standard geometry,
 // additionally requires the side length of a puzzle to be a
 // perfect square.  This produces side-length non-overlapping
 // sub-squares (aka tiles) in the the overall puzzle, each of
 // which is also a group.
 //
-// Another common Sudoku variant, called here the Dudoku
+// Another common Sudoku variant, called here the Rectangular
 // geometry, instead uses rectangular tiles whose width is one
 // greater than its height.  This leads to sides of the overall
 // square being equal in length to the area of one tile (e.g, 4x3
 // tiles and a 12x12 square).
 //
-// Another Sudoku variant, not yet implemented, uses the Sudoku
+// Another Sudoku variant, not yet implemented, uses the Standard
 // geometry but adds the diagonals as two additional groups.
 //
 // If a square in a group is the only possible location for a
@@ -58,12 +58,6 @@
 // value to multiple squares in a group.  The implementation will
 // not perform operations on puzzles with errors.
 package puzzle
-
-/*
-
-Sudoku puzzle representation
-
-*/
 
 import (
 	"fmt"

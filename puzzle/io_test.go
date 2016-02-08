@@ -69,21 +69,33 @@ func TestPuzzleString(t *testing.T) {
 		t.Errorf("Unexpected empty puzzle string: %q, Expected: %q", s, e)
 	}
 	// do a 4x4 test with all the different states except unknown
-	p, err := New(&Summary{nil, SudokuGeometryName, 4, rotation4Puzzle1PartialAssign2Values, nil})
+	p, err := New(&Summary{
+		Geometry:   StandardGeometryName,
+		SideLength: 4,
+		Values:     rotation4Puzzle1PartialAssign1Values})
 	if err != nil {
 		t.Fatalf("Puzzle creation failed: %v", err)
 	}
+	s = p.ValuesString(false)
+	e = " 1   _ | 3   _ \n" +
+		" _   3 | _   1 \n" +
+		"---+---+---+---\n" +
+		" 3   _ | 1   _ \n" +
+		" 2   1 | _   3 \n"
+	if s != e {
+		t.Errorf("Unexpected puzzle string:\n%vExpected:\n%v", s, e)
+	}
 	s = p.String()
-	e = " 1  =2 | 3  +4 \n" +
+	e = " 1  +2 | 3  2,4\n" +
 		"=4   3 |+2   1 \n" +
 		"---+---+---+---\n" +
-		" 3   4 | 1  =2 \n" +
+		" 3  =4 | 1  +2 \n" +
 		" 2   1 |=4   3 \n"
 	if s != e {
 		t.Errorf("Unexpected puzzle string:\n%vExpected:\n%v", s, e)
 	}
 	// do a 9x9 empty puzzle test to cover unknown and the formatting
-	p, err = New(&Summary{nil, SudokuGeometryName, 9, nil, nil})
+	p, err = New(&Summary{nil, StandardGeometryName, 9, nil, nil})
 	if err != nil {
 		t.Fatalf("Puzzle creation failed: %v", err)
 	}
@@ -118,7 +130,10 @@ func TestPuzzleValuesMarkdown(t *testing.T) {
 		t.Errorf("Unexpected empty puzzle string: %q, Expected: %q", s, e)
 	}
 	// do a 4x4 test with all the different states except unknown
-	p, err := New(&Summary{nil, SudokuGeometryName, 4, rotation4Puzzle1PartialAssign2Values, nil})
+	p, err := New(&Summary{
+		Geometry:   StandardGeometryName,
+		SideLength: 4,
+		Values:     rotation4Puzzle1PartialAssign1Values})
 	if err != nil {
 		t.Fatalf("Puzzle creation failed: %v", err)
 	}
@@ -127,7 +142,7 @@ func TestPuzzleValuesMarkdown(t *testing.T) {
 		"|:---:|:---:|:---:|:---:|:---:|\n" +
 		"|**a**|  1  |     |  3  |     |\n" +
 		"|**b**|     |  3  |     |  1  |\n" +
-		"|**c**|  3  |  4  |  1  |     |\n" +
+		"|**c**|  3  |     |  1  |     |\n" +
 		"|**d**|  2  |  1  |     |  3  |\n"
 	if s != e {
 		t.Errorf("Unexpected puzzle string:\n%vExpected:\n%v", s, e)
@@ -135,15 +150,15 @@ func TestPuzzleValuesMarkdown(t *testing.T) {
 	s = p.ValuesMarkdown(true)
 	e = "|     |  1  |  2  |  3  |  4  |\n" +
 		"|:---:|:---:|:---:|:---:|:---:|\n" +
-		"|**a**|  1  | =2  |  3  | +4  |\n" +
+		"|**a**|  1  | +2  |  3  | 2,4 |\n" +
 		"|**b**| =4  |  3  | +2  |  1  |\n" +
-		"|**c**|  3  |  4  |  1  | =2  |\n" +
+		"|**c**|  3  | =4  |  1  | +2  |\n" +
 		"|**d**|  2  |  1  | =4  |  3  |\n"
 	if s != e {
 		t.Errorf("Unexpected puzzle string:\n%vExpected:\n%v", s, e)
 	}
 	// do a 9x9 empty puzzle test to cover unknown and the formatting
-	p, err = New(&Summary{nil, SudokuGeometryName, 9, nil, nil})
+	p, err = New(&Summary{nil, StandardGeometryName, 9, nil, nil})
 	if err != nil {
 		t.Fatalf("Puzzle creation failed: %v", err)
 	}

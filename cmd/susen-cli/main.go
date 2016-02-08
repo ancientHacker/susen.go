@@ -429,7 +429,7 @@ var (
 	defaultPuzzleID = "1-star"
 	puzzleSummaries = map[string]*puzzle.Summary{
 		"1-star": &puzzle.Summary{
-			Geometry:   puzzle.SudokuGeometryName,
+			Geometry:   puzzle.StandardGeometryName,
 			SideLength: 9,
 			Values: []int{
 				4, 0, 0, 0, 0, 3, 5, 0, 2,
@@ -443,7 +443,7 @@ var (
 				5, 0, 2, 9, 0, 0, 0, 0, 6,
 			}},
 		"2-star": &puzzle.Summary{
-			Geometry:   puzzle.SudokuGeometryName,
+			Geometry:   puzzle.StandardGeometryName,
 			SideLength: 9,
 			Values: []int{
 				0, 1, 0, 5, 0, 6, 0, 2, 0,
@@ -457,7 +457,7 @@ var (
 				0, 3, 0, 9, 0, 1, 0, 8, 0,
 			}},
 		"3-star": &puzzle.Summary{
-			Geometry:   puzzle.SudokuGeometryName,
+			Geometry:   puzzle.StandardGeometryName,
 			SideLength: 9,
 			Values: []int{
 				9, 0, 0, 4, 5, 0, 0, 0, 8,
@@ -471,7 +471,7 @@ var (
 				4, 0, 0, 0, 1, 6, 0, 0, 3,
 			}},
 		"4-star": &puzzle.Summary{
-			Geometry:   puzzle.SudokuGeometryName,
+			Geometry:   puzzle.StandardGeometryName,
 			SideLength: 9,
 			Values: []int{
 				9, 4, 8, 0, 5, 0, 2, 0, 0,
@@ -485,7 +485,7 @@ var (
 				0, 0, 6, 0, 1, 0, 4, 2, 3,
 			}},
 		"5-star": &puzzle.Summary{
-			Geometry:   puzzle.SudokuGeometryName,
+			Geometry:   puzzle.StandardGeometryName,
 			SideLength: 9,
 			Values: []int{
 				0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -499,7 +499,7 @@ var (
 				0, 0, 0, 0, 0, 0, 0, 0, 0,
 			}},
 		"6-star": &puzzle.Summary{
-			Geometry:   puzzle.SudokuGeometryName,
+			Geometry:   puzzle.StandardGeometryName,
 			SideLength: 9,
 			Values: []int{
 				2, 0, 0, 8, 0, 0, 0, 5, 0,

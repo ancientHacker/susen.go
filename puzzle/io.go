@@ -61,9 +61,6 @@ Pretty-printed puzzles in strings, for debugging.
 
 // String gives a pretty-printed view of a puzzle.
 func (p *Puzzle) String() string {
-	if p == nil {
-		return ""
-	}
 	return p.ValuesString(true) + p.ErrorsString()
 }
 

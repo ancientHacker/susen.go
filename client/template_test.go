@@ -63,7 +63,7 @@ func TestHomePage(t *testing.T) {
 
 func TestSolverPage(t *testing.T) {
 	p0, e := puzzle.New(&puzzle.Summary{
-		Geometry:   puzzle.SudokuGeometryName,
+		Geometry:   puzzle.StandardGeometryName,
 		SideLength: 4,
 		Values:     rotation4Puzzle1PartialValues,
 	})
@@ -81,7 +81,7 @@ func TestSolverPage(t *testing.T) {
 	}
 
 	p1, e := puzzle.New(&puzzle.Summary{
-		Geometry:   puzzle.SudokuGeometryName,
+		Geometry:   puzzle.StandardGeometryName,
 		SideLength: 9,
 		Values:     oneStarValues,
 	})

@@ -95,7 +95,7 @@ const (
 	DuplicateGroupValuesCondition
 	UnknownGeometryCondition
 	NonSquareCondition
-	NonRectangleCondition
+	NonRectangularCondition
 	InvalidPuzzleAssignmentCondition
 	WrongPuzzleSizeCondition
 	InvalidArgumentCondition
@@ -239,7 +239,7 @@ func (e Error) Error() string {
 		es += fmt.Sprintf("Not a known geometry")
 	case NonSquareCondition:
 		es += fmt.Sprintf("Not a perfect square")
-	case NonRectangleCondition:
+	case NonRectangularCondition:
 		es += fmt.Sprintf("Not the product of consecutive integers")
 	case InvalidPuzzleAssignmentCondition:
 		es += fmt.Sprintf("Target puzzle has errors; no assignments are allowed")

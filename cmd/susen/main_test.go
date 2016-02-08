@@ -399,7 +399,7 @@ func TestIssue11(t *testing.T) {
 
 	// add puzzle and appropriate assignments for testing
 	puzzleSummaries["test11"] = &puzzle.Summary{
-		Geometry:   puzzle.SudokuGeometryName,
+		Geometry:   puzzle.StandardGeometryName,
 		SideLength: 4,
 		Values: []int{
 			1, 0, 3, 0,
