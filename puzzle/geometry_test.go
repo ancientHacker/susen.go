@@ -140,7 +140,7 @@ func TestSquarePuzzleMapping(t *testing.T) {
 		[]int{9, 13, 26}, []int{9, 14, 26}, []int{9, 15, 26},
 		[]int{9, 16, 27}, []int{9, 17, 27}, []int{9, 18, 27},
 	}
-	sm9 := puzzleMapping{StandardGeometryName, 9, 81, 27, gd9, gm9}
+	sm9 := puzzleMapping{StandardGeometryName, 9, 3, 3, 81, 27, gd9, gm9}
 	sm9c := computeSquarePuzzleMapping(9, 3)
 	sm9a, err := squarePuzzleMapping(81)
 	if err != nil {
@@ -174,8 +174,8 @@ func TestSquarePuzzleMapping(t *testing.T) {
 
 func TestFindDivisors(t *testing.T) {
 	inputs := []int{1, 2, 3, 4, 5, 6, 9, 10, 12, 13}
-	outputLows := []int{0, 1, 1, 1, 1, 2, 2, 2, 3, 3}
-	outputHighs := []int{1, 2, 2, 2, 2, 3, 3, 3, 4, 4}
+	outputLows := []int{1, 1, 2, 2, 2, 2, 3, 3, 3, 4}
+	outputHighs := []int{2, 2, 3, 3, 3, 3, 4, 4, 4, 5}
 	outputBools := []bool{false, true, false, false, false, true, false, false, true, false}
 	for i, v := range inputs {
 		l, h, f := findDivisors(v)
@@ -260,8 +260,8 @@ func TestRectangularPuzzleMapping(t *testing.T) {
 		[]int{6, 7, 17}, []int{6, 8, 17}, []int{6, 9, 17},
 		[]int{6, 10, 18}, []int{6, 11, 18}, []int{6, 12, 18},
 	}
-	sm6 := puzzleMapping{RectangularGeometryName, 6, 36, 18, gd6, gm6}
-	sm6c := computeRectangularPuzzleMapping(6, 2, 3)
+	sm6 := puzzleMapping{RectangularGeometryName, 6, 3, 2, 36, 18, gd6, gm6}
+	sm6c := computeRectangularPuzzleMapping(6, 3, 2)
 	sm6a, err := rectangularPuzzleMapping(36)
 	if err != nil {
 		t.Fatalf("Creating first side 6 rectangular puzzle mapping returned an error: %v", err)

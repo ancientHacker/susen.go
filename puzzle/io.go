@@ -71,18 +71,11 @@ func (p *Puzzle) ValuesString(showBindings bool) (result string) {
 	if p == nil {
 		return
 	}
-	slen := p.mapping.sidelen
-	tlen, ok := findIntSquareRoot(p.mapping.sidelen)
-	if !ok {
-		return "<MALFORMED PUZZLE>"
-	}
+	slen, tileX, tileY := p.mapping.sidelen, p.mapping.tileX, p.mapping.tileY
 	for ri := 0; ri < slen; ri++ {
-		if ri > 0 && ri%tlen == 0 {
+		if ri > 0 && ri%tileY == 0 {
 			for i := 0; i < slen; i++ {
-				if i > 0 && i%tlen == 0 {
-					result += "+"
-				}
-				if i%tlen != 0 {
+				if i > 0 {
 					result += "+"
 				}
 				result += "---"
@@ -91,11 +84,10 @@ func (p *Puzzle) ValuesString(showBindings bool) (result string) {
 		}
 		for i := 0; i < slen; i++ {
 			s := p.squares[(ri*slen)+i+1]
-			if i > 0 && i%tlen == 0 {
-				result += "|"
-			}
-			if i%tlen != 0 {
+			if i%tileX != 0 {
 				result += " "
+			} else if i > 0 {
+				result += "|"
 			}
 			if s.aval != 0 {
 				result += fmt.Sprintf(" %s ", vstr(s.aval))
@@ -163,8 +155,8 @@ func (p *Puzzle) ValuesMarkdown(showBindings bool) (result string) {
 	result += "\n"
 	// next comes the content of the puzzle,
 	// with each line prefixed by a letter.
-	for ri, colhdr := 0, 'a'; ri < slen; ri, colhdr = ri+1, colhdr+1 {
-		result += "|**" + string(colhdr) + "**"
+	for ri, rowhdr := 0, 'a'; ri < slen; ri, rowhdr = ri+1, rowhdr+1 {
+		result += "|**" + string(rowhdr) + "**"
 		for i := 0; i < slen; i++ {
 			s := p.squares[(ri*slen)+i+1]
 			if i == 0 {

@@ -43,6 +43,8 @@ type groupDescriptor struct {
 type puzzleMapping struct {
 	geometry string
 	sidelen  int
+	tileX    int
+	tileY    int
 	scount   int
 	gcount   int
 	gdescs   []groupDescriptor
@@ -150,7 +152,7 @@ func computeSquarePuzzleMapping(slen, tlen int) *puzzleMapping {
 		}
 		gs[tgi] = groupDescriptor{tgi, GroupID{GtypeTile, i + 1}, tile}
 	}
-	return &puzzleMapping{StandardGeometryName, slen, scount, gcount, gs, im}
+	return &puzzleMapping{StandardGeometryName, slen, tlen, tlen, scount, gcount, gs, im}
 }
 
 // squarePuzzleMapping returns the puzzle map for a square puzzle
@@ -233,17 +235,17 @@ var rectangularPuzzleMaps = make(map[int]*puzzleMapping)
 
 // findDivisors: find consecutive ints that multiply to give an
 // int, if they exist
-func findDivisors(val int) (int, int, bool) {
-	var low, high int
+func findDivisors(val int) (low int, high int, ok bool) {
 	for low, high = 1, 2; low*high <= val; low, high = high, high+1 {
-		if low*high == val {
-			return low, high, true
+		ok = low*high == val
+		if ok {
+			return
 		}
 	}
-	return low - 1, low, false
+	return
 }
 
-func computeRectangularPuzzleMapping(slen, low, high int) *puzzleMapping {
+func computeRectangularPuzzleMapping(slen, tileX, tileY int) *puzzleMapping {
 	gcount := (slen * 3)
 	scount := (slen * slen)
 	gs := make([]groupDescriptor, gcount+1) // 1-based indexing
@@ -273,17 +275,17 @@ func computeRectangularPuzzleMapping(slen, low, high int) *puzzleMapping {
 		// tile i + 1
 		tgi := i + 2*slen + 1 // 1-based indices
 		tile := make(intset, slen)
-		baserow, basecol := low*(i/low), high*(i%low)
-		for tri := 0; tri < low; tri++ {
-			for tci := 0; tci < high; tci++ {
+		baserow, basecol := tileY*(i/tileY), tileX*(i%tileY)
+		for tri := 0; tri < tileY; tri++ {
+			for tci := 0; tci < tileX; tci++ {
 				si := slen*(baserow+tri) + (basecol + tci) + 1 // 1-based indices
-				tile[tri*high+tci] = si
+				tile[tri*tileX+tci] = si
 				im[si][2] = tgi
 			}
 		}
 		gs[tgi] = groupDescriptor{tgi, GroupID{GtypeTile, i + 1}, tile}
 	}
-	return &puzzleMapping{RectangularGeometryName, slen, scount, gcount, gs, im}
+	return &puzzleMapping{RectangularGeometryName, slen, tileX, tileY, scount, gcount, gs, im}
 }
 
 // rectangularPuzzleMapping returns the puzzle map for a square puzzle
@@ -302,7 +304,7 @@ func rectangularPuzzleMapping(psize int) (*puzzleMapping, error) {
 	if sidelen > max {
 		return nil, formatError(SideLengthAttribute, sidelen, TooLargeCondition, max)
 	}
-	low, high, ok := findDivisors(sidelen)
+	tileY, tileX, ok := findDivisors(sidelen)
 	if !ok {
 		return nil, formatError(SideLengthAttribute, sidelen, NonRectangularCondition, 0)
 	}
@@ -310,7 +312,7 @@ func rectangularPuzzleMapping(psize int) (*puzzleMapping, error) {
 	if ok {
 		return pm, nil
 	}
-	pm = computeRectangularPuzzleMapping(sidelen, low, high)
+	pm = computeRectangularPuzzleMapping(sidelen, tileX, tileY)
 	rectangularPuzzleMaps[sidelen] = pm
 	return pm, nil
 }

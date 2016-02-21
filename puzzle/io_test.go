@@ -94,7 +94,7 @@ func TestPuzzleString(t *testing.T) {
 	if s != e {
 		t.Errorf("Unexpected puzzle string:\n%vExpected:\n%v", s, e)
 	}
-	// do a 9x9 empty puzzle test to cover unknown and the formatting
+	// do a 9x9 empty puzzle test to cover unknown squares
 	p, err = New(&Summary{nil, StandardGeometryName, 9, nil, nil})
 	if err != nil {
 		t.Fatalf("Puzzle creation failed: %v", err)
@@ -111,6 +111,23 @@ func TestPuzzleString(t *testing.T) {
 		" _   _   _ | _   _   _ | _   _   _ \n" +
 		" _   _   _ | _   _   _ | _   _   _ \n" +
 		" _   _   _ | _   _   _ | _   _   _ \n"
+	if s != e {
+		t.Errorf("Unexpected puzzle string:\n%vExpected:\n%v", s, e)
+	}
+	// do a 6x6 empty puzzle test to cover rectangular borders
+	p, err = New(&Summary{nil, RectangularGeometryName, 6, nil, nil})
+	if err != nil {
+		t.Fatalf("Puzzle creation failed: %v", err)
+	}
+	s = p.String()
+	e = " _   _   _ | _   _   _ \n" +
+		" _   _   _ | _   _   _ \n" +
+		"---+---+---+---+---+---\n" +
+		" _   _   _ | _   _   _ \n" +
+		" _   _   _ | _   _   _ \n" +
+		"---+---+---+---+---+---\n" +
+		" _   _   _ | _   _   _ \n" +
+		" _   _   _ | _   _   _ \n"
 	if s != e {
 		t.Errorf("Unexpected puzzle string:\n%vExpected:\n%v", s, e)
 	}
@@ -157,7 +174,7 @@ func TestPuzzleValuesMarkdown(t *testing.T) {
 	if s != e {
 		t.Errorf("Unexpected puzzle string:\n%vExpected:\n%v", s, e)
 	}
-	// do a 9x9 empty puzzle test to cover unknown and the formatting
+	// do a 9x9 empty puzzle test to cover unknown squares
 	p, err = New(&Summary{nil, StandardGeometryName, 9, nil, nil})
 	if err != nil {
 		t.Fatalf("Puzzle creation failed: %v", err)
