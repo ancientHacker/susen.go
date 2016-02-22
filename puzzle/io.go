@@ -34,10 +34,7 @@ var (
 		" ", "1", "2", "3", "4", "5", "6", "7", "8", "9",
 		"A", "B", "C", "D", "E", "F", "G", "H", "I", "J",
 		"K", "L", "M", "N", "O", "P", "Q", "R", "S", "T",
-		"U", "V", "W", "X", "Y", "Z", "a", "b", "c", "d",
-		"e", "f", "g", "h", "i", "j", "k", "l", "m", "n",
-		"o", "p", "q", "r", "s", "t", "u", "v", "w", "x",
-		"y", "z",
+		"U", "V", "W", "X", "Y", "Z",
 	}
 	nonValueString = "?"
 	bigValueString = "!"
@@ -72,21 +69,32 @@ func (p *Puzzle) ValuesString(showBindings bool) (result string) {
 		return
 	}
 	slen, tileX, tileY := p.mapping.sidelen, p.mapping.tileX, p.mapping.tileY
-	for ri := 0; ri < slen; ri++ {
-		if ri > 0 && ri%tileY == 0 {
+	// first put out the header
+	result += " "
+	for i := 0; i < slen; i++ {
+		if i%tileX != 0 {
+			result += " "
+		} else {
+			result += "|"
+		}
+		result += fmt.Sprintf("%2d ", i+1)
+	}
+	result += "\n"
+	// next are the rows, including the separator at the top
+	for ri, rowhdr := 0, 'a'; ri < slen; ri, rowhdr = ri+1, rowhdr+1 {
+		if ri%tileY == 0 {
+			result += " "
 			for i := 0; i < slen; i++ {
-				if i > 0 {
-					result += "+"
-				}
-				result += "---"
+				result += "+---"
 			}
 			result += "\n"
 		}
+		result += string(rowhdr)
 		for i := 0; i < slen; i++ {
 			s := p.squares[(ri*slen)+i+1]
 			if i%tileX != 0 {
 				result += " "
-			} else if i > 0 {
+			} else {
 				result += "|"
 			}
 			if s.aval != 0 {

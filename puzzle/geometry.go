@@ -164,7 +164,7 @@ func squarePuzzleMapping(psize int) (*puzzleMapping, error) {
 	if !ok {
 		return nil, formatError(PuzzleSizeAttribute, psize, NonSquareCondition, 0)
 	}
-	min, max := 4, 225 // largest that fits in a btye
+	min, max := 4, 26 // bounded above by row value representation
 	if sidelen < min {
 		return nil, formatError(SideLengthAttribute, sidelen, TooSmallCondition, min)
 	}
@@ -297,7 +297,7 @@ func rectangularPuzzleMapping(psize int) (*puzzleMapping, error) {
 	if !ok {
 		return nil, formatError(PuzzleSizeAttribute, psize, NonSquareCondition, 0)
 	}
-	min, max := 6, 240 // largest that fits in a byte
+	min, max := 6, 26 // bounded above by row value representation
 	if sidelen < min {
 		return nil, formatError(SideLengthAttribute, sidelen, TooSmallCondition, min)
 	}
