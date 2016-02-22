@@ -229,12 +229,27 @@ func assignHandler(session *susenSession, w *os.File, r *request) {
 		usageHandler(fmt.Sprintf("%s requires two arguments", r.command), w, r)
 		return
 	}
-	choice.Index, err = strconv.Atoi(r.args[0])
-	if err == nil {
-		choice.Value, err = strconv.Atoi(r.args[1])
+
+	// compute the index
+	idx := r.args[0]
+	if row := int(idx[0] - 'a'); row < 0 || row >= session.summary.SideLength {
+		usageHandler(fmt.Sprintf("%s index (%s) row is out of range", r.command, idx), w, r)
+		return
+	} else if col, err := strconv.Atoi(idx[1:]); err != nil {
+		usageHandler(fmt.Sprintf("%s index (%s) column is not a number", r.command, idx), w, r)
+		return
+	} else if col < 1 || col > session.summary.SideLength {
+		usageHandler(fmt.Sprintf("%s index (%s) column is out of range", r.command, idx), w, r)
+		return
+	} else {
+		choice.Index = (session.summary.SideLength * row) + col
 	}
+
+	// read the value
+	choice.Value, err = strconv.Atoi(r.args[1])
 	if err != nil {
-		usageHandler(fmt.Sprintf("arguments to %s must be integers", r.command), w, r)
+		usageHandler(fmt.Sprintf("%s value (%s)	must be a number", r.command, r.args[1]), w, r)
+		return
 	}
 
 	update, e := session.puzzle.Assign(choice)
@@ -426,9 +441,9 @@ persistence layer
 
 // puzzle data
 var (
-	defaultPuzzleID = "1-star"
+	defaultPuzzleID = "standard-1"
 	puzzleSummaries = map[string]*puzzle.Summary{
-		"1-star": &puzzle.Summary{
+		"standard-1": &puzzle.Summary{
 			Geometry:   puzzle.StandardGeometryName,
 			SideLength: 9,
 			Values: []int{
@@ -442,7 +457,7 @@ var (
 				0, 8, 7, 3, 0, 2, 9, 0, 0,
 				5, 0, 2, 9, 0, 0, 0, 0, 6,
 			}},
-		"2-star": &puzzle.Summary{
+		"standard-2": &puzzle.Summary{
 			Geometry:   puzzle.StandardGeometryName,
 			SideLength: 9,
 			Values: []int{
@@ -456,7 +471,7 @@ var (
 				6, 4, 0, 2, 0, 0, 0, 0, 0,
 				0, 3, 0, 9, 0, 1, 0, 8, 0,
 			}},
-		"3-star": &puzzle.Summary{
+		"standard-3": &puzzle.Summary{
 			Geometry:   puzzle.StandardGeometryName,
 			SideLength: 9,
 			Values: []int{
@@ -470,7 +485,7 @@ var (
 				0, 0, 0, 0, 0, 0, 0, 6, 0,
 				4, 0, 0, 0, 1, 6, 0, 0, 3,
 			}},
-		"4-star": &puzzle.Summary{
+		"standard-4": &puzzle.Summary{
 			Geometry:   puzzle.StandardGeometryName,
 			SideLength: 9,
 			Values: []int{
@@ -484,7 +499,7 @@ var (
 				3, 0, 0, 5, 0, 9, 7, 0, 0,
 				0, 0, 6, 0, 1, 0, 4, 2, 3,
 			}},
-		"5-star": &puzzle.Summary{
+		"standard-5": &puzzle.Summary{
 			Geometry:   puzzle.StandardGeometryName,
 			SideLength: 9,
 			Values: []int{
@@ -498,7 +513,7 @@ var (
 				0, 2, 0, 3, 0, 9, 0, 0, 8,
 				0, 0, 0, 0, 0, 0, 0, 0, 0,
 			}},
-		"6-star": &puzzle.Summary{
+		"standard-6": &puzzle.Summary{
 			Geometry:   puzzle.StandardGeometryName,
 			SideLength: 9,
 			Values: []int{
@@ -511,6 +526,62 @@ var (
 				5, 0, 0, 0, 0, 7, 1, 2, 0,
 				0, 0, 0, 0, 0, 0, 5, 6, 0,
 				0, 2, 0, 0, 0, 0, 0, 0, 4,
+			}},
+		"rectangular-1": &puzzle.Summary{
+			Geometry:   puzzle.RectangularGeometryName,
+			SideLength: 6,
+			Values: []int{
+				0, 4, 5, 1, 6, 0,
+				3, 0, 0, 0, 0, 0,
+				0, 5, 0, 6, 2, 1,
+				1, 0, 2, 3, 4, 0,
+				5, 0, 0, 2, 1, 6,
+				6, 0, 0, 0, 0, 0,
+			}},
+		"rectangular-2": &puzzle.Summary{
+			Geometry:   puzzle.RectangularGeometryName,
+			SideLength: 6,
+			Values: []int{
+				0, 0, 0, 2, 6, 0,
+				2, 0, 3, 0, 0, 0,
+				0, 5, 0, 0, 0, 6,
+				3, 2, 6, 0, 0, 1,
+				0, 0, 4, 0, 0, 0,
+				0, 0, 0, 5, 1, 4,
+			}},
+		"rectangular-3": &puzzle.Summary{
+			Geometry:   puzzle.RectangularGeometryName,
+			SideLength: 12,
+			Values: []int{
+				5, 7, 0, 6, 0, 0, 0, 0, 0, 1, 11, 12,
+				11, 0, 0, 0, 0, 0, 10, 0, 0, 0, 0, 3,
+				8, 0, 9, 0, 0, 0, 1, 0, 5, 7, 0, 0,
+				0, 0, 4, 2, 10, 11, 0, 0, 12, 0, 0, 8,
+				0, 0, 0, 0, 9, 6, 0, 1, 7, 0, 0, 0,
+				0, 9, 7, 0, 0, 0, 0, 2, 11, 0, 0, 0,
+				0, 0, 0, 8, 7, 0, 0, 0, 0, 11, 3, 0,
+				0, 0, 0, 11, 3, 0, 2, 5, 0, 0, 0, 0,
+				9, 0, 0, 3, 0, 0, 11, 8, 10, 6, 0, 0,
+				0, 0, 3, 7, 0, 10, 0, 0, 0, 12, 0, 2,
+				2, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 11,
+				6, 11, 12, 0, 0, 0, 0, 0, 3, 0, 9, 4,
+			}},
+		"rectangular-4": &puzzle.Summary{
+			Geometry:   puzzle.RectangularGeometryName,
+			SideLength: 12,
+			Values: []int{
+				0, 11, 3, 0, 0, 0, 0, 0, 0, 6, 0, 0,
+				0, 7, 0, 0, 12, 0, 4, 0, 0, 3, 10, 8,
+				4, 6, 0, 0, 10, 11, 0, 0, 1, 0, 0, 7,
+				0, 0, 8, 9, 2, 0, 0, 0, 5, 0, 0, 0,
+				0, 0, 0, 0, 0, 9, 6, 0, 12, 8, 11, 0,
+				0, 5, 0, 0, 3, 0, 0, 11, 0, 9, 0, 0,
+				0, 0, 4, 0, 8, 0, 0, 9, 0, 0, 7, 0,
+				0, 9, 7, 3, 0, 10, 12, 0, 0, 0, 0, 0,
+				0, 0, 0, 11, 0, 0, 0, 1, 3, 12, 0, 0,
+				3, 0, 0, 7, 0, 0, 8, 2, 0, 0, 4, 1,
+				2, 8, 5, 0, 0, 12, 0, 4, 0, 0, 3, 0,
+				0, 0, 9, 0, 0, 0, 0, 0, 0, 7, 12, 0,
 			}},
 	}
 )
