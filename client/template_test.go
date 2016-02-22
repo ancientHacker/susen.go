@@ -44,6 +44,28 @@ var (
 		0, 8, 7, 3, 0, 2, 9, 0, 0,
 		5, 0, 2, 9, 0, 0, 0, 0, 6,
 	}
+	Su6Difficult1Values = []int{
+		0, 0, 0, 2, 6, 0,
+		2, 0, 3, 0, 0, 0,
+		0, 5, 0, 0, 0, 6,
+		3, 2, 6, 0, 0, 1,
+		0, 0, 4, 0, 0, 0,
+		0, 0, 0, 5, 1, 4,
+	}
+	SuDozen78097Values = []int{
+		5, 7, 0, 6, 0, 0, 0, 0, 0, 1, 11, 12,
+		11, 0, 0, 0, 0, 0, 10, 0, 0, 0, 0, 3,
+		8, 0, 9, 0, 0, 0, 1, 0, 5, 7, 0, 0,
+		0, 0, 4, 2, 10, 11, 0, 0, 12, 0, 0, 8,
+		0, 0, 0, 0, 9, 6, 0, 1, 7, 0, 0, 0,
+		0, 9, 7, 0, 0, 0, 0, 2, 11, 0, 0, 0,
+		0, 0, 0, 8, 7, 0, 0, 0, 0, 11, 3, 0,
+		0, 0, 0, 11, 3, 0, 2, 5, 0, 0, 0, 0,
+		9, 0, 0, 3, 0, 0, 11, 8, 10, 6, 0, 0,
+		0, 0, 3, 7, 0, 10, 0, 0, 0, 12, 0, 2,
+		2, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 11,
+		6, 11, 12, 0, 0, 0, 0, 0, 3, 0, 9, 4,
+	}
 )
 
 func TestErrorPage(t *testing.T) {
@@ -55,7 +77,7 @@ func TestErrorPage(t *testing.T) {
 
 func TestHomePage(t *testing.T) {
 	session0, puzzle0 := "httpx-Test0", "test-0"
-	body := HomePage(session0, puzzle0, nil)
+	body := HomePage(session0, puzzle0, []string{"pseudo-puzzle-1", "other-2", "your-favorite"})
 	if !sameAsResultFile(body, "TestHomePage0.html") {
 		t.Errorf("Test Home 0: got unexpected result body:\n%v\n", body)
 	}
@@ -96,6 +118,42 @@ func TestSolverPage(t *testing.T) {
 	body1 := SolverPage(session1, puzzle1, summary1)
 	if !sameAsResultFile(body1, "TestSolverPage1.html") {
 		t.Errorf("Test Solver 1: got unexpected result body:\n%v\n", body1)
+	}
+
+	p2, e := puzzle.New(&puzzle.Summary{
+		Geometry:   puzzle.RectangularGeometryName,
+		SideLength: 6,
+		Values:     Su6Difficult1Values,
+	})
+	if e != nil {
+		t.Fatalf("Failed to create p2: %v", e)
+	}
+	session2, puzzle2 := "https-Test2", "test-2"
+	summary2, e := p2.Summary()
+	if e != nil {
+		t.Fatalf("Failed to get summary of p2: %v", e)
+	}
+	body2 := SolverPage(session2, puzzle2, summary2)
+	if !sameAsResultFile(body2, "TestSolverPage2.html") {
+		t.Errorf("Test Solver 2: got unexpected result body:\n%v\n", body2)
+	}
+
+	p3, e := puzzle.New(&puzzle.Summary{
+		Geometry:   puzzle.RectangularGeometryName,
+		SideLength: 12,
+		Values:     SuDozen78097Values,
+	})
+	if e != nil {
+		t.Fatalf("Failed to create p3: %v", e)
+	}
+	session3, puzzle3 := "https-Test3", "test-3"
+	summary3, e := p3.Summary()
+	if e != nil {
+		t.Fatalf("Failed to get summary of p3: %v", e)
+	}
+	body3 := SolverPage(session3, puzzle3, summary3)
+	if !sameAsResultFile(body3, "TestSolverPage3.html") {
+		t.Errorf("Test Solver 3: got unexpected result body:\n%v\n", body3)
 	}
 }
 

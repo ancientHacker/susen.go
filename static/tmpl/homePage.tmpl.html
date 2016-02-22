@@ -13,13 +13,8 @@
 	<div class="activity">
 	  <h3>Solve a Puzzle</h3>
 	  <p>Current puzzle: <a href="/solver/">{{.PuzzleID}}</a>
-	  <p>Start new puzzle:
-	    <div class="solveButton" id="1-star" onclick="newPuzzle('1-star')">1-star</div>
-	    <div class="solveButton" id="2-star" onclick="newPuzzle('2-star')">2-star</div>
-	    <div class="solveButton" id="3-star" onclick="newPuzzle('3-star')">3-star</div>
-	    <div class="solveButton" id="4-star" onclick="newPuzzle('4-star')">4-star</div>
-	    <div class="solveButton" id="5-star" onclick="newPuzzle('5-star')">5-star</div>
-	    <div class="solveButton" id="6-star" onclick="newPuzzle('6-star')">6-star</div></p>
+	  <p>Start new puzzle:{{range .PuzzleIDs}}
+	    <a id="{{.}}" href="/reset/{{.}}">{{.}}</a>{{end}}</p>
 	</div>
       </div>
       <div class="right">

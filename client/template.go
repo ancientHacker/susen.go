@@ -192,7 +192,7 @@ func rectangularTemplatePuzzle(vals []int) (templatePuzzle, error) {
 	if !ok {
 		return nil, fmt.Errorf("Puzzle square count is %v: not a square.", len(vals))
 	}
-	htlen, vtlen, ok := findDivisors(slen)
+	vtlen, htlen, ok := findDivisors(slen)
 	if !ok {
 		return nil, fmt.Errorf("Puzzle side length is %v: not the product of consecutive integers.", slen)
 	}

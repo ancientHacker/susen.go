@@ -242,6 +242,14 @@ func TestSessionSelect(t *testing.T) {
 		time.Sleep(sleeptime)
 	}
 
+	// clients use every key except the default
+	testKeys := make([]string, 0, len(puzzleSummaries)-1)
+	for k := range puzzleSummaries {
+		if k != defaultPuzzleID {
+			testKeys = append(testKeys, k)
+		}
+	}
+
 	// make clients
 	clients := make([]*sessionClient, clientCount)
 	for i := 0; i < clientCount; i++ {
@@ -249,8 +257,6 @@ func TestSessionSelect(t *testing.T) {
 		if e != nil {
 			t.Fatalf("Failed to create cookie jar #%d: %v", i+1, e)
 		}
-		// try every key except the default "1-star"
-		testKeys := []string{"2-star", "3-star", "4-star", "5-star", "6-star"}
 		keyIndex := i % len(testKeys)
 		pid := testKeys[keyIndex]
 		puzzleVals := puzzleSummaries[pid].Values
