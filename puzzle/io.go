@@ -20,11 +20,12 @@ package puzzle
 
 import (
 	"fmt"
+	"strconv"
 )
 
 /*
 
-Pretty-printed puzzles in strings, for debugging.
+Print forms of puzzle values
 
 */
 
@@ -33,10 +34,7 @@ var (
 		" ", "1", "2", "3", "4", "5", "6", "7", "8", "9",
 		"A", "B", "C", "D", "E", "F", "G", "H", "I", "J",
 		"K", "L", "M", "N", "O", "P", "Q", "R", "S", "T",
-		"U", "V", "W", "X", "Y", "Z", "a", "b", "c", "d",
-		"e", "f", "g", "h", "i", "j", "k", "l", "m", "n",
-		"o", "p", "q", "r", "s", "t", "u", "v", "w", "x",
-		"y", "z",
+		"U", "V", "W", "X", "Y", "Z",
 	}
 	nonValueString = "?"
 	bigValueString = "!"
@@ -52,52 +50,161 @@ func vstr(i int) string {
 	return bigValueString
 }
 
-// The String form of a puzzle is a pretty-printed grid with
-// assigned squares, bound squares, and 2-choice squares showing
-// their values.
-func (p *Puzzle) String() (result string) {
+/*
+
+Pretty-printed puzzles in strings, for debugging.
+
+*/
+
+// String gives a pretty-printed view of a puzzle.
+func (p *Puzzle) String() string {
+	return p.ValuesString(true) + p.ErrorsString()
+}
+
+// valuesString: return a pretty-printed grid of the values.  If
+// showBindings is specified, single-value squares, bound
+// squares, and 2-choice squares also show their contents.
+func (p *Puzzle) ValuesString(showBindings bool) (result string) {
 	if p == nil {
 		return
 	}
-	slen := p.mapping.sidelen
-	tlen, ok := findIntSquareRoot(p.mapping.sidelen)
-	if !ok {
-		return "<MALFORMED PUZZLE>"
+	slen, tileX, tileY := p.mapping.sidelen, p.mapping.tileX, p.mapping.tileY
+	// first put out the header
+	result += " "
+	for i := 0; i < slen; i++ {
+		if i%tileX != 0 {
+			result += " "
+		} else {
+			result += "|"
+		}
+		result += fmt.Sprintf("%2d ", i+1)
 	}
-	for ri := 0; ri < slen; ri++ {
-		if ri > 0 && ri%tlen == 0 {
+	result += "\n"
+	// next are the rows, including the separator at the top
+	for ri, rowhdr := 0, 'a'; ri < slen; ri, rowhdr = ri+1, rowhdr+1 {
+		if ri%tileY == 0 {
+			result += " "
 			for i := 0; i < slen; i++ {
-				if i > 0 && i%tlen == 0 {
-					result += "+"
-				}
-				if i%tlen != 0 {
-					result += "+"
-				}
-				result += "---"
+				result += "+---"
 			}
 			result += "\n"
 		}
+		result += string(rowhdr)
 		for i := 0; i < slen; i++ {
 			s := p.squares[(ri*slen)+i+1]
-			if i > 0 && i%tlen == 0 {
-				result += "|"
-			}
-			if i%tlen != 0 {
+			if i%tileX != 0 {
 				result += " "
+			} else {
+				result += "|"
 			}
 			if s.aval != 0 {
 				result += fmt.Sprintf(" %s ", vstr(s.aval))
-			} else if len(s.pvals) == 1 {
-				result += fmt.Sprintf("=%s ", vstr(s.pvals[0]))
-			} else if s.bval != 0 {
-				result += fmt.Sprintf("+%s ", vstr(s.bval))
-			} else if len(s.pvals) == 2 {
-				result += fmt.Sprintf("%s,%s", vstr(s.pvals[0]), vstr(s.pvals[1]))
+			} else if showBindings {
+				if len(s.pvals) == 1 {
+					result += fmt.Sprintf("=%s ", vstr(s.pvals[0]))
+				} else if s.bval != 0 {
+					result += fmt.Sprintf("+%s ", vstr(s.bval))
+				} else if len(s.pvals) == 2 {
+					result += fmt.Sprintf("%s,%s", vstr(s.pvals[0]), vstr(s.pvals[1]))
+				} else {
+					result += fmt.Sprintf(" _ ")
+				}
 			} else {
 				result += fmt.Sprintf(" _ ")
 			}
 		}
 		result += "\n"
+	}
+	return
+}
+
+func (p *Puzzle) ErrorsString() (result string) {
+	if p != nil {
+		if elen := len(p.errors); elen > 0 {
+			if elen > 1 {
+				result += fmt.Sprintf("Errors (%d):\n", elen)
+				for i, err := range p.errors {
+					result += fmt.Sprintf("  #%d: %v\n", i+1, err)
+				}
+			} else {
+				result += fmt.Sprintf("Error: %v\n", p.errors[0])
+			}
+		}
+	}
+	return
+}
+
+/*
+
+Markdown-formatted tables, for documentation
+
+*/
+
+// ValuesMarkdown returns a markdown-format table for a puzzle as
+// a sring.  Specifying showBindings produces the same variant as
+// for ValuesString.
+func (p *Puzzle) ValuesMarkdown(showBindings bool) (result string) {
+	if p == nil {
+		return
+	}
+	slen := p.mapping.sidelen
+
+	// first put out the header
+	result += "|     |"
+	for i, header := 0, 1; i < slen; i, header = i+1, header+1 {
+		result += "  " + strconv.Itoa(header) + "  |"
+	}
+	result += "\n"
+	// next comes the header separator line
+	result += "|"
+	for i, header := 0, ":---:"; i < slen+1; i++ {
+		result += header + "|"
+	}
+	result += "\n"
+	// next comes the content of the puzzle,
+	// with each line prefixed by a letter.
+	for ri, rowhdr := 0, 'a'; ri < slen; ri, rowhdr = ri+1, rowhdr+1 {
+		result += "|**" + string(rowhdr) + "**"
+		for i := 0; i < slen; i++ {
+			s := p.squares[(ri*slen)+i+1]
+			if i == 0 {
+				result += "| "
+			} else {
+				result += " | "
+			}
+			if s.aval != 0 {
+				result += fmt.Sprintf(" %s ", vstr(s.aval))
+			} else if showBindings {
+				if len(s.pvals) == 1 {
+					result += fmt.Sprintf("=%s ", vstr(s.pvals[0]))
+				} else if s.bval != 0 {
+					result += fmt.Sprintf("+%s ", vstr(s.bval))
+				} else if len(s.pvals) == 2 {
+					result += fmt.Sprintf("%s,%s", vstr(s.pvals[0]), vstr(s.pvals[1]))
+				} else {
+					result += fmt.Sprintf("   ")
+				}
+			} else {
+				result += "   "
+			}
+		}
+		result += " |\n"
+	}
+	return
+}
+
+func (p *Puzzle) ErrorsMarkdown() (result string) {
+	if p != nil {
+		if elen := len(p.errors); elen > 0 {
+			if elen > 1 {
+				result += fmt.Sprintf("Errors (%d):\n", elen)
+				for i, err := range p.errors {
+					result += fmt.Sprintf("    %d. %v\n", i+1, err)
+				}
+			} else {
+				result += fmt.Sprintf("Error: %v\n", p.errors[0])
+			}
+		}
 	}
 	return
 }

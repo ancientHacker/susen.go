@@ -13,7 +13,11 @@
     border: 1px solid #4e95f4; 
     background: #b8d1f3;
     text-align: left;
-    margin-bottom: 12px
+    margin-bottom: 12px;
+}
+
+.activity p {
+    line-height: 130%;
 }
 
 .solveButton {

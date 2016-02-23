@@ -34,19 +34,19 @@
 // full range of possible values.
 //
 // All Sudoku geometries have a group for each row and column.
-// The standard geometry, called here the Sudoku geometry,
+// The standard geometry, called here the Standard geometry,
 // additionally requires the side length of a puzzle to be a
 // perfect square.  This produces side-length non-overlapping
 // sub-squares (aka tiles) in the the overall puzzle, each of
 // which is also a group.
 //
-// Another common Sudoku variant, called here the Dudoku
+// Another common Sudoku variant, called here the Rectangular
 // geometry, instead uses rectangular tiles whose width is one
 // greater than its height.  This leads to sides of the overall
 // square being equal in length to the area of one tile (e.g, 4x3
 // tiles and a 12x12 square).
 //
-// Another Sudoku variant, not yet implemented, uses the Sudoku
+// Another Sudoku variant, not yet implemented, uses the Standard
 // geometry but adds the diagonals as two additional groups.
 //
 // If a square in a group is the only possible location for a
@@ -58,12 +58,6 @@
 // value to multiple squares in a group.  The implementation will
 // not perform operations on puzzles with errors.
 package puzzle
-
-/*
-
-Sudoku puzzle representation
-
-*/
 
 import (
 	"fmt"
@@ -673,7 +667,7 @@ func newGroup(gd *groupDescriptor, ss []*square) (*group, []Error) {
 }
 
 // analyze a group for solvability.  For each needed value in a
-// group, we first look at which of the free squares in the group
+// group, we first look at each of the free squares in the group
 // to see how many are candidates:
 //
 // - if there are none, the puzzle cannot be solved, and we
@@ -681,7 +675,8 @@ func newGroup(gd *groupDescriptor, ss []*square) (*group, []Error) {
 //
 // - if there is only one, the puzzle can only be solved by
 // assigning that value to that square, so we bind the square.
-// If that produces an Error, we return that Error.
+// If that conflicts with a binding required by another group, we
+// return an Error to indicate this.
 //
 // The result of the analysis is the sequence of Errors (if any)
 // that were generated.
@@ -694,21 +689,39 @@ func newGroup(gd *groupDescriptor, ss []*square) (*group, []Error) {
 func (g *group) analyze(ss []*square) []Error {
 	counts := make([]int, len(g.desc.indices)+1) // candidate counts for each needed value
 	lasts := make([]int, len(g.desc.indices)+1)  // last candidates for each needed value
+	var errs []Error                             // errs arising from the analysis
+
+	// helper: set this index as the candidate for this value in this group
+	setCandidate := func(idx int, val int) {
+		g.free.remove(idx)
+		g.need.remove(val)
+		// bind the square, if needed
+		if len(ss[idx].pvals) > 1 {
+			errs = append(errs, ss[idx].bind(val, g.desc.id)...)
+		}
+		// Issue 32: make sure this value isn't bound elsewhere in the group
+		for _, i := range g.desc.indices {
+			if i != idx && ss[i].bval == val {
+				errs = append(errs, groupError(g.desc.id, val, DuplicateGroupValuesCondition))
+				break
+			}
+		}
+	}
 
 	// First walk the list of free squares, collecting which ones
-	// are candidates for which values.  We walk the list back to
-	// front, so we can remove bound values without screwing up
-	// the iteration.
+	// are candidates for which values.
+	//
+	// (We walk the list back to front, so we can remove
+	// candidates without screwing up the iteration.)
 	for fi := len(g.free) - 1; fi >= 0; fi-- {
 		i := g.free[fi]
 		if len(ss[i].pvals) == 1 {
-			// this square can only have one value, so it must be
-			// used as the candidate for that value.
-			g.free.remove(i)
-			g.need.remove(ss[i].pvals[0])
+			// this square can only have one value, so it
+			// must be used as the candidate for that value
+			setCandidate(i, ss[i].pvals[0])
 		} else {
-			// remember this square as a candidate for each of
-			// its possible values
+			// remember this square as a potential candidate for
+			// each of its possible values
 			for _, v := range ss[i].pvals {
 				counts[v]++
 				lasts[v] = i
@@ -717,18 +730,17 @@ func (g *group) analyze(ss []*square) []Error {
 	}
 	// Now walk the list of candidates for each needed value,
 	// raising an Error if there aren't any, and binding them if
-	// they are the only ones.  We walk the list back to front,
-	// so we can remove bound values without screwing up the
-	// iteration.
-	var errs []Error
+	// they are the only ones.
+	//
+	// (We walk the list of needed values back to front,
+	// so we can remove needed values without screwing up the
+	// iteration.)
 	for i := len(g.need) - 1; i >= 0; i-- {
 		switch v := g.need[i]; counts[v] {
 		case 0:
 			errs = append(errs, groupError(g.desc.id, v, NoGroupValueCondition))
 		case 1:
-			errs = append(errs, ss[lasts[v]].bind(v, g.desc.id)...)
-			g.free.remove(lasts[v])
-			g.need.remove(v)
+			setCandidate(lasts[v], v)
 		}
 	}
 	return errs
@@ -775,22 +787,14 @@ Squares
 
 */
 
-// A square has an index, an optional assigned value (0 if
-// unassigned), a set of possible values, and an optional bound
-// value (the only one of the possible values that can be
-// assigned in a solution).  If one or more groups have forced
-// the bound value (as opposed to an assignment or removal of all
-// other possible values), the indexes of the group are also
-// recorded for explanation to users.
-//
-// Squares also have a logger, where they log modifications.
+// A square in a puzzle.
 type square struct {
-	index  int
-	aval   int
-	pvals  intset
-	bval   int
-	bsrc   []GroupID
-	logger *indexLogger
+	index  int          // 1-based index of the square
+	aval   int          // value assigned by the user
+	pvals  intset       // possible (not in conflict) values
+	bval   int          // value bound (required) by a containing group
+	bsrc   []GroupID    // group(s) binding the bound value
+	logger *indexLogger // a log of modifications
 }
 
 // Make an empty square with the given index in a puzzle with the

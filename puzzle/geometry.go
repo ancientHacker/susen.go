@@ -43,6 +43,8 @@ type groupDescriptor struct {
 type puzzleMapping struct {
 	geometry string
 	sidelen  int
+	tileX    int
+	tileY    int
 	scount   int
 	gcount   int
 	gdescs   []groupDescriptor
@@ -56,19 +58,22 @@ Registered geometries
 */
 
 const (
-	SudokuGeometryName = "sudoku"
-	DudokuGeometryName = "dudoku"
+	StandardGeometryName    = "square"
+	SquareGeometryName      = "square"
+	RectangularGeometryName = "rectangular"
 )
 
 // knownGeometries is the lookup table for constructors
 var knownGeometries = map[string]func([]int) (*Puzzle, error){
-	"":                 newSudokuPuzzle,
-	SudokuGeometryName: newSudokuPuzzle,
-	DudokuGeometryName: newDudokuPuzzle,
+	"":                      newStandardPuzzle,
+	"standard":              newStandardPuzzle,
+	"default":               newStandardPuzzle,
+	StandardGeometryName:    newStandardPuzzle,
+	RectangularGeometryName: newRectangularPuzzle,
 }
 
-// newSudokuPuzzle creates a Sudoku puzzle from the given values
-func newSudokuPuzzle(values []int) (*Puzzle, error) {
+// newStandardPuzzle creates a Standard puzzle from the given values
+func newStandardPuzzle(values []int) (*Puzzle, error) {
 	mapping, err := squarePuzzleMapping(len(values))
 	if err != nil {
 		return nil, err
@@ -76,9 +81,9 @@ func newSudokuPuzzle(values []int) (*Puzzle, error) {
 	return create(mapping, values)
 }
 
-// newDudokuPuzzle creates a Dudoku puzzle from the given values
-func newDudokuPuzzle(values []int) (*Puzzle, error) {
-	mapping, err := rectanglePuzzleMapping(len(values))
+// newRectangularPuzzle creates a Rectangular puzzle from the given values
+func newRectangularPuzzle(values []int) (*Puzzle, error) {
+	mapping, err := rectangularPuzzleMapping(len(values))
 	if err != nil {
 		return nil, err
 	}
@@ -87,7 +92,7 @@ func newDudokuPuzzle(values []int) (*Puzzle, error) {
 
 /*
 
-Sudoku (aka square) Geometry
+Standard (aka square) Geometry
 
 */
 
@@ -147,7 +152,7 @@ func computeSquarePuzzleMapping(slen, tlen int) *puzzleMapping {
 		}
 		gs[tgi] = groupDescriptor{tgi, GroupID{GtypeTile, i + 1}, tile}
 	}
-	return &puzzleMapping{SudokuGeometryName, slen, scount, gcount, gs, im}
+	return &puzzleMapping{StandardGeometryName, slen, tlen, tlen, scount, gcount, gs, im}
 }
 
 // squarePuzzleMapping returns the puzzle map for a square puzzle
@@ -159,7 +164,7 @@ func squarePuzzleMapping(psize int) (*puzzleMapping, error) {
 	if !ok {
 		return nil, formatError(PuzzleSizeAttribute, psize, NonSquareCondition, 0)
 	}
-	min, max := 4, 225 // largest that fits in a btye
+	min, max := 4, 26 // bounded above by row value representation
 	if sidelen < min {
 		return nil, formatError(SideLengthAttribute, sidelen, TooSmallCondition, min)
 	}
@@ -219,28 +224,28 @@ func main() {
 
 /*
 
-Rectangular puzzles (aka DuDoku)
+Rectangular puzzles
 
 */
 
-// rectanglePuzzleMaps is where we memoize computed rectangle
+// rectangularPuzzleMaps is where we memoize computed rectangular
 // puzzle maps for each side length we've encountered, to avoid
 // computing them more than once.
-var rectanglePuzzleMaps = make(map[int]*puzzleMapping)
+var rectangularPuzzleMaps = make(map[int]*puzzleMapping)
 
 // findDivisors: find consecutive ints that multiply to give an
 // int, if they exist
-func findDivisors(val int) (int, int, bool) {
-	var low, high int
+func findDivisors(val int) (low int, high int, ok bool) {
 	for low, high = 1, 2; low*high <= val; low, high = high, high+1 {
-		if low*high == val {
-			return low, high, true
+		ok = low*high == val
+		if ok {
+			return
 		}
 	}
-	return low - 1, low, false
+	return
 }
 
-func computeRectanglePuzzleMapping(slen, low, high int) *puzzleMapping {
+func computeRectangularPuzzleMapping(slen, tileX, tileY int) *puzzleMapping {
 	gcount := (slen * 3)
 	scount := (slen * slen)
 	gs := make([]groupDescriptor, gcount+1) // 1-based indexing
@@ -270,45 +275,45 @@ func computeRectanglePuzzleMapping(slen, low, high int) *puzzleMapping {
 		// tile i + 1
 		tgi := i + 2*slen + 1 // 1-based indices
 		tile := make(intset, slen)
-		baserow, basecol := low*(i/low), high*(i%low)
-		for tri := 0; tri < low; tri++ {
-			for tci := 0; tci < high; tci++ {
+		baserow, basecol := tileY*(i/tileY), tileX*(i%tileY)
+		for tri := 0; tri < tileY; tri++ {
+			for tci := 0; tci < tileX; tci++ {
 				si := slen*(baserow+tri) + (basecol + tci) + 1 // 1-based indices
-				tile[tri*high+tci] = si
+				tile[tri*tileX+tci] = si
 				im[si][2] = tgi
 			}
 		}
 		gs[tgi] = groupDescriptor{tgi, GroupID{GtypeTile, i + 1}, tile}
 	}
-	return &puzzleMapping{DudokuGeometryName, slen, scount, gcount, gs, im}
+	return &puzzleMapping{RectangularGeometryName, slen, tileX, tileY, scount, gcount, gs, im}
 }
 
-// rectanglePuzzleMapping returns the puzzle map for a square puzzle
+// rectangularPuzzleMapping returns the puzzle map for a square puzzle
 // with the given number of cells.  This computes (first time)
 // and then returns (thereafter) the map.  Returns an error if
 // the sidelength is not a perfect square.
-func rectanglePuzzleMapping(psize int) (*puzzleMapping, error) {
+func rectangularPuzzleMapping(psize int) (*puzzleMapping, error) {
 	sidelen, ok := findIntSquareRoot(psize)
 	if !ok {
 		return nil, formatError(PuzzleSizeAttribute, psize, NonSquareCondition, 0)
 	}
-	min, max := 6, 240 // largest that fits in a byte
+	min, max := 6, 26 // bounded above by row value representation
 	if sidelen < min {
 		return nil, formatError(SideLengthAttribute, sidelen, TooSmallCondition, min)
 	}
 	if sidelen > max {
 		return nil, formatError(SideLengthAttribute, sidelen, TooLargeCondition, max)
 	}
-	low, high, ok := findDivisors(sidelen)
+	tileY, tileX, ok := findDivisors(sidelen)
 	if !ok {
-		return nil, formatError(SideLengthAttribute, sidelen, NonRectangleCondition, 0)
+		return nil, formatError(SideLengthAttribute, sidelen, NonRectangularCondition, 0)
 	}
-	pm, ok := rectanglePuzzleMaps[sidelen]
+	pm, ok := rectangularPuzzleMaps[sidelen]
 	if ok {
 		return pm, nil
 	}
-	pm = computeRectanglePuzzleMapping(sidelen, low, high)
-	rectanglePuzzleMaps[sidelen] = pm
+	pm = computeRectangularPuzzleMapping(sidelen, tileX, tileY)
+	rectangularPuzzleMaps[sidelen] = pm
 	return pm, nil
 }
 

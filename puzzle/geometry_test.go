@@ -47,32 +47,32 @@ func TestSquarePuzzleMapping(t *testing.T) {
 	if _, err := squarePuzzleMapping(13); err == nil {
 		t.Fatalf("Creating a square puzzle mapping for puzzle size 13 did not fail.")
 	} else {
-		t.Logf("squarePuzzleMapping(13): %v", err)
 		if err.(Error).Condition != NonSquareCondition {
+			t.Logf("squarePuzzleMapping(13): %v", err)
 			t.Errorf("Incorrect error!")
 		}
 	}
 	if _, err := squarePuzzleMapping(1); err == nil {
 		t.Fatalf("Creating a square puzzle mapping for puzzle size 1 did not fail.")
 	} else {
-		t.Logf("squarePuzzleMapping(1): %v", err)
 		if err.(Error).Condition != TooSmallCondition {
+			t.Logf("squarePuzzleMapping(1): %v", err)
 			t.Errorf("Incorrect error!")
 		}
 	}
 	if _, err := squarePuzzleMapping(16 * 16 * 16 * 16); err == nil {
 		t.Fatalf("Creating a square puzzle mapping for puzzle size 65,536 did not fail.")
 	} else {
-		t.Logf("squarePuzzleMapping(65536): %v", err)
 		if err.(Error).Condition != TooLargeCondition {
+			t.Logf("squarePuzzleMapping(65536): %v", err)
 			t.Errorf("Incorrect error!")
 		}
 	}
 	if _, err := squarePuzzleMapping(13 * 13); err == nil {
 		t.Fatalf("Creating a square puzzle mapping for sidelen 13 did not fail.")
 	} else {
-		t.Logf("squarePuzzleMapping(13 x 13): %v", err)
 		if err.(Error).Attribute != SideLengthAttribute {
+			t.Logf("squarePuzzleMapping(13 x 13): %v", err)
 			t.Errorf("Incorrect error!")
 		}
 	}
@@ -140,7 +140,7 @@ func TestSquarePuzzleMapping(t *testing.T) {
 		[]int{9, 13, 26}, []int{9, 14, 26}, []int{9, 15, 26},
 		[]int{9, 16, 27}, []int{9, 17, 27}, []int{9, 18, 27},
 	}
-	sm9 := puzzleMapping{SudokuGeometryName, 9, 81, 27, gd9, gm9}
+	sm9 := puzzleMapping{StandardGeometryName, 9, 3, 3, 81, 27, gd9, gm9}
 	sm9c := computeSquarePuzzleMapping(9, 3)
 	sm9a, err := squarePuzzleMapping(81)
 	if err != nil {
@@ -174,8 +174,8 @@ func TestSquarePuzzleMapping(t *testing.T) {
 
 func TestFindDivisors(t *testing.T) {
 	inputs := []int{1, 2, 3, 4, 5, 6, 9, 10, 12, 13}
-	outputLows := []int{0, 1, 1, 1, 1, 2, 2, 2, 3, 3}
-	outputHighs := []int{1, 2, 2, 2, 2, 3, 3, 3, 4, 4}
+	outputLows := []int{1, 1, 2, 2, 2, 2, 3, 3, 3, 4}
+	outputHighs := []int{2, 2, 3, 3, 3, 3, 4, 4, 4, 5}
 	outputBools := []bool{false, true, false, false, false, true, false, false, true, false}
 	for i, v := range inputs {
 		l, h, f := findDivisors(v)
@@ -186,37 +186,37 @@ func TestFindDivisors(t *testing.T) {
 	}
 }
 
-func TestRectanglePuzzleMapping(t *testing.T) {
+func TestRectangularPuzzleMapping(t *testing.T) {
 	// First make sure the boundary condition logic is working
-	if _, err := rectanglePuzzleMapping(13); err == nil {
+	if _, err := rectangularPuzzleMapping(13); err == nil {
 		t.Fatalf("Creating a rectangular puzzle mapping for puzzle size 13 did not fail.")
 	} else {
-		t.Logf("rectanglePuzzleMapping(13): %v", err)
 		if err.(Error).Condition != NonSquareCondition {
+			t.Logf("rectangularPuzzleMapping(13): %v", err)
 			t.Errorf("Incorrect error!")
 		}
 	}
-	if _, err := rectanglePuzzleMapping(1); err == nil {
-		t.Fatalf("Creating a rectangle puzzle mapping for puzzle size 1 did not fail.")
+	if _, err := rectangularPuzzleMapping(1); err == nil {
+		t.Fatalf("Creating a rectangular puzzle mapping for puzzle size 1 did not fail.")
 	} else {
-		t.Logf("rectanglePuzzleMapping(1): %v", err)
 		if err.(Error).Condition != TooSmallCondition {
+			t.Logf("rectangularPuzzleMapping(1): %v", err)
 			t.Errorf("Incorrect error!")
 		}
 	}
-	if _, err := rectanglePuzzleMapping(16 * 17 * 16 * 17); err == nil {
-		t.Fatalf("Creating a rectangle puzzle mapping for puzzle size 73,984 did not fail.")
+	if _, err := rectangularPuzzleMapping(16 * 17 * 16 * 17); err == nil {
+		t.Fatalf("Creating a rectangular puzzle mapping for puzzle size 73,984 did not fail.")
 	} else {
-		t.Logf("rectanglePuzzleMapping(73,984): %v", err)
 		if err.(Error).Condition != TooLargeCondition {
+			t.Logf("rectangularPuzzleMapping(73,984): %v", err)
 			t.Errorf("Incorrect error!")
 		}
 	}
-	if _, err := rectanglePuzzleMapping(13 * 13); err == nil {
-		t.Fatalf("Creating a rectangle puzzle mapping for sidelen 13 did not fail.")
+	if _, err := rectangularPuzzleMapping(13 * 13); err == nil {
+		t.Fatalf("Creating a rectangular puzzle mapping for sidelen 13 did not fail.")
 	} else {
-		t.Logf("rectanglePuzzleMapping(13 * 13): %v", err)
-		if err.(Error).Condition != NonRectangleCondition {
+		if err.(Error).Condition != NonRectangularCondition {
+			t.Logf("rectangularPuzzleMapping(13 * 13): %v", err)
 			t.Errorf("Incorrect error!")
 		}
 	}
@@ -260,17 +260,17 @@ func TestRectanglePuzzleMapping(t *testing.T) {
 		[]int{6, 7, 17}, []int{6, 8, 17}, []int{6, 9, 17},
 		[]int{6, 10, 18}, []int{6, 11, 18}, []int{6, 12, 18},
 	}
-	sm6 := puzzleMapping{DudokuGeometryName, 6, 36, 18, gd6, gm6}
-	sm6c := computeRectanglePuzzleMapping(6, 2, 3)
-	sm6a, err := rectanglePuzzleMapping(36)
+	sm6 := puzzleMapping{RectangularGeometryName, 6, 3, 2, 36, 18, gd6, gm6}
+	sm6c := computeRectangularPuzzleMapping(6, 3, 2)
+	sm6a, err := rectangularPuzzleMapping(36)
 	if err != nil {
-		t.Fatalf("Creating first side 6 rectangle puzzle mapping returned an error: %v", err)
+		t.Fatalf("Creating first side 6 rectangular puzzle mapping returned an error: %v", err)
 	}
 	if !reflect.DeepEqual(sm6a, sm6c) {
-		t.Fatalf("rectanglePuzzleMapping is not using computeRectanglePuzzleMapping!")
+		t.Fatalf("rectangularPuzzleMapping is not using computeRectangularPuzzleMapping!")
 	}
 	if !reflect.DeepEqual(sm6a, &sm6) {
-		t.Errorf("side 6 rectangle puzzle mapping doesn't match expected:\n")
+		t.Errorf("side 6 rectangular puzzle mapping doesn't match expected:\n")
 		for i := 0; i < 18; i++ {
 			if !reflect.DeepEqual(sm6a.gdescs[i], sm6.gdescs[i]) {
 				t.Errorf("group descriptor %d: %v (expected %v)\n",
@@ -283,11 +283,11 @@ func TestRectanglePuzzleMapping(t *testing.T) {
 			}
 		}
 	}
-	sm6b, err := rectanglePuzzleMapping(36)
+	sm6b, err := rectangularPuzzleMapping(36)
 	if err != nil {
-		t.Fatalf("Creating second side 6 rectangle puzzle mapping returned an error: %v", err)
+		t.Fatalf("Creating second side 6 rectangular puzzle mapping returned an error: %v", err)
 	}
 	if reflect.ValueOf(sm6a).Pointer() != reflect.ValueOf(sm6b).Pointer() {
-		t.Errorf("First side 6 rectangle puzzle mapping was not reused!")
+		t.Errorf("First side 6 rectangular puzzle mapping was not reused!")
 	}
 }
