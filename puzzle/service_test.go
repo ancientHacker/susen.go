@@ -46,7 +46,7 @@ var badError = Error{Message: "unencodable error", Values: ErrorData{unencodable
 type badEncoderPuzzle Puzzle
 
 func (b *badEncoderPuzzle) Summary() (*Summary, error) {
-	return &Summary{nil, SudokuGeometryName, 0, []int{}, nil}, nil
+	return &Summary{nil, StandardGeometryName, 0, []int{}, nil}, nil
 }
 
 func (b *badEncoderPuzzle) State() (*Content, error) {
@@ -86,11 +86,11 @@ GET handlers
 
 func TestPuzzleGetHandlers(t *testing.T) {
 	tests := []*Summary{
-		&Summary{nil, SudokuGeometryName, 4, rotation4Puzzle1PartialAssign1Values, nil},
-		&Summary{nil, SudokuGeometryName, 4, rotation4Puzzle1Complete1, nil},
-		&Summary{nil, SudokuGeometryName, 4, empty4PuzzleValues, nil},
-		&Summary{nil, SudokuGeometryName, 9, oneStarValues, nil},
-		&Summary{nil, SudokuGeometryName, 9, sixStarValues, nil},
+		&Summary{nil, StandardGeometryName, 4, rotation4Puzzle1PartialAssign1Values, nil},
+		&Summary{nil, StandardGeometryName, 4, rotation4Puzzle1Complete1, nil},
+		&Summary{nil, StandardGeometryName, 4, empty4PuzzleValues, nil},
+		&Summary{nil, StandardGeometryName, 9, oneStarValues, nil},
+		&Summary{nil, StandardGeometryName, 9, sixStarValues, nil},
 	}
 	for i, test := range tests {
 		p, e := New(test)
@@ -122,14 +122,16 @@ func TestPuzzleGetHandlers(t *testing.T) {
 			if e != nil {
 				t.Fatalf("test %d: Request error: %v", i, e)
 			}
-			t.Logf("%q\n", r.Status)
-			t.Logf("%v\n", r.Header)
+			if r.StatusCode != http.StatusOK {
+				t.Errorf("Incorrect status: %q\n", r.Status)
+				t.Logf("Headers are: %v\n", r.Header)
+			}
 			b, e := ioutil.ReadAll(r.Body)
 			r.Body.Close()
 			if e != nil {
+				t.Logf("Response body: %s\n", b)
 				t.Fatalf("test %d: Read error on puzzle response body: %v", i, e)
 			}
-			t.Logf("%s\n", b)
 
 			e = json.Unmarshal(b, outputs[j])
 			if e != nil {
@@ -164,7 +166,6 @@ func TestGetHandlerErrors(t *testing.T) {
 		if e != nil {
 			t.Fatalf("Request error: %v", e)
 		}
-		t.Logf("%q\n", r.Status)
 		r.Body.Close()
 		if r.StatusCode != http.StatusNotFound {
 			t.Errorf("Response status was %d (expected %d)", r.StatusCode, http.StatusNotFound)
@@ -180,9 +181,9 @@ POST handlers
 
 func TestNewHandler(t *testing.T) {
 	testcases := []*Summary{
-		&Summary{nil, SudokuGeometryName, 4, empty4PuzzleValues, nil},
-		&Summary{nil, SudokuGeometryName, 4, rotation4Puzzle1PartialAssign1Values, nil},
-		&Summary{nil, SudokuGeometryName, 4, rotation4Puzzle1Complete1, nil},
+		&Summary{nil, StandardGeometryName, 4, empty4PuzzleValues, nil},
+		&Summary{nil, StandardGeometryName, 4, rotation4Puzzle1PartialAssign1Values, nil},
+		&Summary{nil, StandardGeometryName, 4, rotation4Puzzle1Complete1, nil},
 	}
 	for i, tc := range testcases {
 		pe, err := New(tc)
@@ -211,22 +212,21 @@ func TestNewHandler(t *testing.T) {
 		ts := httptest.NewServer(http.HandlerFunc(handlerFunc))
 		defer ts.Close()
 
-		t.Logf("%s\n", bytes)
 		r, e := http.Post(ts.URL, "application/json", strings.NewReader(string(bytes)))
 		if e != nil {
+			t.Logf("case %d body: %s\n", i, bytes)
 			t.Fatalf("case %d: Request error: %v", i, e)
 		}
-		t.Logf("%q\n", r.Status)
-		t.Logf("%v\n", r.Header)
 		if r.StatusCode != http.StatusOK {
 			t.Errorf("case %d: Status was %v, expected %v", i, r.StatusCode, http.StatusOK)
+			t.Logf("case %d headers: %v\n", i, r.Header)
 		}
 		b, e := ioutil.ReadAll(r.Body)
 		r.Body.Close()
 		if e != nil {
-			t.Fatalf("test %d: Read error on summary: %v", i, e)
+			t.Logf("test %d body: %s\n", i, b)
+			t.Fatalf("test %d: Read error on body: %v", i, e)
 		}
-		t.Logf("%s\n", b)
 
 		var state *Content
 		e = json.Unmarshal(b, &state)
@@ -249,7 +249,7 @@ func TestNewHandlerErrors(t *testing.T) {
 	testcases := []testNewHandlerErrorTestcase{
 		{"bad input", `"string not summary"`, DecodeAttribute},
 		{"unknown geometry", `{"geometry":"nope","sidelen":4}`, GeometryAttribute},
-		{"values incompatible", `{"geometry":"sudoku","sidelen":4,"values":[1, 2, 3]}`, PuzzleSizeAttribute},
+		{"values incompatible", `{"geometry":"square","sidelen":4,"values":[1, 2, 3]}`, PuzzleSizeAttribute},
 	}
 
 	for _, tc := range testcases {
@@ -266,11 +266,10 @@ func TestNewHandlerErrors(t *testing.T) {
 		if e != nil {
 			t.Fatalf("Request error: %v", e)
 		}
-		t.Logf("%q\n", r.Status)
-		t.Logf("%v\n", r.Header)
 		if r.StatusCode != http.StatusBadRequest {
 			t.Errorf("Test %s: HTTP Status was %v, expected %v",
 				tc.name, r.StatusCode, http.StatusBadRequest)
+			t.Logf("Test %s headers: %v\n", tc.name, r.Header)
 		}
 		b, e := ioutil.ReadAll(r.Body)
 		r.Body.Close()
@@ -279,21 +278,21 @@ func TestNewHandlerErrors(t *testing.T) {
 		if e != nil {
 			t.Errorf("Test %s: response decode error: %v", tc.name, e)
 		}
-		t.Logf("%v", err)
 		if err.Attribute != tc.attribute {
 			t.Errorf("Test %s: Attribute was %v, expected %v",
 				tc.name, err.Attribute, tc.attribute)
+			t.Logf("Test %s Error: %+v", tc.name, err)
 		}
 	}
 }
 
 func TestAssignHandler(t *testing.T) {
 	choices := []Choice{{13, 2}, {10, 4}, {15, 4}}
-	p1, err := New(&Summary{Geometry: "sudoku", SideLength: 4, Values: rotation4Puzzle1PartialValues})
+	p1, err := New(&Summary{Geometry: StandardGeometryName, SideLength: 4, Values: rotation4Puzzle1PartialValues})
 	if err != nil {
 		t.Fatalf("Failed to create initial puzzle1: %v", err)
 	}
-	p2, err := New(&Summary{Geometry: "sudoku", SideLength: 4, Values: rotation4Puzzle1PartialValues})
+	p2, err := New(&Summary{Geometry: StandardGeometryName, SideLength: 4, Values: rotation4Puzzle1PartialValues})
 	if err != nil {
 		t.Fatalf("Failed to create initial puzzle2: %v", err)
 	}
@@ -321,22 +320,21 @@ func TestAssignHandler(t *testing.T) {
 		ts := httptest.NewServer(http.HandlerFunc(handler))
 		defer ts.Close()
 
-		t.Logf("%s\n", bytes)
 		r, e := http.Post(ts.URL, "application/json", strings.NewReader(string(bytes)))
 		if e != nil {
+			t.Logf("case %d POST body: %s", i, bytes)
 			t.Fatalf("case %d: Request error: %v", i, e)
 		}
-		t.Logf("%q\n", r.Status)
-		t.Logf("%v\n", r.Header)
 		if r.StatusCode != http.StatusOK {
 			t.Errorf("case %d: Status was %v, expected %v", i, r.StatusCode, http.StatusOK)
+			t.Logf("case %d headers: %v\n", i, r.Header)
 		}
 		b, e := ioutil.ReadAll(r.Body)
 		r.Body.Close()
 		if e != nil {
+			t.Logf("test %d response body: %s\n", i, b)
 			t.Fatalf("test %d: Read error on summary: %v", i, e)
 		}
-		t.Logf("%s\n", b)
 
 		var update *Content
 		e = json.Unmarshal(b, &update)
@@ -350,7 +348,7 @@ func TestAssignHandler(t *testing.T) {
 }
 
 func TestAssignHandlerErrors(t *testing.T) {
-	p, err := New(&Summary{Geometry: "sudoku", SideLength: 4, Values: rotation4Puzzle1PartialValues})
+	p, err := New(&Summary{Geometry: StandardGeometryName, SideLength: 4, Values: rotation4Puzzle1PartialValues})
 	if err != nil {
 		t.Fatalf("Failed to create initial puzzle: %v", err)
 	}
@@ -360,7 +358,6 @@ func TestAssignHandlerErrors(t *testing.T) {
 		if err == nil {
 			t.Errorf("Successful assignment!")
 		}
-		t.Logf("Server err: %v", err)
 	}
 	ts := httptest.NewServer(http.HandlerFunc(handler))
 	defer ts.Close()
@@ -369,41 +366,39 @@ func TestAssignHandlerErrors(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to encode []int{1, 2, 3}: %v", err)
 	}
-	t.Logf("%s\n", bytes)
 	r, e := http.Post(ts.URL, "application/json", strings.NewReader(string(bytes)))
 	if e != nil {
+		t.Logf("Post body: %s\n", bytes)
 		t.Fatalf("Request error: %v", e)
 	}
-	t.Logf("%q\n", r.Status)
-	t.Logf("%v\n", r.Header)
 	if r.StatusCode != http.StatusBadRequest {
 		t.Errorf("Status was %v, expected %v", r.StatusCode, http.StatusBadRequest)
+		t.Logf("Headers are: %v\n", r.Header)
 	}
 	b, e := ioutil.ReadAll(r.Body)
 	r.Body.Close()
 	if e != nil {
+		t.Logf("Response body: %s\n", b)
 		t.Fatalf("Read error on result: %v", e)
 	}
-	t.Logf("%s\n", b)
 
 	bytes, err = json.Marshal(Choice{14, 2})
 	if err != nil {
 		t.Fatalf("Failed to encode Choice{14, 2}: %v", err)
 	}
-	t.Logf("%s\n", bytes)
 	r, e = http.Post(ts.URL, "application/json", strings.NewReader(string(bytes)))
 	if e != nil {
+		t.Logf("Post body: %s\n", bytes)
 		t.Fatalf("Request error: %v", e)
 	}
-	t.Logf("%q\n", r.Status)
-	t.Logf("%v\n", r.Header)
 	if r.StatusCode != http.StatusBadRequest {
 		t.Errorf("Status was %v, expected %v", r.StatusCode, http.StatusBadRequest)
+		t.Logf("Headers are: %v\n", r.Header)
 	}
 	b, e = ioutil.ReadAll(r.Body)
 	r.Body.Close()
 	if e != nil {
+		t.Logf("Response body: %s\n", b)
 		t.Fatalf("Read error on result: %v", e)
 	}
-	t.Logf("%s\n", b)
 }

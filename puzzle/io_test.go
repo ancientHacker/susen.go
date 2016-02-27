@@ -55,6 +55,12 @@ func TestVstr(t *testing.T) {
 	}
 }
 
+/*
+
+Stringer
+
+*/
+
 func TestPuzzleString(t *testing.T) {
 	// check for the null cases
 	s := (*Puzzle)(nil).String()
@@ -63,36 +69,143 @@ func TestPuzzleString(t *testing.T) {
 		t.Errorf("Unexpected empty puzzle string: %q, Expected: %q", s, e)
 	}
 	// do a 4x4 test with all the different states except unknown
-	p, err := New(&Summary{nil, SudokuGeometryName, 4, rotation4Puzzle1PartialAssign2Values, nil})
+	p, err := New(&Summary{
+		Geometry:   StandardGeometryName,
+		SideLength: 4,
+		Values:     rotation4Puzzle1PartialAssign1Values})
 	if err != nil {
 		t.Fatalf("Puzzle creation failed: %v", err)
 	}
-	s = p.String()
-	e = " 1  =2 | 3  +4 \n" +
-		"=4   3 |+2   1 \n" +
-		"---+---+---+---\n" +
-		" 3   4 | 1  =2 \n" +
-		" 2   1 |=4   3 \n"
+	s = p.ValuesString(false)
+	e = " | 1   2 | 3   4 \n" +
+		" +---+---+---+---\n" +
+		"a| 1   _ | 3   _ \n" +
+		"b| _   3 | _   1 \n" +
+		" +---+---+---+---\n" +
+		"c| 3   _ | 1   _ \n" +
+		"d| 2   1 | _   3 \n"
 	if s != e {
 		t.Errorf("Unexpected puzzle string:\n%vExpected:\n%v", s, e)
 	}
-	// do a 9x9 empty puzzle test to cover unknown and the formatting
-	p, err = New(&Summary{nil, SudokuGeometryName, 9, nil, nil})
+	s = p.String()
+	e = " | 1   2 | 3   4 \n" +
+		" +---+---+---+---\n" +
+		"a| 1  +2 | 3  2,4\n" +
+		"b|=4   3 |+2   1 \n" +
+		" +---+---+---+---\n" +
+		"c| 3  =4 | 1  +2 \n" +
+		"d| 2   1 |=4   3 \n"
+	if s != e {
+		t.Errorf("Unexpected puzzle string:\n%vExpected:\n%v", s, e)
+	}
+	// do a 9x9 empty puzzle test to cover unknown squares
+	p, err = New(&Summary{nil, StandardGeometryName, 9, nil, nil})
 	if err != nil {
 		t.Fatalf("Puzzle creation failed: %v", err)
 	}
 	s = p.String()
-	e = " _   _   _ | _   _   _ | _   _   _ \n" +
-		" _   _   _ | _   _   _ | _   _   _ \n" +
-		" _   _   _ | _   _   _ | _   _   _ \n" +
-		"---+---+---+---+---+---+---+---+---\n" +
-		" _   _   _ | _   _   _ | _   _   _ \n" +
-		" _   _   _ | _   _   _ | _   _   _ \n" +
-		" _   _   _ | _   _   _ | _   _   _ \n" +
-		"---+---+---+---+---+---+---+---+---\n" +
-		" _   _   _ | _   _   _ | _   _   _ \n" +
-		" _   _   _ | _   _   _ | _   _   _ \n" +
-		" _   _   _ | _   _   _ | _   _   _ \n"
+	e = " | 1   2   3 | 4   5   6 | 7   8   9 \n" +
+		" +---+---+---+---+---+---+---+---+---\n" +
+		"a| _   _   _ | _   _   _ | _   _   _ \n" +
+		"b| _   _   _ | _   _   _ | _   _   _ \n" +
+		"c| _   _   _ | _   _   _ | _   _   _ \n" +
+		" +---+---+---+---+---+---+---+---+---\n" +
+		"d| _   _   _ | _   _   _ | _   _   _ \n" +
+		"e| _   _   _ | _   _   _ | _   _   _ \n" +
+		"f| _   _   _ | _   _   _ | _   _   _ \n" +
+		" +---+---+---+---+---+---+---+---+---\n" +
+		"g| _   _   _ | _   _   _ | _   _   _ \n" +
+		"h| _   _   _ | _   _   _ | _   _   _ \n" +
+		"i| _   _   _ | _   _   _ | _   _   _ \n"
+	if s != e {
+		t.Errorf("Unexpected puzzle string:\n%vExpected:\n%v", s, e)
+	}
+	// do a 12x12 empty puzzle test to cover rectangular borders
+	p, err = New(&Summary{nil, RectangularGeometryName, 12, nil, nil})
+	if err != nil {
+		t.Fatalf("Puzzle creation failed: %v", err)
+	}
+	s = p.String()
+	e = " | 1   2   3   4 | 5   6   7   8 | 9  10  11  12 \n" +
+		" +---+---+---+---+---+---+---+---+---+---+---+---\n" +
+		"a| _   _   _   _ | _   _   _   _ | _   _   _   _ \n" +
+		"b| _   _   _   _ | _   _   _   _ | _   _   _   _ \n" +
+		"c| _   _   _   _ | _   _   _   _ | _   _   _   _ \n" +
+		" +---+---+---+---+---+---+---+---+---+---+---+---\n" +
+		"d| _   _   _   _ | _   _   _   _ | _   _   _   _ \n" +
+		"e| _   _   _   _ | _   _   _   _ | _   _   _   _ \n" +
+		"f| _   _   _   _ | _   _   _   _ | _   _   _   _ \n" +
+		" +---+---+---+---+---+---+---+---+---+---+---+---\n" +
+		"g| _   _   _   _ | _   _   _   _ | _   _   _   _ \n" +
+		"h| _   _   _   _ | _   _   _   _ | _   _   _   _ \n" +
+		"i| _   _   _   _ | _   _   _   _ | _   _   _   _ \n" +
+		" +---+---+---+---+---+---+---+---+---+---+---+---\n" +
+		"j| _   _   _   _ | _   _   _   _ | _   _   _   _ \n" +
+		"k| _   _   _   _ | _   _   _   _ | _   _   _   _ \n" +
+		"l| _   _   _   _ | _   _   _   _ | _   _   _   _ \n"
+	if s != e {
+		t.Errorf("Unexpected puzzle string:\n%vExpected:\n%v", s, e)
+	}
+}
+
+/*
+
+Markdown
+
+*/
+
+func TestPuzzleValuesMarkdown(t *testing.T) {
+	// check for the null cases
+	s := (*Puzzle)(nil).String()
+	e := ""
+	if s != e {
+		t.Errorf("Unexpected empty puzzle string: %q, Expected: %q", s, e)
+	}
+	// do a 4x4 test with all the different states except unknown
+	p, err := New(&Summary{
+		Geometry:   StandardGeometryName,
+		SideLength: 4,
+		Values:     rotation4Puzzle1PartialAssign1Values})
+	if err != nil {
+		t.Fatalf("Puzzle creation failed: %v", err)
+	}
+	s = p.ValuesMarkdown(false)
+	e = "|     |  1  |  2  |  3  |  4  |\n" +
+		"|:---:|:---:|:---:|:---:|:---:|\n" +
+		"|**a**|  1  |     |  3  |     |\n" +
+		"|**b**|     |  3  |     |  1  |\n" +
+		"|**c**|  3  |     |  1  |     |\n" +
+		"|**d**|  2  |  1  |     |  3  |\n"
+	if s != e {
+		t.Errorf("Unexpected puzzle string:\n%vExpected:\n%v", s, e)
+	}
+	s = p.ValuesMarkdown(true)
+	e = "|     |  1  |  2  |  3  |  4  |\n" +
+		"|:---:|:---:|:---:|:---:|:---:|\n" +
+		"|**a**|  1  | +2  |  3  | 2,4 |\n" +
+		"|**b**| =4  |  3  | +2  |  1  |\n" +
+		"|**c**|  3  | =4  |  1  | +2  |\n" +
+		"|**d**|  2  |  1  | =4  |  3  |\n"
+	if s != e {
+		t.Errorf("Unexpected puzzle string:\n%vExpected:\n%v", s, e)
+	}
+	// do a 9x9 empty puzzle test to cover unknown squares
+	p, err = New(&Summary{nil, StandardGeometryName, 9, nil, nil})
+	if err != nil {
+		t.Fatalf("Puzzle creation failed: %v", err)
+	}
+	s = p.ValuesMarkdown(true)
+	e = "|     |  1  |  2  |  3  |  4  |  5  |  6  |  7  |  8  |  9  |\n" +
+		"|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|\n" +
+		"|**a**|     |     |     |     |     |     |     |     |     |\n" +
+		"|**b**|     |     |     |     |     |     |     |     |     |\n" +
+		"|**c**|     |     |     |     |     |     |     |     |     |\n" +
+		"|**d**|     |     |     |     |     |     |     |     |     |\n" +
+		"|**e**|     |     |     |     |     |     |     |     |     |\n" +
+		"|**f**|     |     |     |     |     |     |     |     |     |\n" +
+		"|**g**|     |     |     |     |     |     |     |     |     |\n" +
+		"|**h**|     |     |     |     |     |     |     |     |     |\n" +
+		"|**i**|     |     |     |     |     |     |     |     |     |\n"
 	if s != e {
 		t.Errorf("Unexpected puzzle string:\n%vExpected:\n%v", s, e)
 	}

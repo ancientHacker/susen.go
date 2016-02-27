@@ -95,7 +95,7 @@ const (
 	DuplicateGroupValuesCondition
 	UnknownGeometryCondition
 	NonSquareCondition
-	NonRectangleCondition
+	NonRectangularCondition
 	InvalidPuzzleAssignmentCondition
 	WrongPuzzleSizeCondition
 	InvalidArgumentCondition
@@ -234,12 +234,12 @@ func (e Error) Error() string {
 	case NoGroupValueCondition:
 		es += fmt.Sprintf("No square can contain %v", nextVal())
 	case DuplicateGroupValuesCondition:
-		es += fmt.Sprintf("Multiple squares have value %v", nextVal())
+		es += fmt.Sprintf("Multiple squares have or need value %v", nextVal())
 	case UnknownGeometryCondition:
 		es += fmt.Sprintf("Not a known geometry")
 	case NonSquareCondition:
 		es += fmt.Sprintf("Not a perfect square")
-	case NonRectangleCondition:
+	case NonRectangularCondition:
 		es += fmt.Sprintf("Not the product of consecutive integers")
 	case InvalidPuzzleAssignmentCondition:
 		es += fmt.Sprintf("Target puzzle has errors; no assignments are allowed")

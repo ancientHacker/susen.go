@@ -140,7 +140,7 @@ func (p *Puzzle) Solutions() ([]Solution, error) {
 }
 
 // assignKnown takes a solvable puzzle and tries to solve it by
-// assigning all the known empty squares (bound to single-valued)
+// assigning all the single-possible-value empty squares
 // to their known value and then looping to see if those
 // assignments led to more known values that it can assign.  If
 // it is able to fill all the puzzle's empty squares with legal

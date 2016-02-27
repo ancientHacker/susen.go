@@ -147,7 +147,7 @@ var (
 		2, 3, 7, 9, 5, 1, 6, 8, 4,
 	}
 	fiveStarValues = []int{
-		2, 0, 0, 8, 0, 0, 0, 5, 0,
+		2, 0, 0, 8, 3, 0, 0, 5, 0,
 		0, 8, 5, 0, 0, 0, 0, 0, 0,
 		0, 3, 6, 7, 5, 0, 0, 0, 1,
 		0, 0, 3, 0, 4, 0, 0, 9, 8,
@@ -156,6 +156,34 @@ var (
 		5, 0, 0, 0, 0, 7, 1, 2, 0,
 		0, 0, 0, 0, 0, 0, 5, 6, 0,
 		0, 2, 0, 0, 0, 0, 0, 0, 4,
+	}
+	fiveStarSolution1 = Solution{
+		[]int{
+			2, 4, 7, 8, 3, 1, 9, 5, 6,
+			1, 8, 5, 6, 2, 9, 3, 4, 7,
+			9, 3, 6, 7, 5, 4, 2, 8, 1,
+			7, 5, 3, 1, 4, 2, 6, 9, 8,
+			6, 9, 8, 3, 7, 5, 4, 1, 2,
+			4, 1, 2, 9, 6, 8, 7, 3, 5,
+			5, 6, 9, 4, 8, 7, 1, 2, 3,
+			8, 7, 4, 2, 1, 3, 5, 6, 9,
+			3, 2, 1, 5, 9, 6, 8, 7, 4,
+		},
+		[]Choice{Choice{2, 4}},
+	}
+	fiveStarSolution2 = Solution{
+		[]int{
+			2, 7, 4, 8, 3, 1, 9, 5, 6,
+			1, 8, 5, 6, 2, 9, 3, 4, 7,
+			9, 3, 6, 7, 5, 4, 2, 8, 1,
+			7, 5, 3, 1, 4, 2, 6, 9, 8,
+			6, 9, 8, 3, 7, 5, 4, 1, 2,
+			4, 1, 2, 9, 6, 8, 7, 3, 5,
+			5, 6, 9, 4, 8, 7, 1, 2, 3,
+			8, 4, 7, 2, 1, 3, 5, 6, 9,
+			3, 2, 1, 5, 9, 6, 8, 7, 4,
+		},
+		[]Choice{Choice{2, 7}},
 	}
 	sixStarValues = []int{
 		9, 0, 0, 4, 5, 0, 0, 0, 8,
@@ -181,6 +209,17 @@ var (
 			4, 9, 2, 7, 1, 6, 8, 5, 3,
 		},
 		[]Choice{Choice{2, 6}},
+	}
+	multiSolutionValues = []int{
+		2, 0, 0, 8, 0, 0, 0, 5, 0,
+		0, 8, 5, 0, 0, 0, 0, 0, 0,
+		0, 3, 6, 7, 5, 0, 0, 0, 1,
+		0, 0, 3, 0, 4, 0, 0, 9, 8,
+		0, 0, 0, 3, 0, 5, 0, 0, 0,
+		4, 1, 0, 0, 6, 0, 7, 0, 0,
+		5, 0, 0, 0, 0, 7, 1, 2, 0,
+		0, 0, 0, 0, 0, 0, 5, 6, 0,
+		0, 2, 0, 0, 0, 0, 0, 0, 4,
 	}
 	chronOneValues = []int{
 		9, 4, 8, 0, 5, 0, 2, 0, 0,
@@ -240,6 +279,94 @@ var (
 		6, 7, 8, 9, 1, 2, 3, 4, 5,
 		9, 1, 2, 3, 4, 5, 6, 7, 8,
 	}
+	Su6Standard1Values = []int{
+		0, 4, 5, 1, 6, 0,
+		3, 0, 0, 0, 0, 0,
+		0, 5, 0, 6, 2, 1,
+		1, 0, 2, 3, 4, 0,
+		5, 0, 0, 2, 1, 6,
+		6, 0, 0, 0, 0, 0,
+	}
+	Su6Standard1Complete = []int{
+		2, 4, 5, 1, 6, 3,
+		3, 1, 6, 4, 5, 2,
+		4, 5, 3, 6, 2, 1,
+		1, 6, 2, 3, 4, 5,
+		5, 3, 4, 2, 1, 6,
+		6, 2, 1, 5, 3, 4,
+	}
+	Su6Difficult1Values = []int{
+		0, 0, 0, 2, 6, 0,
+		2, 0, 3, 0, 0, 0,
+		0, 5, 0, 0, 0, 6,
+		3, 2, 6, 0, 0, 1,
+		0, 0, 4, 0, 0, 0,
+		0, 0, 0, 5, 1, 4,
+	}
+	Su6Difficult1Complete = []int{
+		1, 4, 5, 2, 6, 3,
+		2, 6, 3, 1, 4, 5,
+		4, 5, 1, 3, 2, 6,
+		3, 2, 6, 4, 5, 1,
+		5, 1, 4, 6, 3, 2,
+		6, 3, 2, 5, 1, 4,
+	}
+	SuDozen78097Values = []int{
+		5, 7, 0, 6, 0, 0, 0, 0, 0, 1, 11, 12,
+		11, 0, 0, 0, 0, 0, 10, 0, 0, 0, 0, 3,
+		8, 0, 9, 0, 0, 0, 1, 0, 5, 7, 0, 0,
+		0, 0, 4, 2, 10, 11, 0, 0, 12, 0, 0, 8,
+		0, 0, 0, 0, 9, 6, 0, 1, 7, 0, 0, 0,
+		0, 9, 7, 0, 0, 0, 0, 2, 11, 0, 0, 0,
+		0, 0, 0, 8, 7, 0, 0, 0, 0, 11, 3, 0,
+		0, 0, 0, 11, 3, 0, 2, 5, 0, 0, 0, 0,
+		9, 0, 0, 3, 0, 0, 11, 8, 10, 6, 0, 0,
+		0, 0, 3, 7, 0, 10, 0, 0, 0, 12, 0, 2,
+		2, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 11,
+		6, 11, 12, 0, 0, 0, 0, 0, 3, 0, 9, 4,
+	}
+	SuDozen78097Complete = []int{
+		5, 7, 10, 6, 4, 8, 3, 9, 2, 1, 11, 12,
+		11, 12, 2, 1, 5, 7, 10, 6, 9, 4, 8, 3,
+		8, 3, 9, 4, 11, 2, 1, 12, 5, 7, 10, 6,
+		1, 6, 4, 2, 10, 11, 7, 3, 12, 9, 5, 8,
+		3, 8, 11, 5, 9, 6, 12, 1, 7, 2, 4, 10,
+		10, 9, 7, 12, 8, 5, 4, 2, 11, 3, 6, 1,
+		12, 2, 1, 8, 7, 9, 6, 10, 4, 11, 3, 5,
+		7, 10, 6, 11, 3, 4, 2, 5, 1, 8, 12, 9,
+		9, 4, 5, 3, 1, 12, 11, 8, 10, 6, 2, 7,
+		4, 5, 3, 7, 6, 10, 9, 11, 8, 12, 1, 2,
+		2, 1, 8, 9, 12, 3, 5, 4, 6, 10, 7, 11,
+		6, 11, 12, 10, 2, 1, 8, 7, 3, 5, 9, 4,
+	}
+	SuDozen61054Values = []int{
+		0, 11, 3, 0, 0, 0, 0, 0, 0, 6, 0, 0,
+		0, 7, 0, 0, 12, 0, 4, 0, 0, 3, 10, 8,
+		4, 6, 0, 0, 10, 11, 0, 0, 1, 0, 0, 7,
+		0, 0, 8, 9, 2, 0, 0, 0, 5, 0, 0, 0,
+		0, 0, 0, 0, 0, 9, 6, 0, 12, 8, 11, 0,
+		0, 5, 0, 0, 3, 0, 0, 11, 0, 9, 0, 0,
+		0, 0, 4, 0, 8, 0, 0, 9, 0, 0, 7, 0,
+		0, 9, 7, 3, 0, 10, 12, 0, 0, 0, 0, 0,
+		0, 0, 0, 11, 0, 0, 0, 1, 3, 12, 0, 0,
+		3, 0, 0, 7, 0, 0, 8, 2, 0, 0, 4, 1,
+		2, 8, 5, 0, 0, 12, 0, 4, 0, 0, 3, 0,
+		0, 0, 9, 0, 0, 0, 0, 0, 0, 7, 12, 0,
+	}
+	SuDozen61054Complete = []int{
+		10, 11, 3, 8, 1, 2, 9, 7, 4, 6, 5, 12,
+		9, 7, 1, 2, 12, 5, 4, 6, 11, 3, 10, 8,
+		4, 6, 12, 5, 10, 11, 3, 8, 1, 2, 9, 7,
+		11, 3, 8, 9, 2, 4, 7, 12, 5, 1, 6, 10,
+		7, 1, 2, 4, 5, 9, 6, 10, 12, 8, 11, 3,
+		12, 5, 10, 6, 3, 8, 1, 11, 7, 9, 2, 4,
+		1, 2, 4, 12, 8, 3, 11, 9, 6, 10, 7, 5,
+		8, 9, 7, 3, 6, 10, 12, 5, 2, 4, 1, 11,
+		5, 10, 6, 11, 4, 7, 2, 1, 3, 12, 8, 9,
+		3, 12, 11, 7, 9, 6, 8, 2, 10, 5, 4, 1,
+		2, 8, 5, 1, 7, 12, 10, 4, 9, 11, 3, 6,
+		6, 4, 9, 10, 11, 1, 5, 3, 8, 7, 12, 2,
+	}
 )
 
 type assignKnownTestcase struct {
@@ -255,7 +382,7 @@ func TestAssignKnown(t *testing.T) {
 		assignKnownTestcase{4, solveSimpleSecondValues, solveSimpleSecondCompleteValues},
 	}
 	for i, tc := range tcs {
-		p, e := New(&Summary{Geometry: SudokuGeometryName, SideLength: tc.sidelen, Values: tc.before})
+		p, e := New(&Summary{Geometry: StandardGeometryName, SideLength: tc.sidelen, Values: tc.before})
 		if e != nil {
 			t.Fatalf("TestBindAll case %d: Failed to create test puzzle: %v", i+1, e)
 		}
@@ -276,7 +403,7 @@ func TestAssignKnown(t *testing.T) {
 }
 
 func TestPopThread(t *testing.T) {
-	pin, e := New(&Summary{Geometry: "sudoku", SideLength: 4, Values: solveSimpleStartValues})
+	pin, e := New(&Summary{Geometry: StandardGeometryName, SideLength: 4, Values: solveSimpleStartValues})
 	if e != nil {
 		t.Fatalf("TestPopThread: Failed to create puzzle: %v", e)
 	}
@@ -316,7 +443,7 @@ func TestPopThread(t *testing.T) {
 
 func TestPushThread(t *testing.T) {
 	// first test has an early square with 2 possibles
-	pin, e := New(&Summary{Geometry: "sudoku", SideLength: 4, Values: solveSimpleStartValues})
+	pin, e := New(&Summary{Geometry: StandardGeometryName, SideLength: 4, Values: solveSimpleStartValues})
 	if e != nil {
 		t.Fatalf("TestPushThread: Failed to create 1st puzzle: %v", e)
 	}
@@ -334,7 +461,7 @@ func TestPushThread(t *testing.T) {
 			p.allValues(), solveSimpleFirstValues)
 	}
 	// second test all squares have 4 possibles
-	pin, e = New(&Summary{Geometry: "sudoku", SideLength: 4, Values: empty4PuzzleValues})
+	pin, e = New(&Summary{Geometry: StandardGeometryName, SideLength: 4, Values: empty4PuzzleValues})
 	if e != nil {
 		t.Fatalf("TestPushThread: Failed to create 2nd puzzle: %v", e)
 	}
@@ -369,7 +496,7 @@ func TestSolve(t *testing.T) {
 	var th thread
 	var e error
 	// first check behavior on a puzzle with problems
-	p, e = New(&Summary{Geometry: "sudoku", SideLength: 4, Values: conflicting4Puzzle1})
+	p, e = New(&Summary{Geometry: StandardGeometryName, SideLength: 4, Values: conflicting4Puzzle1})
 	if e != nil {
 		t.Fatalf("TestSolve: Failed to create conflicting puzzle: %v", e)
 	}
@@ -416,15 +543,15 @@ func TestSolve(t *testing.T) {
 			}
 			p, th = popChoice(p, th)
 		} else {
-			p, e = New(&Summary{Geometry: SudokuGeometryName, SideLength: tc.sidelen, Values: tc.start})
+			p, e = New(&Summary{Geometry: StandardGeometryName, SideLength: tc.sidelen, Values: tc.start})
 			if e != nil {
 				t.Fatalf("TestSolve case %d: Failed to create puzzle: %v", i+1, e)
 			}
 			th = nil
 		}
-		t.Logf("TestSolve case %d: start thread %v, puzzle:\n%v", i+1, th, p)
+		// t.Logf("TestSolve case %d: start thread %v, puzzle:\n%v", i+1, th, p)
 		p, th = solve(p, th)
-		t.Logf("TestSolve case %d: finish thread %v, puzzle:\n%v", i+1, th, p)
+		// t.Logf("TestSolve case %d: finish thread %v, puzzle:\n%v", i+1, th, p)
 		if tc.done {
 			if len(p.errors) > 0 {
 				t.Fatalf("TestSolve case %d: Failed to solve puzzle: %v", i+1, p.errors)
@@ -460,6 +587,7 @@ func TestSolve(t *testing.T) {
 }
 
 type solutionsTestcase struct {
+	geometry string
 	sidelen  int
 	start    []int
 	numsolns int
@@ -470,31 +598,38 @@ func TestSolutions(t *testing.T) {
 	tcs := []solutionsTestcase{
 		// first the fully bound puzzles
 		solutionsTestcase{
-			9, oneStarValues, 1, []Solution{Solution{oneStarBoundValues, nil}},
+			StandardGeometryName, 9, oneStarValues,
+			1, []Solution{Solution{oneStarBoundValues, nil}},
 		},
 		solutionsTestcase{
-			9, threeStarValues, 1, []Solution{Solution{threeStarBoundValues, nil}},
+			StandardGeometryName, 9, threeStarValues,
+			1, []Solution{Solution{threeStarBoundValues, nil}},
 		},
 		solutionsTestcase{
-			9, chronOneValues, 1, []Solution{Solution{chronOneBoundValues, nil}},
+			StandardGeometryName, 9, chronOneValues,
+			1, []Solution{Solution{chronOneBoundValues, nil}},
 		},
 		// then the single-solution puzzles
 		solutionsTestcase{
-			9, sixStarValues, 1, []Solution{sixStarSolution},
+			StandardGeometryName, 9, sixStarValues,
+			1, []Solution{sixStarSolution},
 		},
 		solutionsTestcase{
-			9, chronTwoValues, 1, []Solution{chronTwoSolution},
+			StandardGeometryName, 9, chronTwoValues,
+			1, []Solution{chronTwoSolution},
 		},
 		// then the multi-solution puzzles
 		solutionsTestcase{
-			4, solveSimpleStartValues, 2,
+			StandardGeometryName, 4, solveSimpleStartValues,
+			2,
 			[]Solution{
 				Solution{solveSimpleFirstCompleteValues, []Choice{Choice{2, 2}}},
 				Solution{solveSimpleSecondCompleteValues, []Choice{Choice{2, 4}}},
 			},
 		},
 		solutionsTestcase{
-			4, multiChoiceStartValues, 4,
+			StandardGeometryName, 4, multiChoiceStartValues,
+			4,
 			[]Solution{
 				multiChoiceSolution1,
 				multiChoiceSolution2,
@@ -502,21 +637,52 @@ func TestSolutions(t *testing.T) {
 				multiChoiceSolution4,
 			},
 		},
-		// then the pathological puzzle with 12 solutions, just to
+		solutionsTestcase{
+			StandardGeometryName, 9, fiveStarValues,
+			2,
+			[]Solution{
+				fiveStarSolution1,
+				fiveStarSolution2,
+			},
+		},
+		// then the rectangular puzzles
+		solutionsTestcase{
+			RectangularGeometryName, 6, Su6Standard1Values,
+			1, []Solution{Solution{Su6Standard1Complete, nil}},
+		},
+		solutionsTestcase{
+			RectangularGeometryName, 6, Su6Difficult1Values,
+			1, []Solution{Solution{Su6Difficult1Complete, nil}},
+		},
+		solutionsTestcase{
+			RectangularGeometryName, 12, SuDozen61054Values,
+			1, []Solution{Solution{SuDozen61054Complete, nil}},
+		},
+		solutionsTestcase{
+			RectangularGeometryName, 12, SuDozen78097Values,
+			1, []Solution{Solution{SuDozen78097Complete, nil}},
+		},
+		/* removed to clean the verbose output, use when needed
+
+		// then the pathological puzzle with 14 solutions, just to
 		// make sure we can handle choices that lead nowhere.
 		solutionsTestcase{
-			9, fiveStarValues, 0, nil,
+			9, multiSolutionValues, 0, nil,
 		},
+		*/
 	}
 
 	for i, tc := range tcs {
-		p, e := New(&Summary{Geometry: SudokuGeometryName, SideLength: tc.sidelen, Values: tc.start})
+		p, e := New(&Summary{Geometry: tc.geometry, SideLength: tc.sidelen, Values: tc.start})
 		if e != nil {
 			t.Fatalf("test %d: Failed to create puzzle: %v", i+1, e)
 		}
 		solns := p.allSolutions()
 		if tc.numsolns == 0 {
 			// this is a run for test logic only, record the solutions
+			if len(solns) == 0 {
+				t.Errorf("test %d puzzle has no solutions: %v", i+1, tc.start)
+			}
 			for j, soln := range solns {
 				t.Logf("test %d solution %d: %+v", i+1, j+1, soln)
 			}

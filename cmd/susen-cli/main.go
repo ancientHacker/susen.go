@@ -16,20 +16,18 @@
 // 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 // Licensed under the LGPL v3.  See the LICENSE file for details
 
+// Command-line client for susen.go puzzle utilities
 package main
 
 import (
 	"encoding/json"
 	"fmt"
 	"github.com/ancientHacker/susen.go/Godeps/_workspace/src/github.com/garyburd/redigo/redis"
-	"github.com/ancientHacker/susen.go/client"
 	"github.com/ancientHacker/susen.go/puzzle"
+	"io"
 	"log"
-	"net/http"
 	"os"
 	"os/signal"
-	"regexp"
-	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -37,39 +35,130 @@ import (
 )
 
 func main() {
-	// client initialization
-	if err := client.VerifyResources(); err != nil {
-		log.Printf("Error during client initialization: %v", err)
-		shutdown(startupFailureShutdown)
-	}
 	// establish redis connection
 	redisInit()
 	if err := redisConnect(); err != nil {
 		shutdown(startupFailureShutdown)
 	}
-	// no deferred close; this function never terminates!
-	// for abnormal terminations, see shutdown
-
-	// port sensing
-	port := os.Getenv("PORT")
-	if port == "" {
-		// running locally in dev mode
-		port = "localhost:8080"
-	} else {
-		// running as a true server
-		port = ":" + port
-	}
+	defer redisClose()
 
 	// catch signals
 	shutdownOnSignal()
 
 	// serve
-	log.Printf("Listening on %s...", port)
-	http.HandleFunc("/", serveHttp)
-	err := http.ListenAndServe(port, nil)
+	err := listener(os.Stdout, os.Stdin)
 	if err != nil {
-		log.Printf("Listener failure: %v", err)
+		log.Printf("CLI failure: %v", err)
 		shutdown(listenerFailureShutdown)
+	}
+}
+
+/*
+
+CLI listener
+
+*/
+
+type request struct {
+	inline  string
+	command string
+	args    []string
+}
+
+// listener reads lines and dispatches them to handlers
+func listener(out *os.File, in *os.File) error {
+	// if we are on a terminal, we do prompting
+	// (see http://stackoverflow.com/questions/22744443/ for source)
+	prompt := false
+	if stat, _ := out.Stat(); (stat.Mode() & os.ModeCharDevice) != 0 {
+		prompt = true
+	}
+
+	input := make([]byte, 4096)
+	for {
+		if prompt {
+			fmt.Fprintf(out, "susen> ")
+		}
+		n, err := in.Read(input)
+		switch err {
+		case nil:
+			r := &request{inline: strings.Trim(string(input[:n]), " \t\r\n")}
+			args := strings.Split(r.inline, " ")
+			r.command = strings.ToLower(args[0])
+			switch r.command {
+			case "":
+				continue
+			case "quit":
+				fallthrough
+			case "exit":
+				return nil
+			}
+			for _, arg := range args[1:] {
+				if len(arg) > 0 {
+					r.args = append(r.args, strings.ToLower(arg))
+				}
+			}
+			dispatchCommand(out, r)
+		case io.EOF:
+			// ignore any input before the EOF
+			if prompt {
+				fmt.Fprintf(out, " (EOF)\n")
+			}
+			return nil
+		default:
+			if prompt {
+				fmt.Fprintf(out, " (read error)\n")
+			}
+			return err
+		}
+	}
+}
+
+// command dispatching
+type commandInfo struct {
+	command     string
+	argInfo     string
+	description string
+	handler     func(*susenSession, *os.File, *request)
+}
+
+// the command dispatch info is sorted for easy usage printing,
+// and then hashed for rapid dispatching
+var (
+	dispatchInfo  []commandInfo
+	dispatchTable map[string]*commandInfo
+)
+
+func init() {
+	dispatchInfo = []commandInfo{
+		{"assign", "index value", "assign a value to a square", assignHandler},
+		{"session", "[sessionID]", "get/set session info", summaryHandler},
+		{"back", "", "go back one solution step", backHandler},
+		{"hints", "on|off", "show hints in puzzle state", hintsHandler},
+		{"markdown", "on|off", "format output in Markdown", markdownHandler},
+		{"reset", "[puzzleID]", "reset this or another puzzle", stateHandler},
+		{"state", "", "show current puzzle state", stateHandler},
+		{"summary", "", "show current session summary", summaryHandler},
+	}
+	dispatchTable = make(map[string]*commandInfo, len(dispatchInfo))
+	for i := range dispatchInfo {
+		dispatchTable[dispatchInfo[i].command] = &dispatchInfo[i]
+	}
+}
+
+func dispatchCommand(w *os.File, r *request) {
+	defer func() {
+		if err := recover(); err != nil {
+			errorHandler(err, w, r)
+		}
+	}()
+
+	session := sessionSelect(w, r)
+	ci := dispatchTable[r.command]
+	if ci == nil {
+		usageHandler(fmt.Sprintf("%q is not a known command", r.command), w, r)
+	} else {
+		ci.handler(session, w, r)
 	}
 }
 
@@ -79,151 +168,144 @@ request handlers
 
 */
 
-var apiEndpointRegexp = regexp.MustCompile("^/+api/+([a-z]+)/*$")
+// client state
+var (
+	useMarkdown  = false
+	showBindings = true
+)
 
-func serveHttp(w http.ResponseWriter, r *http.Request) {
-	defer func() {
-		if err := recover(); err != nil {
-			errorHandler(err, w, r)
+func markdownHandler(session *susenSession, w *os.File, r *request) {
+	if len(r.args) > 0 {
+		switch r.args[0] {
+		case "on":
+			useMarkdown = true
+			stateHandler(session, w, r)
+		case "off":
+			useMarkdown = false
+			stateHandler(session, w, r)
+		default:
+			usageHandler(fmt.Sprintf("argument to %s must be 'on' or 'off'", r.command), w, r)
 		}
-	}()
+	} else {
+		if useMarkdown {
+			fmt.Fprintf(w, "Markdown is on\n")
+		} else {
+			fmt.Fprintf(w, "Markdown is off\n")
+		}
+	}
+}
 
-	if client.StaticHandler(w, r) {
+func hintsHandler(session *susenSession, w *os.File, r *request) {
+	if len(r.args) > 0 {
+		switch r.args[0] {
+		case "on":
+			showBindings = true
+			stateHandler(session, w, r)
+		case "off":
+			showBindings = false
+			stateHandler(session, w, r)
+		default:
+			usageHandler(fmt.Sprintf("argument to %s must be 'on' or 'off'", r.command), w, r)
+		}
+	} else {
+		if showBindings {
+			fmt.Fprintf(w, "Hints are on\n")
+		} else {
+			fmt.Fprintf(w, "Hints are off\n")
+		}
+	}
+}
+
+func backHandler(session *susenSession, w *os.File, r *request) {
+	session.removeStep()
+	stateHandler(session, w, r)
+}
+
+func assignHandler(session *susenSession, w *os.File, r *request) {
+	var choice puzzle.Choice
+	var err error
+
+	if len(r.args) != 2 {
+		usageHandler(fmt.Sprintf("%s requires two arguments", r.command), w, r)
 		return
 	}
-	session := sessionSelect(w, r)
-	session.rootHandler(w, r)
-}
 
-func (session *susenSession) apiHandler(w http.ResponseWriter, r *http.Request) {
-	sendState := func() {
-		session.puzzle.StateHandler(w, r)
-		log.Printf("Returned current state for %s:%q step %d", session.SID, session.PID, session.Step)
-	}
-	sendSummary := func() {
-		session.puzzle.SummaryHandler(w, r)
-		log.Printf("Returned current summary for %s:%q step %d", session.SID, session.PID, session.Step)
-	}
-	sendNotAllowed := func() {
-		http.Error(w, apiEndpointUnknown(r.URL.Path), http.StatusMethodNotAllowed)
-		log.Printf("Endpoint %q cannot accept %s: returned a MethodNotAllowed error.", r.URL.Path, r.Method)
-	}
-	sendNotFound := func() {
-		http.Error(w, apiEndpointUnknown(r.URL.Path), http.StatusNotFound)
-		log.Printf("Endpoint %q unknown: returned a NotFound error.", r.URL.Path)
+	// compute the index
+	idx := r.args[0]
+	if row := int(idx[0] - 'a'); row < 0 || row >= session.summary.SideLength {
+		usageHandler(fmt.Sprintf("%s index (%s) row is out of range", r.command, idx), w, r)
+		return
+	} else if col, err := strconv.Atoi(idx[1:]); err != nil {
+		usageHandler(fmt.Sprintf("%s index (%s) column is not a number", r.command, idx), w, r)
+		return
+	} else if col < 1 || col > session.summary.SideLength {
+		usageHandler(fmt.Sprintf("%s index (%s) column is out of range", r.command, idx), w, r)
+		return
+	} else {
+		choice.Index = (session.summary.SideLength * row) + col
 	}
 
-	matches := apiEndpointRegexp.FindStringSubmatch(r.URL.Path)
-	if matches == nil {
-		http.Error(w, apiEndpointUnknown(r.URL.Path), http.StatusNotFound)
-		log.Printf("Unknown endpoint %q: returned a NotFound error.", r.URL.Path)
+	// read the value
+	choice.Value, err = strconv.Atoi(r.args[1])
+	if err != nil {
+		usageHandler(fmt.Sprintf("%s value (%s)	must be a number", r.command, r.args[1]), w, r)
 		return
 	}
-	switch matches[1] {
-	case "reset":
-		if r.Method == "GET" {
-			session.startPuzzle("")
-			sendState()
+
+	update, e := session.puzzle.Assign(choice)
+	if e != nil {
+		fmt.Fprintf(w, "Assign failed: %v\n", e)
+	} else {
+		session.addStep()
+		if update.Errors != nil {
+			log.Printf("Assign to %s:%q gave errors; step %d is unsolvable.",
+				session.SID, session.PID, session.Step)
+			fmt.Fprintf(w, "Assign succeeded but made puzzle unsolvable:\n")
 		} else {
-			sendNotAllowed()
+			fmt.Fprintf(w, "Assign succeeded:\n")
 		}
-	case "back":
-		if r.Method == "GET" {
-			session.removeStep()
-			sendState()
-		} else {
-			sendNotAllowed()
-		}
-	case "state":
-		if r.Method == "GET" {
-			sendState()
-		} else {
-			sendNotAllowed()
-		}
-	case "summary":
-		if r.Method == "GET" {
-			sendSummary()
-		} else {
-			sendNotAllowed()
-		}
-	case "assign":
-		if r.Method == "POST" {
-			update, e := session.puzzle.AssignHandler(w, r)
-			if e != nil {
-				log.Printf("Assign to %s:%q step %d failed: %v", session.SID, session.PID, session.Step, e)
-			} else {
-				session.addStep()
-				if update.Errors != nil {
-					log.Printf("Assign to %s:%q gave errors; step %d is unsolvable.",
-						session.SID, session.PID, session.Step)
-				}
-			}
-		} else {
-			sendNotAllowed()
-		}
-	default:
-		sendNotFound()
+		stateHandler(session, w, r)
 	}
 }
 
-func (session *susenSession) solverHandler(w http.ResponseWriter, r *http.Request) {
-	body := client.SolverPage(session.SID, session.PID, session.summary)
-	hs := w.Header()
-	hs.Add("Content-Type", "text/html; charset=utf-8")
-	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(body))
-	log.Printf("Returned solver page for %s:%q step %d.", session.SID, session.PID, session.Step)
+func stateHandler(session *susenSession, w *os.File, r *request) {
+	if useMarkdown {
+		fmt.Fprintf(w, "%s%s", session.puzzle.ValuesMarkdown(showBindings), session.puzzle.ErrorsMarkdown())
+	} else {
+		fmt.Fprintf(w, "%s%s", session.puzzle.ValuesString(showBindings), session.puzzle.ErrorsString())
+	}
 }
 
-func (session *susenSession) homeHandler(w http.ResponseWriter, r *http.Request) {
-	var others []string
-	for k := range puzzleSummaries {
-		if k != session.PID {
-			others = append(others, k)
-		}
-	}
-	sort.Strings(others)
-	body := client.HomePage(session.SID, session.PID, others)
-	hs := w.Header()
-	hs.Add("Content-Type", "text/html; charset=utf-8")
-	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(body))
-	log.Printf("Returned home page for %s:%q step %d.",
+func summaryHandler(session *susenSession, w *os.File, r *request) {
+	fmt.Fprintf(w, "Session %q solving puzzle %q on solution step %d\n",
 		session.SID, session.PID, session.Step)
+	sum, err := session.puzzle.Summary()
+	if err != nil {
+		panic(err)
+	}
+	fmt.Fprintf(w, "Geometry: %v; Side length: %v; ", sum.Geometry, sum.SideLength)
+	filled, empty := 0, 0
+	for _, val := range sum.Values {
+		if val == 0 {
+			empty++
+		} else {
+			filled++
+		}
+	}
+	fmt.Fprintf(w, "Assigned squares: %d; Empty squares: %d\n", filled, empty)
 }
 
-func (session *susenSession) rootHandler(w http.ResponseWriter, r *http.Request) {
-	switch {
-	case strings.HasPrefix(r.URL.Path, "/reset/"):
-		http.Redirect(w, r, "/solver/", http.StatusFound)
-		log.Printf("Redirected to solver page for %s:%q step %d.",
-			session.SID, session.PID, session.Step)
-	case strings.HasPrefix(r.URL.Path, "/api/"):
-		session.apiHandler(w, r)
-	case strings.HasPrefix(r.URL.Path, "/solver/"):
-		session.solverHandler(w, r)
-	case strings.HasPrefix(r.URL.Path, "/home/"):
-		session.homeHandler(w, r)
-	default:
-		http.Redirect(w, r, "/home/", http.StatusFound)
-		log.Printf("Redirected to home page for %s:%q step %d.",
-			session.SID, session.PID, session.Step)
+func usageHandler(msg string, w *os.File, r *request) {
+	fmt.Fprintf(w, "Error: %s\nUsage:\n", msg)
+	for _, ci := range dispatchInfo {
+		fmt.Fprintf(w, "    %8s %-11s\t%s\n", ci.command, ci.argInfo, ci.description)
 	}
+	fmt.Fprintf(w, "  and 'quit' or EOF to exit.\n")
 }
 
-func errorHandler(err interface{}, w http.ResponseWriter, r *http.Request) {
-	var body string
-	switch err.(type) {
-	case error:
-		body = client.ErrorPage(err.(error))
-	default:
-		body = client.ErrorPage(fmt.Errorf("%v", err))
-	}
-	hs := w.Header()
-	hs.Add("Content-Type", "text/html; charset=utf-8")
-	w.WriteHeader(http.StatusInternalServerError)
-	w.Write([]byte(body))
-	log.Printf("Returned server error page for %s of %q.", r.Method, r.URL.Path)
+func errorHandler(err interface{}, w *os.File, r *request) {
+	fmt.Fprintf(w, "Panic executing %q: %v\n", r, err)
+	log.Printf("Server error executing %q: %v\n", r, err)
 }
 
 /*
@@ -245,14 +327,8 @@ type susenSession struct {
 	Saved   string          // RFC3339 time when the session was last saved
 }
 
-// We use a cookie to associate sessions with clients (by storing
-// the session ID in the cookie).  These are the values shared
-// among all our cookies.
-const (
-	cookieNameBase = "susenID"
-	cookiePath     = "/"
-	cookieMaxAge   = 3600 * 24 * 365 * 10 // 10 years
-)
+// cookie for the command line
+var defaultCookie string
 
 var (
 	startTime = time.Now() // instance start-up time
@@ -260,48 +336,33 @@ var (
 
 // getCookie gets the session cookie, or sets a new one.  It
 // returns the session ID associated with the cookie.
-//
-// The logic around session cookies is that we have one cookie
-// name per connection protocol, so that opening both a secure
-// and an insecure session from the same browser gives you two
-// sessions.  We need to do this because we often have one
-// instance serving both protocols, with the protocol termination
-// done at a load-balancer.
-func getCookie(w http.ResponseWriter, r *http.Request) string {
-	// Issue #1: Heroku-transported protocols are specified in a header
-	proto := "httpx" // absent other indicators, protocol is unknown
-	if herokuProtocol := r.Header.Get("X-Forwarded-Proto"); herokuProtocol != "" {
-		proto = herokuProtocol
+func getCookie(w *os.File, r *request) string {
+	// look to see if the user is specifying a cookie
+	if r.command == "session" && len(r.args) > 0 {
+		defaultCookie = r.args[0]
 	}
 
-	// check for an existing cookie whose name matches the protocol
-	cookieName := cookieNameBase + "-" + proto
-	if sc, e := r.Cookie(cookieName); e == nil && sc.Value != "" {
-		return sc.Value
+	// look for an existing session cookie
+	if len(defaultCookie) != 0 {
+		return defaultCookie
 	}
 
 	// no session cookie: start a new session with a new ID
 	// poor man's UUID for the session in local mode: time since startup.
 	sid := strconv.FormatInt(int64(time.Now().Sub(startTime)), 36)
-	// if we're on an infrastructure, we use the request ID
-	if requestID := r.Header.Get("X-Request-ID"); requestID != "" {
-		sid = requestID
-	}
 	log.Printf("No session cookie found, created new session ID %q", sid)
-	sc := &http.Cookie{Name: cookieName, Value: sid, Path: cookiePath, MaxAge: cookieMaxAge}
-	http.SetCookie(w, sc)
+	defaultCookie = sid
 	return sid
 }
 
 // sessionSelect: find or create the session for the current connection.
-func sessionSelect(w http.ResponseWriter, r *http.Request) *susenSession {
-	// check to see if this is a force reset of the session
-	forceReset, resetID := false, ""
-	if strings.HasPrefix(r.URL.Path, "/reset/") {
-		forceReset = true
-		resetID = r.URL.Path[len("/reset/"):]
-	}
+func sessionSelect(w *os.File, r *request) *susenSession {
 	id := getCookie(w, r)
+	// check to see if this is a force reset of the session
+	forceReset, resetID := r.command == "reset", ""
+	if forceReset && len(r.args) > 0 {
+		resetID = r.args[0]
+	}
 	// create an in-memory session with this cookie
 	session := &susenSession{SID: id, Created: time.Now().Format(time.RFC3339)}
 	// load session from storage if possible, otherwise just initialize it
@@ -354,8 +415,7 @@ func (session *susenSession) startPuzzle(pid string) {
 func (session *susenSession) addStep() {
 	summary, err := session.puzzle.Summary()
 	if err != nil {
-		log.Printf("Failed to get summary of %s:%q step %d: %v",
-			session.SID, session.PID, session.Step, err)
+		log.Printf("Failed to get summary of %s:%q step %d: %v", session.SID, session.PID, session.Step, err)
 		panic(err)
 	}
 	session.summary = summary
@@ -375,7 +435,7 @@ func (session *susenSession) removeStep() {
 
 /*
 
-session persistence layer
+persistence layer
 
 */
 
