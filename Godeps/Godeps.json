@@ -1,65 +1,65 @@
 {
-	"ImportPath": "github.com/ancientHacker/susen.go",
-	"GoVersion": "go1.4",	// needed for goose integration
-	"Packages": [
-		"./..."
-	],
-	"Deps": [
-		{
-			"ImportPath": "bitbucket.org/liamstask/goose/cmd/goose",
-			"Rev": "8488cc47d90c8a502b1c41a462a6d9cc8ee0a895"
-		},
-		{
-			"ImportPath": "bitbucket.org/liamstask/goose/lib/goose",
-			"Rev": "8488cc47d90c8a502b1c41a462a6d9cc8ee0a895"
-		},
-		{
-			"ImportPath": "github.com/garyburd/redigo/internal",
-			"Rev": "6ece6e0a09f28cc399b21550cbf37ab39ba63cce"
-		},
-		{
-			"ImportPath": "github.com/garyburd/redigo/redis",
-			"Rev": "6ece6e0a09f28cc399b21550cbf37ab39ba63cce"
-		},
-		{
-			"ImportPath": "github.com/go-sql-driver/mysql",
-			"Comment": "v1.2-177-g71f003c",
-			"Rev": "71f003c6e927d2550713e7637affb769977ece78"
-		},
-		{
-			"ImportPath": "github.com/kylelemons/go-gypsy/yaml",
-			"Comment": "go.weekly.2011-11-02-19-g42fc2c7",
-			"Rev": "42fc2c7ee9b8bd0ff636cd2d7a8c0a49491044c5"
-		},
-		{
-			"ImportPath": "github.com/lib/pq",
-			"Comment": "go1.0-cutoff-81-g69552e5",
-			"Rev": "69552e54d2a9d4c6a2438926a774930f7bc398ec"
-		},
-		{
-			"ImportPath": "github.com/lib/pq/oid",
-			"Comment": "go1.0-cutoff-81-g69552e5",
-			"Rev": "69552e54d2a9d4c6a2438926a774930f7bc398ec"
-		},
-		{
-			"ImportPath": "github.com/mattn/go-sqlite3",
-			"Comment": "v1.1.0-40-g09d5c45",
-			"Rev": "09d5c451710ef887470709463f4f04ff83e1e039"
-		},
-		{
-			"ImportPath": "github.com/ziutek/mymysql/godrv",
-			"Comment": "v1.5.4-14-ge5d54eb",
-			"Rev": "e5d54ebfda3f8a15e7b192b65c2aa10cb4fd7e04"
-		},
-		{
-			"ImportPath": "github.com/ziutek/mymysql/mysql",
-			"Comment": "v1.5.4-14-ge5d54eb",
-			"Rev": "e5d54ebfda3f8a15e7b192b65c2aa10cb4fd7e04"
-		},
-		{
-			"ImportPath": "github.com/ziutek/mymysql/native",
-			"Comment": "v1.5.4-14-ge5d54eb",
-			"Rev": "e5d54ebfda3f8a15e7b192b65c2aa10cb4fd7e04"
-		}
-	]
+    "ImportPath": "github.com/ancientHacker/susen.go",
+    "GoVersion": "go1.4",
+    "Packages": [
+	"./..."
+    ],
+    "Deps": [
+	{
+	    "ImportPath": "bitbucket.org/liamstask/goose/cmd/goose",
+	    "Rev": "8488cc47d90c8a502b1c41a462a6d9cc8ee0a895"
+	},
+	{
+	    "ImportPath": "bitbucket.org/liamstask/goose/lib/goose",
+	    "Rev": "8488cc47d90c8a502b1c41a462a6d9cc8ee0a895"
+	},
+	{
+	    "ImportPath": "github.com/garyburd/redigo/internal",
+	    "Rev": "6ece6e0a09f28cc399b21550cbf37ab39ba63cce"
+	},
+	{
+	    "ImportPath": "github.com/garyburd/redigo/redis",
+	    "Rev": "6ece6e0a09f28cc399b21550cbf37ab39ba63cce"
+	},
+	{
+	    "ImportPath": "github.com/go-sql-driver/mysql",
+	    "Comment": "v1.2-177-g71f003c",
+	    "Rev": "71f003c6e927d2550713e7637affb769977ece78"
+	},
+	{
+	    "ImportPath": "github.com/kylelemons/go-gypsy/yaml",
+	    "Comment": "go.weekly.2011-11-02-19-g42fc2c7",
+	    "Rev": "42fc2c7ee9b8bd0ff636cd2d7a8c0a49491044c5"
+	},
+	{
+	    "ImportPath": "github.com/lib/pq",
+	    "Comment": "go1.0-cutoff-81-g69552e5",
+	    "Rev": "69552e54d2a9d4c6a2438926a774930f7bc398ec"
+	},
+	{
+	    "ImportPath": "github.com/lib/pq/oid",
+	    "Comment": "go1.0-cutoff-81-g69552e5",
+	    "Rev": "69552e54d2a9d4c6a2438926a774930f7bc398ec"
+	},
+	{
+	    "ImportPath": "github.com/mattn/go-sqlite3",
+	    "Comment": "v1.1.0-40-g09d5c45",
+	    "Rev": "09d5c451710ef887470709463f4f04ff83e1e039"
+	},
+	{
+	    "ImportPath": "github.com/ziutek/mymysql/godrv",
+	    "Comment": "v1.5.4-14-ge5d54eb",
+	    "Rev": "e5d54ebfda3f8a15e7b192b65c2aa10cb4fd7e04"
+	},
+	{
+	    "ImportPath": "github.com/ziutek/mymysql/mysql",
+	    "Comment": "v1.5.4-14-ge5d54eb",
+	    "Rev": "e5d54ebfda3f8a15e7b192b65c2aa10cb4fd7e04"
+	},
+	{
+	    "ImportPath": "github.com/ziutek/mymysql/native",
+	    "Comment": "v1.5.4-14-ge5d54eb",
+	    "Rev": "e5d54ebfda3f8a15e7b192b65c2aa10cb4fd7e04"
+	}
+    ]
 }
