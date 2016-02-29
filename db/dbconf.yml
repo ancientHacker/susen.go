@@ -2,10 +2,6 @@ development:
   driver: postgres
   open: postgresql://susen@localhost/susen?sslmode=disable
 
-staging:
-  driver: postgres
-  open: $DATABASE_URL
-
 production:
   driver: postgres
   open: $DATABASE_URL

@@ -1,5 +1,5 @@
 // susen.go - a web-based Sudoku game and teaching tool.
-// Copyright (C) 2015 Daniel C. Brotsky.
+// Copyright (C) 2015-2016 Daniel C. Brotsky.
 //
 // This program is free software; you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
