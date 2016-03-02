@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/ancientHacker/susen.go/puzzle"
+	"github.com/ancientHacker/susen.go/storage"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -74,15 +75,14 @@ func rdcConnect(t *testing.T, name string) {
 	log.SetOutput(tlog)
 	alternateShutdown = tlog.shutdown
 
-	redisInit()
-	if err := redisConnect(); err != nil {
+	if err := storage.Connect(); err != nil {
 		shutdown(startupFailureShutdown)
 	}
 }
 
 func TestSessionSelect(t *testing.T) {
 	rdcConnect(t, "TestSessionSelect")
-	defer redisClose()
+	defer storage.Close()
 
 	// one server
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -243,6 +243,8 @@ func TestSessionSelect(t *testing.T) {
 	}
 
 	// clients use every key except the default
+	puzzleSummaries := storage.CommonPuzzles()
+	defaultPuzzleID := storage.DefaultPuzzleID()
 	testKeys := make([]string, 0, len(puzzleSummaries)-1)
 	for k := range puzzleSummaries {
 		if k != defaultPuzzleID {
@@ -314,7 +316,7 @@ func TestSessionSelect(t *testing.T) {
 
 func TestIssue1(t *testing.T) {
 	rdcConnect(t, "TestIssue1")
-	defer redisClose()
+	defer storage.Close()
 
 	// server
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -401,9 +403,10 @@ func TestIssue1(t *testing.T) {
 
 func TestIssue11(t *testing.T) {
 	rdcConnect(t, "TestIssue11")
-	defer redisClose()
+	defer storage.Close()
 
 	// add puzzle and appropriate assignments for testing
+	puzzleSummaries := storage.CommonPuzzles()
 	puzzleSummaries["test11"] = &puzzle.Summary{
 		Geometry:   puzzle.StandardGeometryName,
 		SideLength: 4,

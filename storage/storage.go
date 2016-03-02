@@ -1,0 +1,144 @@
+// susen.go - a web-based Sudoku game and teaching tool.
+// Copyright (C) 2015-2016 Daniel C. Brotsky.
+//
+// This program is free software; you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation; either version 2 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License along
+// with this program; if not, write to the Free Software Foundation, Inc.,
+// 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+// Licensed under the LGPL v3.  See the LICENSE file for details
+
+package storage
+
+import (
+	"fmt"
+	"github.com/ancientHacker/susen.go/Godeps/_workspace/src/github.com/garyburd/redigo/redis"
+	"log"
+	"os"
+	"sync"
+)
+
+func Connect() error {
+	rdInit()
+	rdMutex.Lock()
+	defer rdMutex.Unlock()
+	if err := rdConnect(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func Close() {
+	rdMutex.Lock()
+	defer rdMutex.Unlock()
+	rdClose()
+}
+
+/*
+
+cache using Redis
+
+*/
+
+// Redis connection data
+var (
+	rdc     redis.Conn // open connection, if any
+	rdUrl   string     // URL for the open connection
+	rdEnv   string     // environment key prefix
+	rdMutex sync.Mutex // prevent concurrent connection use
+)
+
+// rdInit - look up Redis info from the environment
+func rdInit() {
+	url := os.Getenv("REDISTOGO_URL")
+	db := os.Getenv("REDISTOGO_DB")
+	env := os.Getenv("REDISTOGO_ENV")
+	if db == "" {
+		db = "0" // default database
+	}
+	if url == "" {
+		rdUrl = "redis://localhost:6379/" + db
+	} else {
+		rdUrl = url + db
+	}
+	if env == "" {
+		if url == "" {
+			rdEnv = "local"
+		} else {
+			rdEnv = "dev"
+		}
+	} else {
+		rdEnv = env
+	}
+}
+
+// rdConnect: connect to the given Redis URL.  Returns the
+// connection, if successful, nil otherwise.
+func rdConnect() error {
+	conn, err := redis.DialURL(rdUrl)
+	if err == nil {
+		log.Printf("Connected to Redis at %q (env: %q)", rdUrl, rdEnv)
+		rdc = conn
+		return nil
+	}
+	log.Printf("Can't connect to Redis server at %q", rdUrl)
+	return err
+}
+
+// rdClose: close the given Redis connection.
+func rdClose() {
+	if rdc != nil {
+		rdc.Close()
+		log.Print("Closed connection to Redis.")
+		rdc = nil
+	}
+}
+
+// rdExecute: execute the body with the Redis connection.
+// Meant to be used inside a handler, because errors in execution
+// will panic back to the handler level.
+func rdExecute(body func() error) {
+	// wrap the body against runtime and database failures
+	wrapper := func() (err error) {
+		defer func() {
+			if r := recover(); r != nil {
+				if e, ok := r.(error); ok {
+					err = e
+				} else {
+					err = fmt.Errorf("%v", r)
+				}
+				log.Printf("Caught panic during rdExecute: %v", err)
+			}
+		}()
+		// Because Redis connections can go away without warning,
+		// we ping to make sure the connection is alive, and try
+		// to reconnect if not.
+		if _, err := rdc.Do("PING"); err != nil {
+			log.Printf("PING failure with Redis: %v", err)
+			rdClose()
+			err = rdConnect()
+			if err != nil {
+				log.Printf("Failed to reconnect to Redis at %q", rdUrl)
+				return err
+			}
+		}
+		// connection is good; run the body
+		return body()
+	}
+	// grab the mutex and execute the body
+	rdMutex.Lock()
+	defer func(err error) {
+		rdMutex.Unlock()
+		if err != nil {
+			panic(err)
+		}
+	}(wrapper())
+}
