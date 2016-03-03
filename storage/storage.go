@@ -19,8 +19,10 @@
 package storage
 
 import (
+	"database/sql"
 	"fmt"
 	"github.com/ancientHacker/susen.go/Godeps/_workspace/src/github.com/garyburd/redigo/redis"
+	_ "github.com/ancientHacker/susen.go/Godeps/_workspace/src/github.com/lib/pq"
 	"log"
 	"os"
 	"sync"
@@ -33,6 +35,10 @@ func Connect() error {
 	if err := rdConnect(); err != nil {
 		return err
 	}
+	pgInit()
+	if err := pgConnect(); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -40,6 +46,7 @@ func Close() {
 	rdMutex.Lock()
 	defer rdMutex.Unlock()
 	rdClose()
+	pgClose()
 }
 
 /*
@@ -59,15 +66,11 @@ var (
 // rdInit - look up Redis info from the environment
 func rdInit() {
 	url := os.Getenv("REDISTOGO_URL")
-	db := os.Getenv("REDISTOGO_DB")
-	env := os.Getenv("REDISTOGO_ENV")
-	if db == "" {
-		db = "0" // default database
-	}
+	env := os.Getenv("APPLICATION_ENV")
 	if url == "" {
-		rdUrl = "redis://localhost:6379/" + db
+		rdUrl = "redis://localhost:6379/"
 	} else {
-		rdUrl = url + db
+		rdUrl = url
 	}
 	if env == "" {
 		if url == "" {
@@ -141,4 +144,59 @@ func rdExecute(body func() error) {
 			panic(err)
 		}
 	}(wrapper())
+}
+
+/*
+
+persistence using Postgres
+
+*/
+
+// Postgres connection data
+var (
+	pgdb  *sql.DB // open database, if any
+	pgUrl string  // URL for the open connection
+	pgEnv string  // environment key (present in all tables)
+)
+
+// pgInit - look up Redis info from the environment
+func pgInit() {
+	url := os.Getenv("DATABASE_URL")
+	env := os.Getenv("APPLICATION_ENV")
+	if url == "" {
+		pgUrl = "postgresql://susen@localhost/susen?sslmode=disable"
+	} else {
+		pgUrl = url
+	}
+	if env == "" {
+		if url == "" {
+			pgEnv = "local"
+		} else {
+			pgEnv = "dev"
+		}
+	} else {
+		pgEnv = env
+	}
+}
+
+// pgConnect: Open the Postgres database.  Returns any error
+// encountered during the open.
+func pgConnect() error {
+	db, err := sql.Open("postgres", pgUrl)
+	if err == nil {
+		log.Printf("Connected to Postgres at %q (env: %q)", pgUrl, pgEnv)
+		pgdb = db
+		return nil
+	}
+	log.Printf("Can't connect to Postgres server at %q", pgUrl)
+	return err
+}
+
+// pgClose: close the given Postgres connection.
+func pgClose() {
+	if pgdb != nil {
+		pgdb.Close()
+		log.Print("Closed connection to Postgres.")
+		pgdb = nil
+	}
 }
