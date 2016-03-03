@@ -7,11 +7,21 @@
 	"Deps": [
 		{
 			"ImportPath": "github.com/garyburd/redigo/internal",
-			"Rev": "6ece6e0a09f28cc399b21550cbf37ab39ba63cce"
+			"Rev": "4ed1111375cbeb698249ffe48dd463e9b0a63a7a"
 		},
 		{
 			"ImportPath": "github.com/garyburd/redigo/redis",
-			"Rev": "6ece6e0a09f28cc399b21550cbf37ab39ba63cce"
+			"Rev": "4ed1111375cbeb698249ffe48dd463e9b0a63a7a"
+		},
+		{
+			"ImportPath": "github.com/lib/pq",
+			"Comment": "go1.0-cutoff-82-ge182dc4",
+			"Rev": "e182dc4027e2ded4b19396d638610f2653295f36"
+		},
+		{
+			"ImportPath": "github.com/lib/pq/oid",
+			"Comment": "go1.0-cutoff-82-ge182dc4",
+			"Rev": "e182dc4027e2ded4b19396d638610f2653295f36"
 		}
 	]
 }
