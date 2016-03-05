@@ -19,160 +19,111 @@
 package storage
 
 import (
+	"encoding/json"
 	"github.com/ancientHacker/susen.go/puzzle"
+	"log"
 )
 
-// puzzle data
-var (
-	defaultPuzzleID = "standard-1"
-	puzzleSummaries = map[string]*puzzle.Summary{
-		"standard-1": &puzzle.Summary{
-			Geometry:   puzzle.StandardGeometryName,
-			SideLength: 9,
-			Values: []int{
-				4, 0, 0, 0, 0, 3, 5, 0, 2,
-				0, 0, 9, 5, 0, 6, 3, 4, 0,
-				0, 0, 0, 0, 0, 0, 0, 0, 8,
-				0, 0, 0, 0, 3, 4, 8, 6, 0,
-				0, 0, 4, 6, 0, 5, 2, 0, 0,
-				0, 2, 8, 7, 9, 0, 0, 0, 0,
-				9, 0, 0, 0, 0, 0, 0, 0, 0,
-				0, 8, 7, 3, 0, 2, 9, 0, 0,
-				5, 0, 2, 9, 0, 0, 0, 0, 6,
-			}},
-		"standard-2": &puzzle.Summary{
-			Geometry:   puzzle.StandardGeometryName,
-			SideLength: 9,
-			Values: []int{
-				0, 1, 0, 5, 0, 6, 0, 2, 0,
-				0, 0, 0, 0, 0, 3, 0, 1, 8,
-				0, 0, 0, 0, 7, 0, 0, 0, 6,
-				0, 0, 5, 0, 0, 0, 0, 3, 0,
-				0, 0, 8, 0, 9, 0, 7, 0, 0,
-				0, 6, 0, 0, 0, 0, 4, 0, 0,
-				5, 0, 0, 0, 4, 0, 0, 0, 0,
-				6, 4, 0, 2, 0, 0, 0, 0, 0,
-				0, 3, 0, 9, 0, 1, 0, 8, 0,
-			}},
-		"standard-3": &puzzle.Summary{
-			Geometry:   puzzle.StandardGeometryName,
-			SideLength: 9,
-			Values: []int{
-				9, 0, 0, 4, 5, 0, 0, 0, 8,
-				0, 2, 0, 0, 0, 0, 0, 0, 0,
-				0, 0, 0, 1, 7, 2, 4, 0, 0,
-				0, 7, 9, 0, 0, 0, 6, 8, 0,
-				2, 0, 0, 0, 0, 0, 0, 0, 5,
-				0, 4, 3, 0, 0, 0, 2, 7, 0,
-				0, 0, 8, 3, 2, 5, 0, 0, 0,
-				0, 0, 0, 0, 0, 0, 0, 6, 0,
-				4, 0, 0, 0, 1, 6, 0, 0, 3,
-			}},
-		"standard-4": &puzzle.Summary{
-			Geometry:   puzzle.StandardGeometryName,
-			SideLength: 9,
-			Values: []int{
-				9, 4, 8, 0, 5, 0, 2, 0, 0,
-				0, 0, 7, 8, 0, 3, 0, 0, 1,
-				0, 5, 0, 0, 7, 0, 0, 0, 0,
-				0, 7, 0, 0, 0, 0, 3, 0, 0,
-				2, 0, 0, 6, 0, 5, 0, 0, 4,
-				0, 0, 5, 0, 0, 0, 0, 9, 0,
-				0, 0, 0, 0, 6, 0, 0, 1, 0,
-				3, 0, 0, 5, 0, 9, 7, 0, 0,
-				0, 0, 6, 0, 1, 0, 4, 2, 3,
-			}},
-		"standard-5": &puzzle.Summary{
-			Geometry:   puzzle.StandardGeometryName,
-			SideLength: 9,
-			Values: []int{
-				0, 0, 0, 0, 0, 0, 0, 0, 0,
-				9, 0, 0, 5, 0, 7, 0, 3, 0,
-				0, 0, 0, 1, 0, 0, 6, 0, 7,
-				0, 4, 0, 0, 6, 0, 0, 8, 2,
-				6, 7, 0, 0, 0, 0, 0, 1, 3,
-				3, 8, 0, 0, 1, 0, 0, 9, 0,
-				7, 0, 5, 0, 0, 8, 0, 0, 0,
-				0, 2, 0, 3, 0, 9, 0, 0, 8,
-				0, 0, 0, 0, 0, 0, 0, 0, 0,
-			}},
-		"standard-6": &puzzle.Summary{
-			Geometry:   puzzle.StandardGeometryName,
-			SideLength: 9,
-			Values: []int{
-				2, 0, 0, 8, 0, 0, 0, 5, 0,
-				0, 8, 5, 0, 0, 0, 0, 0, 0,
-				0, 3, 6, 7, 5, 0, 0, 0, 1,
-				0, 0, 3, 0, 4, 0, 0, 9, 8,
-				0, 0, 0, 3, 0, 5, 0, 0, 0,
-				4, 1, 0, 0, 6, 0, 7, 0, 0,
-				5, 0, 0, 0, 0, 7, 1, 2, 0,
-				0, 0, 0, 0, 0, 0, 5, 6, 0,
-				0, 2, 0, 0, 0, 0, 0, 0, 4,
-			}},
-		"rectangular-1": &puzzle.Summary{
-			Geometry:   puzzle.RectangularGeometryName,
-			SideLength: 6,
-			Values: []int{
-				0, 4, 5, 1, 6, 0,
-				3, 0, 0, 0, 0, 0,
-				0, 5, 0, 6, 2, 1,
-				1, 0, 2, 3, 4, 0,
-				5, 0, 0, 2, 1, 6,
-				6, 0, 0, 0, 0, 0,
-			}},
-		"rectangular-2": &puzzle.Summary{
-			Geometry:   puzzle.RectangularGeometryName,
-			SideLength: 6,
-			Values: []int{
-				0, 0, 0, 2, 6, 0,
-				2, 0, 3, 0, 0, 0,
-				0, 5, 0, 0, 0, 6,
-				3, 2, 6, 0, 0, 1,
-				0, 0, 4, 0, 0, 0,
-				0, 0, 0, 5, 1, 4,
-			}},
-		"rectangular-3": &puzzle.Summary{
-			Geometry:   puzzle.RectangularGeometryName,
-			SideLength: 12,
-			Values: []int{
-				5, 7, 0, 6, 0, 0, 0, 0, 0, 1, 11, 12,
-				11, 0, 0, 0, 0, 0, 10, 0, 0, 0, 0, 3,
-				8, 0, 9, 0, 0, 0, 1, 0, 5, 7, 0, 0,
-				0, 0, 4, 2, 10, 11, 0, 0, 12, 0, 0, 8,
-				0, 0, 0, 0, 9, 6, 0, 1, 7, 0, 0, 0,
-				0, 9, 7, 0, 0, 0, 0, 2, 11, 0, 0, 0,
-				0, 0, 0, 8, 7, 0, 0, 0, 0, 11, 3, 0,
-				0, 0, 0, 11, 3, 0, 2, 5, 0, 0, 0, 0,
-				9, 0, 0, 3, 0, 0, 11, 8, 10, 6, 0, 0,
-				0, 0, 3, 7, 0, 10, 0, 0, 0, 12, 0, 2,
-				2, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 11,
-				6, 11, 12, 0, 0, 0, 0, 0, 3, 0, 9, 4,
-			}},
-		"rectangular-4": &puzzle.Summary{
-			Geometry:   puzzle.RectangularGeometryName,
-			SideLength: 12,
-			Values: []int{
-				0, 11, 3, 0, 0, 0, 0, 0, 0, 6, 0, 0,
-				0, 7, 0, 0, 12, 0, 4, 0, 0, 3, 10, 8,
-				4, 6, 0, 0, 10, 11, 0, 0, 1, 0, 0, 7,
-				0, 0, 8, 9, 2, 0, 0, 0, 5, 0, 0, 0,
-				0, 0, 0, 0, 0, 9, 6, 0, 12, 8, 11, 0,
-				0, 5, 0, 0, 3, 0, 0, 11, 0, 9, 0, 0,
-				0, 0, 4, 0, 8, 0, 0, 9, 0, 0, 7, 0,
-				0, 9, 7, 3, 0, 10, 12, 0, 0, 0, 0, 0,
-				0, 0, 0, 11, 0, 0, 0, 1, 3, 12, 0, 0,
-				3, 0, 0, 7, 0, 0, 8, 2, 0, 0, 4, 1,
-				2, 8, 5, 0, 0, 12, 0, 4, 0, 0, 3, 0,
-				0, 0, 9, 0, 0, 0, 0, 0, 0, 7, 12, 0,
-			}},
-	}
-)
+// Puzzle collections map a puzzle ID to a puzzle summary
+type NamedSummaries map[string]*puzzle.Summary
 
-func CommonPuzzles() map[string]*puzzle.Summary {
-	return puzzleSummaries
-}
+/*
+
+The default puzzle is alway available
+
+*/
 
 func DefaultPuzzleID() string {
-	return defaultPuzzleID
+	return "default"
+}
+
+func DefaultPuzzleSummary() *puzzle.Summary {
+	return &puzzle.Summary{
+		Geometry:   puzzle.StandardGeometryName,
+		SideLength: 9,
+		Values: []int{
+			4, 0, 0, 0, 0, 3, 5, 0, 2,
+			0, 0, 9, 5, 0, 6, 3, 4, 0,
+			0, 0, 0, 0, 0, 0, 0, 0, 8,
+			0, 0, 0, 0, 3, 4, 8, 6, 0,
+			0, 0, 4, 6, 0, 5, 2, 0, 0,
+			0, 2, 8, 7, 9, 0, 0, 0, 0,
+			9, 0, 0, 0, 0, 0, 0, 0, 0,
+			0, 8, 7, 3, 0, 2, 9, 0, 0,
+			5, 0, 2, 9, 0, 0, 0, 0, 6,
+		},
+	}
+}
+
+/*
+
+Summaries particular to a session
+
+*/
+
+func LoadSessionSummaries(sessionId string) NamedSummaries {
+	result := make(map[string]*puzzle.Summary)
+	body := func() error {
+		rows, err := pgdb.Query(
+			"SELECT puzzleId, summary FROM puzzles WHERE sessionID = $1", sessionId)
+		if err != nil {
+			log.Printf("Failed to fetch common puzzles: %v", err)
+			return err
+		}
+		for rows.Next() {
+			var puzzleId, summaryJson string
+			if err := rows.Scan(&puzzleId, &summaryJson); err != nil {
+				log.Printf("Failed to scan puzzles row: %v", err)
+				return err
+			}
+			result[puzzleId] = unmarshalSummary(puzzleId, summaryJson)
+		}
+		return nil
+	}
+	pgExecute(body)
+	return result
+}
+
+/*
+
+Summaries common to all sessions
+
+*/
+
+var (
+	commonSummaries NamedSummaries
+)
+
+func CommonSummaries() NamedSummaries {
+	if commonSummaries == nil {
+		commonSummaries = LoadSessionSummaries("common")
+	}
+	return commonSummaries
+}
+
+/*
+
+serialization of summaries into and out of the database
+
+*/
+
+// marshalSummary - get JSON string for the current puzzle
+func marshalSummary(id string, summary *puzzle.Summary) string {
+	bytes, err := json.Marshal(summary)
+	if err != nil {
+		log.Printf("Failed to marshal summary of %v as JSON: %v", id, err)
+		panic(err)
+	}
+	return string(bytes)
+}
+
+// unmarshalSummary - get puzzle for the saved puzzle
+func unmarshalSummary(id string, summaryJson string) *puzzle.Summary {
+	var summary *puzzle.Summary
+	err := json.Unmarshal([]byte(summaryJson), &summary)
+	if err != nil {
+		log.Printf("Failed to unmarshal saved JSON of %s: %v", id, err)
+		panic(err)
+	}
+	return summary
 }

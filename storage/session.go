@@ -53,19 +53,18 @@ session manipulation
 // clear any existing solver steps for that puzzle ID.  If the
 // given puzzle ID is empty, try using the session's current
 // puzzle ID.  If the given puzzle ID is the special value
-// "default" (or unknown), use the default puzzle ID.
+// "default" (or unknown), use the default puzzle.
 func (session *Session) StartPuzzle(pid string) {
 	// change to the given pid, making sure it's valid
 	if pid == "" {
 		pid = session.PID
-	} else if pid == "default" {
-		pid = defaultPuzzleID
 	}
-	session.Summary = puzzleSummaries[pid]
+	session.Summary = CommonSummaries()[pid]
 	if session.Summary != nil {
 		session.PID = pid
 	} else {
-		session.PID, session.Summary = defaultPuzzleID, puzzleSummaries[defaultPuzzleID]
+		session.PID = DefaultPuzzleID()
+		session.Summary = DefaultPuzzleSummary()
 	}
 
 	// make the puzzle for the summary

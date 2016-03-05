@@ -72,7 +72,9 @@ type sessionClient struct {
 
 func rdcConnect(t *testing.T, name string) {
 	tlog := &tLogger{t: t, name: name}
-	log.SetOutput(tlog)
+	if !testing.Short() {
+		log.SetOutput(tlog)
+	}
 	alternateShutdown = tlog.shutdown
 
 	if err := storage.Connect(); err != nil {
@@ -243,7 +245,7 @@ func TestSessionSelect(t *testing.T) {
 	}
 
 	// clients use every key except the default
-	puzzleSummaries := storage.CommonPuzzles()
+	puzzleSummaries := storage.CommonSummaries()
 	defaultPuzzleID := storage.DefaultPuzzleID()
 	testKeys := make([]string, 0, len(puzzleSummaries)-1)
 	for k := range puzzleSummaries {
@@ -406,7 +408,7 @@ func TestIssue11(t *testing.T) {
 	defer storage.Close()
 
 	// add puzzle and appropriate assignments for testing
-	puzzleSummaries := storage.CommonPuzzles()
+	puzzleSummaries := storage.CommonSummaries()
 	puzzleSummaries["test11"] = &puzzle.Summary{
 		Geometry:   puzzle.StandardGeometryName,
 		SideLength: 4,

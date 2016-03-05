@@ -45,8 +45,8 @@ func Connect() error {
 func Close() {
 	rdMutex.Lock()
 	defer rdMutex.Unlock()
-	rdClose()
 	pgClose()
+	rdClose()
 }
 
 /*
@@ -199,4 +199,30 @@ func pgClose() {
 		log.Print("Closed connection to Postgres.")
 		pgdb = nil
 	}
+}
+
+// pgExecute: execute the body with the Postgres connection.
+// Meant to be used inside a handler, because errors in execution
+// will panic back to the handler level.
+func pgExecute(body func() error) {
+	// wrap the body against runtime and database failures
+	wrapper := func() (err error) {
+		defer func() {
+			if r := recover(); r != nil {
+				if e, ok := r.(error); ok {
+					err = e
+				} else {
+					err = fmt.Errorf("%v", r)
+				}
+				log.Printf("Caught panic during pgExecute: %v", err)
+			}
+		}()
+		return body()
+	}
+	// execute the body
+	defer func(err error) {
+		if err != nil {
+			panic(err)
+		}
+	}(wrapper())
 }

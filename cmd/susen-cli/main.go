@@ -27,6 +27,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -137,6 +138,7 @@ func init() {
 		{"reset", "[puzzleID]", "reset this or another puzzle", stateHandler},
 		{"state", "", "show current puzzle state", stateHandler},
 		{"summary", "", "show current session summary", summaryHandler},
+		{"list", "", "list available puzzles", listHandler},
 	}
 	dispatchTable = make(map[string]*commandInfo, len(dispatchInfo))
 	for i := range dispatchInfo {
@@ -291,6 +293,18 @@ func summaryHandler(session *userSession, w *os.File, r *request) {
 		}
 	}
 	fmt.Fprintf(w, "Assigned squares: %d; Empty squares: %d\n", filled, empty)
+}
+
+func listHandler(session *userSession, w *os.File, r *request) {
+	fmt.Fprintf(w, "Available puzzles are:\n")
+	names := []string{}
+	for k := range storage.CommonSummaries() {
+		names = append(names, k)
+	}
+	sort.Strings(names)
+	for _, n := range names {
+		fmt.Fprintf(w, "  %s\n", n)
+	}
 }
 
 func usageHandler(msg string, w *os.File, r *request) {

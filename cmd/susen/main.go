@@ -176,7 +176,7 @@ func (session *userSession) solverHandler(w http.ResponseWriter, r *http.Request
 
 func (session *userSession) homeHandler(w http.ResponseWriter, r *http.Request) {
 	var others []string
-	for k := range storage.CommonPuzzles() {
+	for k := range storage.CommonSummaries() {
 		if k != session.PID {
 			others = append(others, k)
 		}
