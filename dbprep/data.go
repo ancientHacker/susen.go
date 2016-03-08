@@ -1,11 +1,106 @@
-package main
+// susen.go - a web-based Sudoku game and teaching tool.
+// Copyright (C) 2015-2016 Daniel C. Brotsky.
+//
+// This program is free software; you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation; either version 2 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License along
+// with this program; if not, write to the Free Software Foundation, Inc.,
+// 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+// Licensed under the LGPL v3.  See the LICENSE file for details
+
+package dbprep
 
 import (
-	"database/sql"
-	"encoding/json"
+	"github.com/ancientHacker/susen.go/Godeps/_workspace/src/github.com/jackc/pgx"
 	"github.com/ancientHacker/susen.go/puzzle"
-	"log"
+	"os"
 )
+
+/*
+
+entries
+
+*/
+
+type dataFunction func(*pgx.Tx) error
+
+var (
+	upFunctions = []dataFunction{
+		insertPuzzles,
+	}
+	downFunctions = []dataFunction{
+		deletePuzzles,
+	}
+)
+
+// DataUp: load the sample data into the database.  You should do
+// this after you get the schema up!
+func DataUp() error {
+	return applyFunctions(upFunctions)
+}
+
+// DataDown: remove the sample data from the database.  You
+// should do this before you tear the schema down!
+func DataDown() error {
+	return applyFunctions(downFunctions)
+}
+
+// apply dataFunctions to the database
+func applyFunctions(fns []dataFunction) error {
+	url := os.Getenv("DATABASE_URL")
+	if url == "" {
+		url = "postgres://localhost/susen?sslmode=disable"
+	}
+
+	// open the database, defer the close
+	cfg, err := pgx.ParseURI(url)
+	if err != nil {
+		return err
+	}
+	conn, err := pgx.Connect(cfg)
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+
+	// open a transaction to run the functions in,
+	// deferring a rollback if there's a panic
+	tx, err := conn.Begin()
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if e := recover(); e != nil {
+			tx.Rollback()
+			panic(e)
+		}
+	}()
+
+	// run the functions
+	for _, fn := range fns {
+		if err := fn(tx); err != nil {
+			tx.Rollback()
+			return err
+		}
+	}
+
+	// commit
+	return tx.Commit()
+}
+
+/*
+
+insert common puzzles
+
+*/
 
 var (
 	puzzleSummaries = map[string]*puzzle.Summary{
@@ -138,35 +233,37 @@ var (
 	}
 )
 
-// Up is executed when this migration is applied
-func Up_2(txn *sql.Tx) {
+// Insert or update the common puzzles
+func insertPuzzles(tx *pgx.Tx) error {
 	// save the puzzle summaries in the database
 	for key, val := range puzzleSummaries {
-		bytes, err := json.Marshal(val)
-		if err != nil {
-			log.Printf("Failed to marshal summary of common puzzle %v: %v", key, err)
-			panic(err)
+		values := make([]int32, len(val.Values))
+		for i, v := range val.Values {
+			values[i] = int32(v) // use 4-byte ints in database
 		}
-		_, err = txn.Exec(
-			"INSERT INTO puzzles (sessionId, puzzleId, summary) VALUES ($1, $2, $3)",
-			"common", key, string(bytes))
+		_, err := tx.Exec(
+			"INSERT INTO puzzles (sessionId, puzzleId, geometry, sideLength, valueList) "+
+				"VALUES ($1, $2, $3, $4, $5) "+
+				"ON CONFLICT (sessionId, puzzleId) DO NOTHING "+
+				";",
+			"common", key, val.Geometry, val.SideLength, values)
 		if err != nil {
-			log.Printf("Failed to insert summary of common puzzle %v: %v", key, err)
-			panic(err)
+			return err
 		}
 	}
+	return nil
 }
 
-// Down is executed when this migration is rolled back
-func Down_2(txn *sql.Tx) {
+// Delete the common puzzles
+func deletePuzzles(tx *pgx.Tx) error {
 	// remove the puzzle summaries from the database
 	for key := range puzzleSummaries {
-		_, err := txn.Exec(
+		_, err := tx.Exec(
 			"DELETE from puzzles where sessionId = $1 and puzzleId = $2",
 			"common", key)
 		if err != nil {
-			log.Printf("Failed to delete summary of common puzzle %v: %v", key, err)
-			panic(err)
+			return err
 		}
 	}
+	return nil
 }

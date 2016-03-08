@@ -19,11 +19,53 @@
 package storage
 
 import (
+	"bytes"
+	"log"
+	"os"
+	"path/filepath"
+	"reflect"
 	"testing"
 )
 
+type tLogger struct {
+	t   *testing.T
+	log bytes.Buffer
+}
+
+func (t *tLogger) Write(p []byte) (n int, e error) {
+	n, e = t.log.Write(p)
+	t.t.Log(string(p[:n-1]))
+	return
+}
+
+func setLog(t *testing.T) {
+	if !testing.Short() {
+		log.SetOutput(&tLogger{t: t})
+	}
+}
+
 func TestConnect(t *testing.T) {
+	setLog(t)
+	os.Setenv("DBPREP_PATH", filepath.Join("..", "dbprep"))
 	if err := Connect(); err != nil {
 		t.Errorf("Couldn't connect to storage: %v", err)
 	}
+	Close()
+}
+
+func TestLoadCommon(t *testing.T) {
+	setLog(t)
+	os.Setenv("DBPREP_PATH", filepath.Join("..", "dbprep"))
+	if err := Connect(); err != nil {
+		t.Fatalf("Couldn't connect to storage: %v", err)
+	}
+	sums1 := CommonSummaries()
+	if len(sums1) == 0 {
+		t.Errorf("Didn't get any common summaries.")
+	}
+	sums2 := CommonSummaries()
+	if reflect.ValueOf(sums2).Pointer() != reflect.ValueOf(sums1).Pointer() {
+		t.Errorf("Second call to CommonSummaries returned a different pointer than first.")
+	}
+	Close()
 }

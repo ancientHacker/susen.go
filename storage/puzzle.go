@@ -19,7 +19,6 @@
 package storage
 
 import (
-	"encoding/json"
 	"github.com/ancientHacker/susen.go/puzzle"
 	"log"
 )
@@ -64,19 +63,33 @@ Summaries particular to a session
 func LoadSessionSummaries(sessionId string) NamedSummaries {
 	result := make(map[string]*puzzle.Summary)
 	body := func() error {
-		rows, err := pgdb.Query(
-			"SELECT puzzleId, summary FROM puzzles WHERE sessionID = $1", sessionId)
+		rows, err := pgConn.Query(
+			"SELECT puzzleId, geometry, sideLength, valueList FROM puzzles "+
+				"WHERE sessionID = $1",
+			sessionId)
 		if err != nil {
 			log.Printf("Failed to fetch common puzzles: %v", err)
 			return err
 		}
 		for rows.Next() {
-			var puzzleId, summaryJson string
-			if err := rows.Scan(&puzzleId, &summaryJson); err != nil {
+			var puzzleId, geometry string
+			var sidelen32 int32
+			var values32 []int32
+			err := rows.Scan(&puzzleId, &geometry, &sidelen32, &values32)
+			if err != nil {
 				log.Printf("Failed to scan puzzles row: %v", err)
 				return err
 			}
-			result[puzzleId] = unmarshalSummary(puzzleId, summaryJson)
+			values := make([]int, len(values32))
+			for i, v := range values32 {
+				values[i] = int(v)
+			}
+			result[puzzleId] = &puzzle.Summary{
+				Metadata:   map[string]string{"session": sessionId, "id": puzzleId},
+				Geometry:   geometry,
+				SideLength: int(sidelen32),
+				Values:     values,
+			}
 		}
 		return nil
 	}
@@ -99,31 +112,4 @@ func CommonSummaries() NamedSummaries {
 		commonSummaries = LoadSessionSummaries("common")
 	}
 	return commonSummaries
-}
-
-/*
-
-serialization of summaries into and out of the database
-
-*/
-
-// marshalSummary - get JSON string for the current puzzle
-func marshalSummary(id string, summary *puzzle.Summary) string {
-	bytes, err := json.Marshal(summary)
-	if err != nil {
-		log.Printf("Failed to marshal summary of %v as JSON: %v", id, err)
-		panic(err)
-	}
-	return string(bytes)
-}
-
-// unmarshalSummary - get puzzle for the saved puzzle
-func unmarshalSummary(id string, summaryJson string) *puzzle.Summary {
-	var summary *puzzle.Summary
-	err := json.Unmarshal([]byte(summaryJson), &summary)
-	if err != nil {
-		log.Printf("Failed to unmarshal saved JSON of %s: %v", id, err)
-		panic(err)
-	}
-	return summary
 }

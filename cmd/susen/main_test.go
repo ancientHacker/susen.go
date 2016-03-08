@@ -31,6 +31,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -70,26 +71,27 @@ type sessionClient struct {
 	choice   puzzle.Choice // the first choice to try in this puzzle
 }
 
-func rdcConnect(t *testing.T, name string) {
+func storageConnect(t *testing.T, name string) {
 	tlog := &tLogger{t: t, name: name}
 	if !testing.Short() {
 		log.SetOutput(tlog)
 	}
 	alternateShutdown = tlog.shutdown
 
+	os.Setenv("DBPREP_PATH", filepath.Join("..", "..", "dbprep"))
 	if err := storage.Connect(); err != nil {
 		shutdown(startupFailureShutdown)
 	}
 }
 
 func TestSessionSelect(t *testing.T) {
-	rdcConnect(t, "TestSessionSelect")
+	storageConnect(t, "TestSessionSelect")
 	defer storage.Close()
 
 	// one server
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		session := sessionSelect(w, r)
-		t.Logf("Session %v handling %s %s.", session.SID, r.Method, r.URL.Path)
+		// t.Logf("Session %v handling %s %s.", session.SID, r.Method, r.URL.Path)
 		session.rootHandler(w, r)
 	}))
 	defer srv.Close()
@@ -140,21 +142,23 @@ func TestSessionSelect(t *testing.T) {
 	// helper - make a call setting the current session puzzle, return false on error
 	setPuzzle := func(c *sessionClient, pid string) bool {
 		target := fmt.Sprintf("%s/reset/%s", srv.URL, pid)
-		t.Logf("Client %d: getting %s", c.id, target)
 		countCookies(c, target)
 		r, e := c.client.Get(target)
 		if e != nil && e.(*url.Error).Err.Error() != fmt.Sprintf("%d", redirectCount) {
+			t.Logf("Client %d: getting %s", c.id, target)
 			t.Errorf("client %d: Request error: %v", c.id, e)
 			return false
 		}
 		// t.Logf("client %d: %q\n", c.id, r.Status)
 		// t.Logf("client %d: %v\n", c.id, r.Header)
 		if r.StatusCode != http.StatusFound {
+			t.Logf("Client %d: getting %s", c.id, target)
 			t.Errorf("client %d: Reset request did not return redirect status: %v",
 				c.id, r.StatusCode)
 			return false
 		}
 		if r.Header.Get("Location") != "/solver/" {
+			t.Logf("Client %d: getting %s", c.id, target)
 			t.Errorf("client %d: Reset request redirected to incorrect location: %v",
 				c.id, r.Header.Get("Location"))
 			return false
@@ -164,10 +168,10 @@ func TestSessionSelect(t *testing.T) {
 	// helper - make a squares-returning action call, return false on error
 	getState := func(c *sessionClient, action string) bool {
 		target := fmt.Sprintf("%s/api/%s", srv.URL, action)
-		t.Logf("Client %d: getting %s", c.id, target)
 		countCookies(c, target)
 		r, e := c.client.Get(target)
 		if e != nil {
+			t.Logf("Client %d: getting %s", c.id, target)
 			t.Errorf("client %d: Request error: %v", c.id, e)
 			return false
 		}
@@ -176,6 +180,7 @@ func TestSessionSelect(t *testing.T) {
 		b, e := ioutil.ReadAll(r.Body)
 		r.Body.Close()
 		if e != nil {
+			t.Logf("Client %d: getting %s", c.id, target)
 			t.Errorf("client %d: Read error on puzzle response body: %v", c.id, e)
 			return false
 		}
@@ -183,16 +188,19 @@ func TestSessionSelect(t *testing.T) {
 		var content *puzzle.Content
 		e = json.Unmarshal(b, &content)
 		if e != nil {
+			t.Logf("Client %d: getting %s", c.id, target)
 			t.Errorf("client %d: Unmarshal failed: %v", c.id, e)
 			return false
 		}
 		s := content.Squares
 		if len(s) != len(c.vals) {
+			t.Logf("Client %d: getting %s", c.id, target)
 			t.Errorf("client %d: Got wrong number of squares: %d", c.id, len(s))
 			return false
 		}
 		for i := 0; i < len(s); i++ {
 			if s[i].Aval != c.vals[i] {
+				t.Logf("Client %d: getting %s", c.id, target)
 				t.Errorf("client %d: Square %d has value %d", c.id, s[i].Index, s[i].Aval)
 				return false
 			}
@@ -201,9 +209,9 @@ func TestSessionSelect(t *testing.T) {
 	}
 	// helper - make an update-returning action call, return false on error
 	getUpdate := func(c *sessionClient) bool {
-		t.Logf("Client %d: posting choice %v", c.id, c.choice)
 		bs, e := json.Marshal(c.choice)
 		if e != nil {
+			t.Logf("Client %d: posting choice %v", c.id, c.choice)
 			t.Errorf("client %d: Failed to encode choice: %v", c.id, e)
 			return false
 		}
@@ -211,27 +219,32 @@ func TestSessionSelect(t *testing.T) {
 		countCookies(c, target)
 		r, e := c.client.Post(target, "application/json", bytes.NewReader(bs))
 		if e != nil {
+			t.Logf("Client %d: posting choice %v", c.id, c.choice)
 			t.Errorf("client %d: Request error: %v", c.id, e)
 			return false
 		}
 		b, e := ioutil.ReadAll(r.Body)
 		r.Body.Close()
 		if e != nil {
+			t.Logf("Client %d: posting choice %v", c.id, c.choice)
 			t.Errorf("client %d: Read error on puzzle response body: %v", c.id, e)
 			return false
 		}
 
 		if r.StatusCode != http.StatusBadRequest {
+			t.Logf("Client %d: posting choice %v", c.id, c.choice)
 			t.Errorf("client %d: Bad assignment returned unexpected status: %d",
 				c.id, r.StatusCode)
 		} else {
 			var err puzzle.Error
 			e = json.Unmarshal(b, &err)
 			if e != nil {
+				t.Logf("Client %d: posting choice %v", c.id, c.choice)
 				t.Errorf("client %d: Unmarshal failed: %v", c.id, e)
 				return false
 			}
 			if err.Condition != puzzle.DuplicateAssignmentCondition {
+				t.Logf("Client %d: posting choice %v", c.id, c.choice)
 				t.Errorf("client %d: Got unexpected error: %v", c.id, err)
 			}
 		}
@@ -240,7 +253,7 @@ func TestSessionSelect(t *testing.T) {
 	// helper - sleep interval milliseconds
 	sleep := func(c *sessionClient) {
 		sleeptime := time.Duration(c.interval) * time.Millisecond
-		t.Logf("Client %d sleeps %s", c.id, sleeptime)
+		// t.Logf("Client %d sleeps %s", c.id, sleeptime)
 		time.Sleep(sleeptime)
 	}
 
@@ -304,7 +317,9 @@ func TestSessionSelect(t *testing.T) {
 	for i := 0; i < clientCount; i++ {
 		id := <-ch
 		diff := time.Now().Sub(start)
-		t.Logf("Client %d finished in %v\n", id, diff)
+		if testing.Short() {
+			t.Logf("Client %d finished in %v\n", id, diff)
+		}
 	}
 	// the number of sessions is the number of different values of the different cookies
 	sessionCount := 0
@@ -317,13 +332,15 @@ func TestSessionSelect(t *testing.T) {
 }
 
 func TestIssue1(t *testing.T) {
-	rdcConnect(t, "TestIssue1")
+	storageConnect(t, "TestIssue1")
 	defer storage.Close()
 
 	// server
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		session := sessionSelect(w, r)
-		t.Logf("Session %v handling %s %s.", session.SID, r.Method, r.URL.Path)
+		if testing.Short() {
+			t.Logf("Session %v handling %s %s.", session.SID, r.Method, r.URL.Path)
+		}
 		http.Error(w, "This is a test", http.StatusOK)
 	}))
 	defer srv.Close()
@@ -404,7 +421,7 @@ func TestIssue1(t *testing.T) {
 }
 
 func TestIssue11(t *testing.T) {
-	rdcConnect(t, "TestIssue11")
+	storageConnect(t, "TestIssue11")
 	defer storage.Close()
 
 	// add puzzle and appropriate assignments for testing
@@ -423,7 +440,9 @@ func TestIssue11(t *testing.T) {
 
 	// server
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// t.Logf("Handling %s %s...", r.Method, r.URL.Path)
+		if testing.Short() {
+			t.Logf("Handling %s %s...", r.Method, r.URL.Path)
+		}
 		session := sessionSelect(w, r)
 		session.rootHandler(w, r)
 		// t.Logf("There are %d steps in session %q", session.Step, session.SID)

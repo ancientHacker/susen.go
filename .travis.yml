@@ -1,2 +1,11 @@
 language: go
-services: redis-server
+
+addons:
+  postgresql: "9.4"
+
+services:
+  - postgresql
+  - redis-server
+
+before_script:
+  - psql -c 'create database susen;' -U postgres
