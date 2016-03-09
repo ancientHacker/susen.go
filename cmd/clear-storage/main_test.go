@@ -19,6 +19,7 @@
 package main
 
 import (
+	"github.com/ancientHacker/susen.go/dbprep"
 	"os"
 	"path/filepath"
 	"testing"
@@ -26,7 +27,7 @@ import (
 
 func TestClearStorage(t *testing.T) {
 	os.Setenv("DBPREP_PATH", filepath.Join("..", "..", "dbprep"))
-	if err := clearStorage(); err != nil {
-		t.Errorf("Couldn't clear storage: %v", err)
+	if err := dbprep.ReinitializeAll(); err != nil {
+		t.Errorf("%v", err)
 	}
 }

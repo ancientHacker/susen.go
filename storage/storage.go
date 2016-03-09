@@ -29,15 +29,15 @@ import (
 )
 
 func Connect() error {
+	// make sure the database is initialized
+	if err := dbprep.EnsureData(); err != nil {
+		return err
+	}
+
 	rdInit()
 	rdMutex.Lock()
 	defer rdMutex.Unlock()
 	if err := rdConnect(); err != nil {
-		return err
-	}
-
-	// make sure the database is initialized
-	if err := dbprep.Doit(); err != nil {
 		return err
 	}
 

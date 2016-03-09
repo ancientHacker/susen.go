@@ -19,6 +19,7 @@
 package dbprep
 
 import (
+	"fmt"
 	"github.com/ancientHacker/susen.go/Godeps/_workspace/src/github.com/jackc/pgx"
 	"github.com/ancientHacker/susen.go/puzzle"
 	"os"
@@ -53,7 +54,9 @@ func DataDown() error {
 	return applyFunctions(downFunctions)
 }
 
-// apply dataFunctions to the database
+// apply dataFunctions to the database.  Each is applied in a
+// separate transaction, so later ones can rely on the effect of
+// earlier ones having been committed.
 func applyFunctions(fns []dataFunction) error {
 	url := os.Getenv("DATABASE_URL")
 	if url == "" {
@@ -71,29 +74,33 @@ func applyFunctions(fns []dataFunction) error {
 	}
 	defer conn.Close()
 
-	// open a transaction to run the functions in,
-	// deferring a rollback if there's a panic
-	tx, err := conn.Begin()
-	if err != nil {
-		return err
-	}
-	defer func() {
-		if e := recover(); e != nil {
-			tx.Rollback()
-			panic(e)
+	// helper that runs each function inside a transaction, and
+	// ensures that any problems are rolled back.
+	runFunc := func(fn dataFunction) error {
+		tx, err := conn.Begin()
+		if err != nil {
+			return err
 		}
-	}()
-
-	// run the functions
-	for _, fn := range fns {
+		defer func() {
+			if e := recover(); e != nil {
+				tx.Rollback()
+				panic(e)
+			}
+		}()
 		if err := fn(tx); err != nil {
 			tx.Rollback()
 			return err
 		}
+		return tx.Commit()
 	}
 
-	// commit
-	return tx.Commit()
+	// run the functions
+	for _, fn := range fns {
+		if err := runFunc(fn); err != nil {
+			return fmt.Errorf("%v failed: %v", fn, err)
+		}
+	}
+	return nil
 }
 
 /*

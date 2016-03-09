@@ -115,7 +115,7 @@ func TestDataDoubleDown(t *testing.T) {
 	}
 }
 
-func TestDoit(t *testing.T) {
+func TestEnsureData(t *testing.T) {
 	inVersion, err := SchemaVersion()
 	if err != nil {
 		t.Fatalf("Coun't get schema inVersion: %v", err)
@@ -123,8 +123,60 @@ func TestDoit(t *testing.T) {
 	if inVersion != 0 {
 		t.Fatalf("Starting version was not 0: %v", inVersion)
 	}
-	if err := Doit(); err != nil {
-		t.Errorf("Doit failed.")
+	if err := EnsureData(); err != nil {
+		t.Errorf("%v", err)
+	}
+	outVersion, err := SchemaVersion()
+	if err != nil {
+		t.Fatalf("Couldn't get schema outVersion: %v", err)
+	}
+	if inVersion == outVersion {
+		t.Errorf("inVersion == outVersion: %v", inVersion)
+	}
+	if err := DataDown(); err != nil {
+		t.Errorf("Data down failed: %v", err)
+	}
+	if err := SchemaDown(); err != nil {
+		t.Errorf("Schema down failed: %v", err)
+	}
+}
+
+func TestReinitializeData(t *testing.T) {
+	inVersion, err := SchemaVersion()
+	if err != nil {
+		t.Fatalf("Coun't get schema inVersion: %v", err)
+	}
+	if inVersion != 0 {
+		t.Fatalf("Starting version was not 0: %v", inVersion)
+	}
+	if err := ReinitializeData(); err != nil {
+		t.Errorf("%v", err)
+	}
+	outVersion, err := SchemaVersion()
+	if err != nil {
+		t.Fatalf("Couldn't get schema outVersion: %v", err)
+	}
+	if inVersion == outVersion {
+		t.Errorf("inVersion == outVersion: %v", inVersion)
+	}
+	if err := DataDown(); err != nil {
+		t.Errorf("Data down failed: %v", err)
+	}
+	if err := SchemaDown(); err != nil {
+		t.Errorf("Schema down failed: %v", err)
+	}
+}
+
+func TestReinitializeAll(t *testing.T) {
+	inVersion, err := SchemaVersion()
+	if err != nil {
+		t.Fatalf("Coun't get schema inVersion: %v", err)
+	}
+	if inVersion != 0 {
+		t.Fatalf("Starting version was not 0: %v", inVersion)
+	}
+	if err := ReinitializeAll(); err != nil {
+		t.Errorf("%v", err)
 	}
 	outVersion, err := SchemaVersion()
 	if err != nil {

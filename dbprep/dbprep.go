@@ -18,25 +18,65 @@
 
 package dbprep
 
-func Doit() error {
-	if err := ClearCache(); err != nil {
-		return err
-	}
+import (
+	"fmt"
+)
+
+func EnsureData() error {
 	inVersion, err := SchemaVersion()
 	if err != nil {
-		return err
+		return fmt.Errorf("Couldn't get initial data schema version: %v", err)
 	}
 	if err := SchemaUp(); err != nil {
-		return err
+		return fmt.Errorf("Couldn't install data schema: %v", err)
 	}
 	outVersion, err := SchemaVersion()
 	if err != nil {
-		return err
+		return fmt.Errorf("Couldn't get final data schema version: %v", err)
+	}
+	if outVersion == 0 {
+		return fmt.Errorf("Database schema still at version 0, shouldn't be.")
 	}
 	if inVersion != outVersion {
 		if err := DataUp(); err != nil {
-			return err
+			return fmt.Errorf("Couldn't load data: %v", err)
 		}
 	}
 	return nil
+}
+
+func ReinitializeData() error {
+	// tear down existing database
+	version, err := SchemaVersion()
+	if err != nil {
+		return fmt.Errorf("Couldn't get initial data schema version: %v", err)
+	}
+	if version > 0 {
+		if err := SchemaDown(); err != nil {
+			return fmt.Errorf("Couldn't remove tables: %v", err)
+		}
+	}
+	if err := SchemaUp(); err != nil {
+		return fmt.Errorf("Couldn't install data schema: %v", err)
+	}
+	version, err = SchemaVersion()
+	if err != nil {
+		return fmt.Errorf("Couldn't get upgraded data schema version: %v", err)
+	}
+	if version == 0 {
+		return fmt.Errorf("Data schema still at version 0, shouldn't be.")
+	}
+	if err := DataUp(); err != nil {
+		return fmt.Errorf("Couldn't load data: %v", err)
+	}
+	return nil
+}
+
+func ReinitializeAll() error {
+	// clear cache
+	if err := ClearCache(); err != nil {
+		return fmt.Errorf("Couldn't clear cache: %v", err)
+	}
+	// clear and reload database
+	return ReinitializeData()
 }
