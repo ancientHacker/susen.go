@@ -16,27 +16,17 @@
 // 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 // Licensed under the LGPL v3.  See the LICENSE file for details
 
-package dbprep
+package main
 
-func Doit() error {
-	if err := ClearCache(); err != nil {
-		return err
+import (
+	"os"
+	"path/filepath"
+	"testing"
+)
+
+func TestClearStorage(t *testing.T) {
+	os.Setenv("DBPREP_PATH", filepath.Join("..", "..", "dbprep"))
+	if err := clearStorage(); err != nil {
+		t.Errorf("Couldn't clear storage: %v", err)
 	}
-	inVersion, err := SchemaVersion()
-	if err != nil {
-		return err
-	}
-	if err := SchemaUp(); err != nil {
-		return err
-	}
-	outVersion, err := SchemaVersion()
-	if err != nil {
-		return err
-	}
-	if inVersion != outVersion {
-		if err := DataUp(); err != nil {
-			return err
-		}
-	}
-	return nil
 }

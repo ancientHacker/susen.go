@@ -104,7 +104,7 @@ insert common puzzles
 
 var (
 	puzzleSummaries = map[string]*puzzle.Summary{
-		"standard-1": &puzzle.Summary{
+		"preload-1": &puzzle.Summary{
 			Geometry:   puzzle.StandardGeometryName,
 			SideLength: 9,
 			Values: []int{
@@ -118,7 +118,7 @@ var (
 				6, 4, 0, 2, 0, 0, 0, 0, 0,
 				0, 3, 0, 9, 0, 1, 0, 8, 0,
 			}},
-		"standard-2": &puzzle.Summary{
+		"preload-2": &puzzle.Summary{
 			Geometry:   puzzle.StandardGeometryName,
 			SideLength: 9,
 			Values: []int{
@@ -132,7 +132,7 @@ var (
 				0, 0, 0, 0, 0, 0, 0, 6, 0,
 				4, 0, 0, 0, 1, 6, 0, 0, 3,
 			}},
-		"standard-3": &puzzle.Summary{
+		"preload-3": &puzzle.Summary{
 			Geometry:   puzzle.StandardGeometryName,
 			SideLength: 9,
 			Values: []int{
@@ -146,7 +146,7 @@ var (
 				3, 0, 0, 5, 0, 9, 7, 0, 0,
 				0, 0, 6, 0, 1, 0, 4, 2, 3,
 			}},
-		"standard-4": &puzzle.Summary{
+		"preload-4": &puzzle.Summary{
 			Geometry:   puzzle.StandardGeometryName,
 			SideLength: 9,
 			Values: []int{
@@ -160,7 +160,7 @@ var (
 				0, 2, 0, 3, 0, 9, 0, 0, 8,
 				0, 0, 0, 0, 0, 0, 0, 0, 0,
 			}},
-		"standard-5": &puzzle.Summary{
+		"preload-5": &puzzle.Summary{
 			Geometry:   puzzle.StandardGeometryName,
 			SideLength: 9,
 			Values: []int{
@@ -174,7 +174,7 @@ var (
 				0, 0, 0, 0, 0, 0, 5, 6, 0,
 				0, 2, 0, 0, 0, 0, 0, 0, 4,
 			}},
-		"rectangular-1": &puzzle.Summary{
+		"preload-6": &puzzle.Summary{
 			Geometry:   puzzle.RectangularGeometryName,
 			SideLength: 6,
 			Values: []int{
@@ -185,7 +185,7 @@ var (
 				5, 0, 0, 2, 1, 6,
 				6, 0, 0, 0, 0, 0,
 			}},
-		"rectangular-2": &puzzle.Summary{
+		"preload-7": &puzzle.Summary{
 			Geometry:   puzzle.RectangularGeometryName,
 			SideLength: 6,
 			Values: []int{
@@ -196,7 +196,7 @@ var (
 				0, 0, 4, 0, 0, 0,
 				0, 0, 0, 5, 1, 4,
 			}},
-		"rectangular-3": &puzzle.Summary{
+		"preload-8": &puzzle.Summary{
 			Geometry:   puzzle.RectangularGeometryName,
 			SideLength: 12,
 			Values: []int{
@@ -213,7 +213,7 @@ var (
 				2, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 11,
 				6, 11, 12, 0, 0, 0, 0, 0, 3, 0, 9, 4,
 			}},
-		"rectangular-4": &puzzle.Summary{
+		"preload-9": &puzzle.Summary{
 			Geometry:   puzzle.RectangularGeometryName,
 			SideLength: 12,
 			Values: []int{

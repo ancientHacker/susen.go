@@ -22,6 +22,12 @@ import (
 	"testing"
 )
 
+func TestClearCache(t *testing.T) {
+	if err := ClearCache(); err != nil {
+		t.Errorf("Couldn't clear cache: %v", err)
+	}
+}
+
 func TestSchemaUpDown(t *testing.T) {
 	if err := SchemaUp(); err != nil {
 		t.Errorf("Schema up failed: %v", err)

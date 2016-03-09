@@ -18,25 +18,24 @@
 
 package dbprep
 
-func Doit() error {
-	if err := ClearCache(); err != nil {
-		return err
+import (
+	"github.com/ancientHacker/susen.go/Godeps/_workspace/src/github.com/garyburd/redigo/redis"
+	"os"
+)
+
+func ClearCache() error {
+	url := os.Getenv("REDISTOGO_URL")
+	if url == "" {
+		url = "redis://localhost:6379/"
 	}
-	inVersion, err := SchemaVersion()
+	conn, err := redis.DialURL(url)
 	if err != nil {
 		return err
 	}
-	if err := SchemaUp(); err != nil {
-		return err
-	}
-	outVersion, err := SchemaVersion()
+	_, err = conn.Do("FLUSHALL")
 	if err != nil {
 		return err
 	}
-	if inVersion != outVersion {
-		if err := DataUp(); err != nil {
-			return err
-		}
-	}
+	conn.Close()
 	return nil
 }
