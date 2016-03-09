@@ -235,20 +235,41 @@ var (
 
 // Insert or update the common puzzles
 func insertPuzzles(tx *pgx.Tx) error {
-	// save the puzzle summaries in the database
-	for key, val := range puzzleSummaries {
-		values := make([]int32, len(val.Values))
-		for i, v := range val.Values {
-			values[i] = int32(v) // use 4-byte ints in database
-		}
-		_, err := tx.Exec(
-			"INSERT INTO puzzles (sessionId, puzzleId, geometry, sideLength, valueList) "+
-				"VALUES ($1, $2, $3, $4, $5) "+
-				"ON CONFLICT (sessionId, puzzleId) DO NOTHING "+
-				";",
-			"common", key, val.Geometry, val.SideLength, values)
+	// because we are using psql 9.4, we can't use conflict
+	// guards to prevent errors on multiple inserts, so first we
+	// collect all the existing common puzzles
+	rows, err := tx.Query("SELECT puzzleId FROM puzzles "+"WHERE sessionID = $1", "common")
+	if err != nil {
+		return err
+	}
+	present := make(map[string]bool)
+	for rows.Next() {
+		var puzzleId string
+		err := rows.Scan(&puzzleId)
 		if err != nil {
 			return err
+		}
+		if puzzleSummaries[puzzleId] != nil {
+			present[puzzleId] = true
+		}
+	}
+
+	// then we save any missing commmon puzzles in the database
+	for key, val := range puzzleSummaries {
+		if !present[key] {
+			values := make([]int32, len(val.Values))
+			for i, v := range val.Values {
+				values[i] = int32(v) // use 4-byte ints in database
+			}
+			_, err := tx.Exec(
+				"INSERT INTO puzzles (sessionId, puzzleId, geometry, sideLength, valueList) "+
+					"VALUES ($1, $2, $3, $4, $5) "+
+					// "ON CONFLICT (sessionId, puzzleId) DO NOTHING " // requires pgsql 9.5
+					";",
+				"common", key, val.Geometry, int32(val.SideLength), values)
+			if err != nil {
+				return err
+			}
 		}
 	}
 	return nil
