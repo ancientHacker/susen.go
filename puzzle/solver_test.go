@@ -74,6 +74,7 @@ var (
 			4, 3, 2, 1,
 		},
 		[]Choice{Choice{2, 2}, Choice{10, 1}},
+		4,
 	}
 	multiChoiceSolution2 = Solution{
 		[]int{
@@ -83,6 +84,7 @@ var (
 			4, 1, 2, 3,
 		},
 		[]Choice{Choice{2, 2}, Choice{10, 3}},
+		4,
 	}
 	multiChoiceSolution3 = Solution{
 		[]int{
@@ -92,6 +94,7 @@ var (
 			4, 3, 2, 1,
 		},
 		[]Choice{Choice{2, 4}, Choice{10, 1}},
+		4,
 	}
 	multiChoiceSolution4 = Solution{
 		[]int{
@@ -101,6 +104,7 @@ var (
 			4, 1, 2, 3,
 		},
 		[]Choice{Choice{2, 4}, Choice{10, 3}},
+		4,
 	}
 	oneStarValues = []int{
 		4, 0, 0, 0, 0, 3, 5, 0, 2,
@@ -170,6 +174,7 @@ var (
 			3, 2, 1, 5, 9, 6, 8, 7, 4,
 		},
 		[]Choice{Choice{2, 4}},
+		3,
 	}
 	fiveStarSolution2 = Solution{
 		[]int{
@@ -184,6 +189,7 @@ var (
 			3, 2, 1, 5, 9, 6, 8, 7, 4,
 		},
 		[]Choice{Choice{2, 7}},
+		3,
 	}
 	sixStarValues = []int{
 		9, 0, 0, 4, 5, 0, 0, 0, 8,
@@ -209,6 +215,7 @@ var (
 			4, 9, 2, 7, 1, 6, 8, 5, 3,
 		},
 		[]Choice{Choice{2, 6}},
+		3,
 	}
 	multiSolutionValues = []int{
 		2, 0, 0, 8, 0, 0, 0, 5, 0,
@@ -267,6 +274,7 @@ var (
 			8, 9, 3, 6, 7, 1, 2, 4, 5,
 		},
 		[]Choice{Choice{2, 5}},
+		3,
 	}
 	tileRotationCompleteValues = []int{
 		1, 2, 3, 4, 5, 6, 7, 8, 9,
@@ -397,7 +405,7 @@ func TestAssignKnown(t *testing.T) {
 			}
 		} else {
 			// show the output of the binding for debugging purposes
-			t.Logf("TestBindAll case %d: Result after binding:\n%v", i+1, p.allValues())
+			// t.Logf("TestBindAll case %d: Result after binding:\n%v", i+1, p.allValues())
 		}
 	}
 }
@@ -407,7 +415,7 @@ func TestPopThread(t *testing.T) {
 	if e != nil {
 		t.Fatalf("TestPopThread: Failed to create puzzle: %v", e)
 	}
-	thin := thread{choice{pin, 2, 0, intset{2, 4}}} // artificial stack top
+	thin := thread{choice{pin, 2, 2, 0, intset{2, 4}}} // artificial stack top
 	p, th := popChoice(pin, thin)
 	if reflect.DeepEqual(p, pin) ||
 		len(th) != 1 || th[0].cindex != 2 ||
@@ -599,15 +607,15 @@ func TestSolutions(t *testing.T) {
 		// first the fully bound puzzles
 		solutionsTestcase{
 			StandardGeometryName, 9, oneStarValues,
-			1, []Solution{Solution{oneStarBoundValues, nil}},
+			1, []Solution{Solution{oneStarBoundValues, nil, 2}},
 		},
 		solutionsTestcase{
 			StandardGeometryName, 9, threeStarValues,
-			1, []Solution{Solution{threeStarBoundValues, nil}},
+			1, []Solution{Solution{threeStarBoundValues, nil, 1}},
 		},
 		solutionsTestcase{
 			StandardGeometryName, 9, chronOneValues,
-			1, []Solution{Solution{chronOneBoundValues, nil}},
+			1, []Solution{Solution{chronOneBoundValues, nil, 1}},
 		},
 		// then the single-solution puzzles
 		solutionsTestcase{
@@ -623,8 +631,8 @@ func TestSolutions(t *testing.T) {
 			StandardGeometryName, 4, solveSimpleStartValues,
 			2,
 			[]Solution{
-				Solution{solveSimpleFirstCompleteValues, []Choice{Choice{2, 2}}},
-				Solution{solveSimpleSecondCompleteValues, []Choice{Choice{2, 4}}},
+				Solution{solveSimpleFirstCompleteValues, []Choice{Choice{2, 2}}, 3},
+				Solution{solveSimpleSecondCompleteValues, []Choice{Choice{2, 4}}, 3},
 			},
 		},
 		solutionsTestcase{
@@ -648,26 +656,26 @@ func TestSolutions(t *testing.T) {
 		// then the rectangular puzzles
 		solutionsTestcase{
 			RectangularGeometryName, 6, Su6Standard1Values,
-			1, []Solution{Solution{Su6Standard1Complete, nil}},
+			1, []Solution{Solution{Su6Standard1Complete, nil, 1}},
 		},
 		solutionsTestcase{
 			RectangularGeometryName, 6, Su6Difficult1Values,
-			1, []Solution{Solution{Su6Difficult1Complete, nil}},
+			1, []Solution{Solution{Su6Difficult1Complete, nil, 1}},
 		},
 		solutionsTestcase{
 			RectangularGeometryName, 12, SuDozen61054Values,
-			1, []Solution{Solution{SuDozen61054Complete, nil}},
+			1, []Solution{Solution{SuDozen61054Complete, nil, 2}},
 		},
 		solutionsTestcase{
 			RectangularGeometryName, 12, SuDozen78097Values,
-			1, []Solution{Solution{SuDozen78097Complete, nil}},
+			1, []Solution{Solution{SuDozen78097Complete, nil, 2}},
 		},
 		/* removed to clean the verbose output, use when needed
 
 		// then the pathological puzzle with 14 solutions, just to
 		// make sure we can handle choices that lead nowhere.
 		solutionsTestcase{
-			9, multiSolutionValues, 0, nil,
+			9, multiSolutionValues, 0, nil, 0
 		},
 		*/
 	}

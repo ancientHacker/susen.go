@@ -402,7 +402,8 @@ type Content struct {
 
 // A Solution is a filled-in puzzle (expressed as its values)
 // plus the sequence of choices for empty squares that were made
-// to get there.  Solutions tend to have far fewer choices than
+// to get there and a rating (1-5) of how difficult the puzzle
+// was to solve.  Solutions tend to have far fewer choices than
 // originally empty squares, because most of the empty squares in
 // most puzzles have their values forced (bound) by puzzle
 // structure.  These bound values are present only in the solved
@@ -410,6 +411,7 @@ type Content struct {
 type Solution struct {
 	Values  []int    `json:"values"`
 	Choices []Choice `json:"choices,omitempty"`
+	Rating  int      `json:"rating"`
 }
 
 /*
