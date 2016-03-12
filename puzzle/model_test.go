@@ -2798,6 +2798,69 @@ Puzzle Operations
 
 */
 
+type hashTestcase struct {
+	metadata map[string]string
+	geo      string
+	sidelen  int
+	sig      Signature
+}
+
+func TestHash(t *testing.T) {
+	testcases := []hashTestcase{
+		hashTestcase{
+			map[string]string{"name": "square 4x4"},
+			StandardGeometryName, 4,
+			Signature{36, 25, 154, 113, 50, 220, 170, 132, 230, 153, 179, 80, 201, 75, 154, 7},
+		},
+		hashTestcase{
+			map[string]string{"name": "square 9x9"},
+			StandardGeometryName, 9,
+			Signature{186, 202, 221, 133, 159, 188, 153, 17, 242, 52, 205, 83, 199, 37, 65, 101},
+		},
+		hashTestcase{
+			map[string]string{"name": "square 16x16"},
+			StandardGeometryName, 16,
+			Signature{110, 246, 16, 214, 165, 180, 90, 1, 98, 87, 49, 211, 189, 220, 64, 184},
+		},
+		hashTestcase{
+			map[string]string{"name": "rectangle 6x6"},
+			RectangularGeometryName, 6,
+			Signature{126, 61, 206, 17, 219, 243, 122, 56, 120, 167, 202, 132, 157, 31, 5, 136},
+		},
+		hashTestcase{
+			map[string]string{"name": "rectangle 12x12"},
+			RectangularGeometryName, 12,
+			Signature{180, 238, 68, 31, 172, 115, 72, 116, 53, 142, 135, 155, 174, 207, 77, 113},
+		},
+		hashTestcase{
+			map[string]string{"name": "rectangle 20x20"},
+			RectangularGeometryName, 20,
+			Signature{173, 148, 82, 68, 155, 151, 33, 52, 191, 69, 134, 151, 166, 92, 82, 225},
+		},
+	}
+	for _, tc := range testcases {
+		s := &Summary{
+			Metadata:   tc.metadata,
+			Geometry:   tc.geo,
+			SideLength: tc.sidelen,
+			Values:     make([]int, tc.sidelen*tc.sidelen),
+		}
+		p, e := New(s)
+		if e != nil {
+			t.Fatalf("%s puzzle creation failed: %s", tc.metadata["name"], e.Error())
+		}
+		shash := s.hash()
+		phash := p.hash()
+		if !reflect.DeepEqual(shash, phash) {
+			t.Errorf("%s summary hash (%v) doesn't match puzzle hash (%v)",
+				tc.metadata["name"], shash, phash)
+		}
+		if !reflect.DeepEqual(shash, tc.sig) {
+			t.Errorf("%s has was %v, expected %v", tc.metadata["name"], shash, tc.sig)
+		}
+	}
+}
+
 type summaryTestcase struct {
 	metadata map[string]string
 	vals     []int
@@ -3357,21 +3420,46 @@ func TestExternalNil(t *testing.T) {
 
 	var err error
 	for i, p := range testcases {
+		_, err = p.Hash()
+		if err == nil || err.(Error).Condition != InvalidArgumentCondition {
+			t.Errorf("case %v Hash: No error or incorrect condition on invalid puzzle: %v",
+				i, err)
+		}
 		_, err = p.Summary()
 		if err == nil || err.(Error).Condition != InvalidArgumentCondition {
-			t.Errorf("case %v Summary: No error or incorrect condition on invalid puzzle: %v", i, err)
+			t.Errorf("case %v Summary: No error or incorrect condition on invalid puzzle: %v",
+				i, err)
 		}
 		_, err = p.State()
 		if err == nil || err.(Error).Condition != InvalidArgumentCondition {
-			t.Errorf("case %v State: No error or incorrect condition on invalid puzzle: %v", i, err)
+			t.Errorf("case %v State: No error or incorrect condition on invalid puzzle: %v",
+				i, err)
 		}
 		_, err = p.Assign(Choice{1, 1})
 		if err == nil || err.(Error).Condition != InvalidArgumentCondition {
-			t.Errorf("case %v Assign: No error or incorrect condition on invalid puzzle: %v", i, err)
+			t.Errorf("case %v Assign: No error or incorrect condition on invalid puzzle: %v",
+				i, err)
 		}
 		_, err = p.Copy()
 		if err == nil || err.(Error).Condition != InvalidArgumentCondition {
-			t.Errorf("case %v Copy: No error or incorrect condition on invalid puzzle: %v", i, err)
+			t.Errorf("case %v Copy: No error or incorrect condition on invalid puzzle: %v",
+				i, err)
+		}
+	}
+
+	// test Hash on bad summaries
+	sumcases := []*Summary{
+		nil,
+		&Summary{},
+		&Summary{Geometry: "Square"},
+		&Summary{Geometry: "Square", SideLength: 12},
+		&Summary{Geometry: "Square", SideLength: 12, Values: make([]int, 100)},
+	}
+	for i, s := range sumcases {
+		_, err = s.Hash()
+		if err == nil || err.(Error).Condition != InvalidArgumentCondition {
+			t.Errorf("case %v Hash: No error or incorrect condition on invalid summary: %v",
+				i, err)
 		}
 	}
 }

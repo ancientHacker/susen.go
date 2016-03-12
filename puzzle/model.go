@@ -60,6 +60,7 @@
 package puzzle
 
 import (
+	"crypto/md5"
 	"fmt"
 )
 
@@ -179,6 +180,32 @@ func (p *Puzzle) allErrors(verbose bool) []Error {
 		}
 	}
 	return errs
+}
+
+// hash returns the current hash of a puzzle.
+func (p *Puzzle) hash() Signature {
+	return computeHash(p.mapping.geometry, p.allValues())
+}
+
+// hash also works on summaries.
+func (s *Summary) hash() Signature {
+	return computeHash(s.Geometry, s.Values)
+}
+
+// do the actual hashing work.  We hash the geometry name and the
+// values in case there are two different geometries that can use
+// the same value.
+func computeHash(geo string, vals []int) Signature {
+	glen, vlen := len(geo), len(vals)
+	bytes := make([]byte, glen+vlen)
+	for i, c := range geo {
+		bytes[i] = byte(c)
+	}
+	for i, v := range vals {
+		bytes[i+glen] = byte(v)
+	}
+	hash := md5.Sum(bytes)
+	return hash[0:md5.Size]
 }
 
 // summary returns the current summary of a puzzle.
@@ -420,6 +447,31 @@ Public operations on Puzzles: if you call these with a nil or
 zero Puzzle, you will get an error back.
 
 */
+
+type Signature []byte
+
+// Hash returns a Signature based on the puzzle's geometry and
+// content.  Two puzzles have the same Hash if and only if they
+// are identical.
+func (p *Puzzle) Hash() (Signature, error) {
+	if !p.isValid() {
+		return nil, argumentError(PuzzleAttribute, InvalidArgumentCondition, p)
+	}
+	return p.hash(), nil
+}
+
+// Hash returns a Signature based on the puzzle's geometry and
+// content.  Two signatures have the same Hash if and only if
+// their puzzles are identical.
+func (s *Summary) Hash() (Signature, error) {
+	if s == nil {
+		return nil, argumentError(SummaryAttribute, InvalidArgumentCondition, s)
+	}
+	if slen := s.SideLength; s.Geometry == "" || slen == 0 || len(s.Values) != slen*slen {
+		return nil, argumentError(SummaryAttribute, InvalidArgumentCondition, s)
+	}
+	return s.hash(), nil
+}
 
 // Summary returns the current summary of the puzzle.
 func (p *Puzzle) Summary() (*Summary, error) {
