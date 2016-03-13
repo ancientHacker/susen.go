@@ -23,6 +23,7 @@ import (
 	"github.com/ancientHacker/susen.go/Godeps/_workspace/src/github.com/jackc/pgx"
 	"github.com/ancientHacker/susen.go/puzzle"
 	"os"
+	"time"
 )
 
 /*
@@ -35,10 +36,10 @@ type dataFunction func(*pgx.Tx) error
 
 var (
 	upFunctions = []dataFunction{
-		insertPuzzles,
+		insertSamples,
 	}
 	downFunctions = []dataFunction{
-		deletePuzzles,
+		deleteSamples,
 	}
 )
 
@@ -105,13 +106,29 @@ func applyFunctions(fns []dataFunction) error {
 
 /*
 
-insert common puzzles
+insert sample puzzles in a special session
 
 */
 
+const SampleSessionName = "Sūsen Sample Session - not a user session"
+
 var (
-	puzzleSummaries = map[string]*puzzle.Summary{
-		"preload-1": &puzzle.Summary{
+	samplePuzzles = []*puzzle.Summary{
+		&puzzle.Summary{
+			Geometry:   puzzle.StandardGeometryName,
+			SideLength: 9,
+			Values: []int{
+				4, 0, 0, 0, 0, 3, 5, 0, 2,
+				0, 0, 9, 5, 0, 6, 3, 4, 0,
+				0, 0, 0, 0, 0, 0, 0, 0, 8,
+				0, 0, 0, 0, 3, 4, 8, 6, 0,
+				0, 0, 4, 6, 0, 5, 2, 0, 0,
+				0, 2, 8, 7, 9, 0, 0, 0, 0,
+				9, 0, 0, 0, 0, 0, 0, 0, 0,
+				0, 8, 7, 3, 0, 2, 9, 0, 0,
+				5, 0, 2, 9, 0, 0, 0, 0, 6,
+			}},
+		&puzzle.Summary{
 			Geometry:   puzzle.StandardGeometryName,
 			SideLength: 9,
 			Values: []int{
@@ -125,7 +142,7 @@ var (
 				6, 4, 0, 2, 0, 0, 0, 0, 0,
 				0, 3, 0, 9, 0, 1, 0, 8, 0,
 			}},
-		"preload-2": &puzzle.Summary{
+		&puzzle.Summary{
 			Geometry:   puzzle.StandardGeometryName,
 			SideLength: 9,
 			Values: []int{
@@ -139,7 +156,7 @@ var (
 				0, 0, 0, 0, 0, 0, 0, 6, 0,
 				4, 0, 0, 0, 1, 6, 0, 0, 3,
 			}},
-		"preload-3": &puzzle.Summary{
+		&puzzle.Summary{
 			Geometry:   puzzle.StandardGeometryName,
 			SideLength: 9,
 			Values: []int{
@@ -153,7 +170,7 @@ var (
 				3, 0, 0, 5, 0, 9, 7, 0, 0,
 				0, 0, 6, 0, 1, 0, 4, 2, 3,
 			}},
-		"preload-4": &puzzle.Summary{
+		&puzzle.Summary{
 			Geometry:   puzzle.StandardGeometryName,
 			SideLength: 9,
 			Values: []int{
@@ -167,7 +184,7 @@ var (
 				0, 2, 0, 3, 0, 9, 0, 0, 8,
 				0, 0, 0, 0, 0, 0, 0, 0, 0,
 			}},
-		"preload-5": &puzzle.Summary{
+		&puzzle.Summary{
 			Geometry:   puzzle.StandardGeometryName,
 			SideLength: 9,
 			Values: []int{
@@ -181,7 +198,7 @@ var (
 				0, 0, 0, 0, 0, 0, 5, 6, 0,
 				0, 2, 0, 0, 0, 0, 0, 0, 4,
 			}},
-		"preload-6": &puzzle.Summary{
+		&puzzle.Summary{
 			Geometry:   puzzle.RectangularGeometryName,
 			SideLength: 6,
 			Values: []int{
@@ -192,7 +209,7 @@ var (
 				5, 0, 0, 2, 1, 6,
 				6, 0, 0, 0, 0, 0,
 			}},
-		"preload-7": &puzzle.Summary{
+		&puzzle.Summary{
 			Geometry:   puzzle.RectangularGeometryName,
 			SideLength: 6,
 			Values: []int{
@@ -203,7 +220,7 @@ var (
 				0, 0, 4, 0, 0, 0,
 				0, 0, 0, 5, 1, 4,
 			}},
-		"preload-8": &puzzle.Summary{
+		&puzzle.Summary{
 			Geometry:   puzzle.RectangularGeometryName,
 			SideLength: 12,
 			Values: []int{
@@ -220,7 +237,7 @@ var (
 				2, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 11,
 				6, 11, 12, 0, 0, 0, 0, 0, 3, 0, 9, 4,
 			}},
-		"preload-9": &puzzle.Summary{
+		&puzzle.Summary{
 			Geometry:   puzzle.RectangularGeometryName,
 			SideLength: 12,
 			Values: []int{
@@ -238,59 +255,102 @@ var (
 				0, 0, 9, 0, 0, 0, 0, 0, 0, 7, 12, 0,
 			}},
 	}
+	sampleHashes [][]byte // see init
+	sampleNames  []string // see init
 )
 
-// Insert or update the common puzzles
-func insertPuzzles(tx *pgx.Tx) error {
-	// because we are using psql 9.4, we can't use conflict
-	// guards to prevent errors on multiple inserts, so first we
-	// collect all the existing common puzzles
-	rows, err := tx.Query("SELECT puzzleId FROM puzzles "+"WHERE sessionID = $1", "common")
-	if err != nil {
-		return err
-	}
-	present := make(map[string]bool)
-	for rows.Next() {
-		var puzzleId string
-		err := rows.Scan(&puzzleId)
+// initialize the hashes and names from the sample puzzles
+func init() {
+	sampleHashes = make([][]byte, len(samplePuzzles))
+	for i := range samplePuzzles {
+		hash, err := samplePuzzles[i].Hash()
 		if err != nil {
-			return err
+			panic(fmt.Errorf("Can't happen! Sample summary %d is invalid!", i))
 		}
-		if puzzleSummaries[puzzleId] != nil {
-			present[puzzleId] = true
+		sampleHashes[i] = []byte(hash)
+	}
+	sampleNames = make([]string, len(samplePuzzles))
+	for i := range samplePuzzles {
+		sampleNames[i] = fmt.Sprintf("sample-%d", i+1)
+	}
+}
+
+// Create and insert the sample puzzles and sample session
+func insertSamples(tx *pgx.Tx) error {
+	// idempotency: if the sample session already exists, we are done
+	var count int64
+	row := tx.QueryRow("SELECT COUNT(*) FROM sessions "+
+		"WHERE sessionId = $1", SampleSessionName)
+	if err := row.Scan(&count); err != nil {
+		return fmt.Errorf("Database error looking for session %q: %v", SampleSessionName, err)
+	}
+	if count > 0 {
+		return nil
+	}
+
+	// get the timestamp of this load
+	now := time.Now()
+
+	// first save the puzzles
+	for i, sum := range samplePuzzles {
+		values := make([]int32, len(sum.Values))
+		for i, v := range sum.Values {
+			values[i] = int32(v) // use 4-byte ints in database
+		}
+		_, err := tx.Exec(
+			"INSERT INTO puzzles (puzzleId, geometry, sideLength, valueList, created) "+
+				"VALUES ($1, $2, $3, $4, $5)",
+			sampleHashes[i], sum.Geometry, int32(sum.SideLength), values, now)
+		if err != nil {
+			return fmt.Errorf("Database error saving sample puzzle %d: %v", i, err)
 		}
 	}
 
-	// then we save any missing commmon puzzles in the database
-	for key, val := range puzzleSummaries {
-		if !present[key] {
-			values := make([]int32, len(val.Values))
-			for i, v := range val.Values {
-				values[i] = int32(v) // use 4-byte ints in database
-			}
-			_, err := tx.Exec(
-				"INSERT INTO puzzles (sessionId, puzzleId, geometry, sideLength, valueList) "+
-					"VALUES ($1, $2, $3, $4, $5) "+
-					// "ON CONFLICT (sessionId, puzzleId) DO NOTHING " // requires pgsql 9.5
-					";",
-				"common", key, val.Geometry, int32(val.SideLength), values)
-			if err != nil {
-				return err
-			}
+	// next save the session
+	_, err := tx.Exec(
+		"INSERT INTO sessions (sessionId, created, updated) "+
+			"VALUES ($1, $2, $3)",
+		SampleSessionName, now, now)
+	if err != nil {
+		return fmt.Errorf("Database error saving sample session: %v", err)
+	}
+
+	// next save the session entries
+	for i := range samplePuzzles {
+		_, err := tx.Exec(
+			"INSERT INTO sessionPuzzles (sessionId, puzzleId, puzzleName, lastWorked) "+
+				"VALUES ($1, $2, $3, $4)",
+			SampleSessionName, sampleHashes[i], sampleNames[i], now)
+		if err != nil {
+			return fmt.Errorf("Database error saving sample session puzzle %d: %v", i, err)
 		}
 	}
+
 	return nil
 }
 
 // Delete the common puzzles
-func deletePuzzles(tx *pgx.Tx) error {
-	// remove the puzzle summaries from the database
-	for key := range puzzleSummaries {
+func deleteSamples(tx *pgx.Tx) error {
+	// first remove the puzzle summaries from the database
+	_, err := tx.Exec(
+		"DELETE from sessionPuzzles where sessionId = $1", SampleSessionName)
+	if err != nil {
+		return fmt.Errorf("Database error deleting sample session: %v", err)
+	}
+
+	// then remove the session
+	_, err = tx.Exec(
+		"DELETE from sessions where sessionId = $1", SampleSessionName)
+	if err != nil {
+		return fmt.Errorf("Database error deleting sample session: %v", err)
+	}
+
+	// then remove the puzzles themselves
+	for i, hash := range sampleHashes {
 		_, err := tx.Exec(
-			"DELETE from puzzles where sessionId = $1 and puzzleId = $2",
-			"common", key)
+			"DELETE from puzzles where puzzleId = $1", hash)
 		if err != nil {
-			return err
+			return fmt.Errorf("Database error deleting sample puzzle %d: %v", i, err)
 		}
 	}
 	return nil
