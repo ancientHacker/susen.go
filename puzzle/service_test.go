@@ -304,17 +304,24 @@ func TestAssignHandler(t *testing.T) {
 		}
 		up2, err := p2.Assign(choice)
 		if err != nil {
-			t.Fatalf("Case %d: Failed to assign choice to p1: %v", i, err)
+			t.Fatalf("Case %d: Failed to assign choice to p2: %v", i, err)
 		}
 
 		handler := func(w http.ResponseWriter, r *http.Request) {
-			up1, err := p1.AssignHandler(w, r)
-			if err != nil {
+			ch1, update, err := p1.AssignHandler(w, r)
+			if update == nil {
 				t.Fatalf("Case %d: Failed to assign choice to p1: %v", i, err)
 			}
-			if !reflect.DeepEqual(up1, up2) {
-				t.Errorf("Case %d: Result of assign to p1 (%+v) differs from p2 (%+v)",
-					i, up1, up2)
+			if err != nil {
+				t.Fatalf("Case %d: Error on assignment to p1: %v", i, err)
+			}
+			if !reflect.DeepEqual(p1, p2) {
+				t.Errorf("Case %d: Identical puzzles differ after assignment:\n%v\n%v",
+					i, p1, p2)
+			}
+			if !reflect.DeepEqual(ch1, &choice) {
+				t.Errorf("Case %d: Encoded (%v) and returned (%v) choice differ!",
+					i, ch1, choice)
 			}
 		}
 		ts := httptest.NewServer(http.HandlerFunc(handler))
@@ -354,9 +361,12 @@ func TestAssignHandlerErrors(t *testing.T) {
 	}
 
 	handler := func(w http.ResponseWriter, r *http.Request) {
-		_, err := p.AssignHandler(w, r)
-		if err == nil {
+		c, update, err := p.AssignHandler(w, r)
+		if update != nil {
 			t.Errorf("Successful assignment!")
+		}
+		if c == nil && err.(Error).Attribute != DecodeAttribute {
+			t.Errorf("No decode error but no returned choice")
 		}
 	}
 	ts := httptest.NewServer(http.HandlerFunc(handler))
@@ -385,6 +395,26 @@ func TestAssignHandlerErrors(t *testing.T) {
 	bytes, err = json.Marshal(Choice{14, 2})
 	if err != nil {
 		t.Fatalf("Failed to encode Choice{14, 2}: %v", err)
+	}
+	r, e = http.Post(ts.URL, "application/json", strings.NewReader(string(bytes)))
+	if e != nil {
+		t.Logf("Post body: %s\n", bytes)
+		t.Fatalf("Request error: %v", e)
+	}
+	if r.StatusCode != http.StatusBadRequest {
+		t.Errorf("Status was %v, expected %v", r.StatusCode, http.StatusBadRequest)
+		t.Logf("Headers are: %v\n", r.Header)
+	}
+	b, e = ioutil.ReadAll(r.Body)
+	r.Body.Close()
+	if e != nil {
+		t.Logf("Response body: %s\n", b)
+		t.Fatalf("Read error on result: %v", e)
+	}
+
+	bytes, err = json.Marshal(Choice{1, 1})
+	if err != nil {
+		t.Fatalf("Failed to encode Choice{1, 1}: %v", err)
 	}
 	r, e = http.Post(ts.URL, "application/json", strings.NewReader(string(bytes)))
 	if e != nil {

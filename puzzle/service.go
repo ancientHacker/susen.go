@@ -108,36 +108,36 @@ Puzzle Updates
 */
 
 // AssignHandler is a POST handler that assigns a posted choice
-// to a puzzle.  The poster and the caller both get the Content
-// object returned from the assignment (or the error).
+// to a puzzle.  The poster gets the Content object returned from
+// the assignment (or an error).  The caller gets posted Choice
+// as well as the response objects.  (If we can't decode the
+// posted choice, we return a null choice to the caller.)
 //
-// If we can't decode the posted choice, we send a 400 reponse
-// and return the error to the caller.
-//
-// If we can't encode the response to the client (which should
-// never happen), then the client gets an error response and the
-// golang caller gets both the update and the encoding Error (as
-// a signal that the client didn't get the update).
-func (p *Puzzle) AssignHandler(w http.ResponseWriter, r *http.Request) (*Content, error) {
+// If the assignment succeds, but we can't encode the response to
+// the client (which should never happen), the caller can
+// determine this by noticing that the puzzle was updated but an
+// error was returned.
+func (p *Puzzle) AssignHandler(w http.ResponseWriter, r *http.Request) (*Choice, *Content, error) {
 	if !p.isValid() {
-		return nil, writeError(noPuzzleError, ErrorData{r.URL.Path, "No puzzle"}, w, r)
+		return nil, nil, writeError(noPuzzleError, ErrorData{r.URL.Path, "No puzzle"}, w, r)
 	}
 	dec := json.NewDecoder(r.Body)
 	var choice Choice
 	e := dec.Decode(&choice)
 	if e != nil {
-		return nil, writeError(requestDecodingError, ErrorData{e.Error()}, w, r)
+		return nil, nil, writeError(requestDecodingError, ErrorData{e.Error()}, w, r)
 	}
 	update, e := p.Assign(choice)
 	if e != nil {
 		err, ok := e.(Error)
 		if !ok {
-			return nil, writeError(errorFormatError, ErrorData{"AssignHandler", e.Error()}, w, r)
+			e = writeError(errorFormatError, ErrorData{"AssignHandler", e.Error()}, w, r)
+			return &choice, nil, err
 		}
 		err.Message = err.Error()
-		return nil, writeJSON(err, http.StatusBadRequest, w, r)
+		return &choice, nil, writeJSON(err, http.StatusBadRequest, w, r)
 	}
-	return update, writeJSON(update, http.StatusOK, w, r)
+	return &choice, update, writeJSON(update, http.StatusOK, w, r)
 }
 
 /*

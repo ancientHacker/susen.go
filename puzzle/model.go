@@ -448,6 +448,9 @@ zero Puzzle, you will get an error back.
 
 */
 
+// A Signature is a content hash on a puzzle.  Two puzzles have
+// the same geometry and assigned values if and only if they have
+// the same signature.
 type Signature []byte
 
 // Hash returns a Signature based on the puzzle's geometry and
@@ -492,11 +495,11 @@ func (p *Puzzle) State() (*Content, error) {
 	return p.state(), nil
 }
 
-// Assign a choice to a puzzle, returning an Content for the
-// puzzle.  If the puzzle is already unsolvable, the target
-// square is already assigned, or the assigned index or value are
-// out of range, the puzzle isn't updated and an Error is
-// returned.
+// Assign a choice to a puzzle, returning an update to the
+// puzzle's State.  If the puzzle is already unsolvable, the
+// target square is already assigned, or the assigned index or
+// value are out of range, the puzzle isn't updated and an Error
+// is returned.
 func (p *Puzzle) Assign(choice Choice) (*Content, error) {
 	if !p.isValid() {
 		return nil, argumentError(PuzzleAttribute, InvalidArgumentCondition, p)
