@@ -2810,32 +2810,32 @@ func TestHash(t *testing.T) {
 		hashTestcase{
 			map[string]string{"name": "square 4x4"},
 			StandardGeometryName, 4,
-			Signature{36, 25, 154, 113, 50, 220, 170, 132, 230, 153, 179, 80, 201, 75, 154, 7},
+			Signature("24199A7132DCAA84E699B350C94B9A07"),
 		},
 		hashTestcase{
 			map[string]string{"name": "square 9x9"},
 			StandardGeometryName, 9,
-			Signature{186, 202, 221, 133, 159, 188, 153, 17, 242, 52, 205, 83, 199, 37, 65, 101},
+			Signature("BACADD859FBC9911F234CD53C7254165"),
 		},
 		hashTestcase{
 			map[string]string{"name": "square 16x16"},
 			StandardGeometryName, 16,
-			Signature{110, 246, 16, 214, 165, 180, 90, 1, 98, 87, 49, 211, 189, 220, 64, 184},
+			Signature("6EF610D6A5B45A01625731D3BDDC40B8"),
 		},
 		hashTestcase{
 			map[string]string{"name": "rectangle 6x6"},
 			RectangularGeometryName, 6,
-			Signature{126, 61, 206, 17, 219, 243, 122, 56, 120, 167, 202, 132, 157, 31, 5, 136},
+			Signature("7E3DCE11DBF37A3878A7CA849D1F0588"),
 		},
 		hashTestcase{
 			map[string]string{"name": "rectangle 12x12"},
 			RectangularGeometryName, 12,
-			Signature{180, 238, 68, 31, 172, 115, 72, 116, 53, 142, 135, 155, 174, 207, 77, 113},
+			Signature("B4EE441FAC734874358E879BAECF4D71"),
 		},
 		hashTestcase{
 			map[string]string{"name": "rectangle 20x20"},
 			RectangularGeometryName, 20,
-			Signature{173, 148, 82, 68, 155, 151, 33, 52, 191, 69, 134, 151, 166, 92, 82, 225},
+			Signature("AD9452449B972134BF458697A65C52E1"),
 		},
 	}
 	for _, tc := range testcases {

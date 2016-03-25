@@ -255,19 +255,19 @@ var (
 				0, 0, 9, 0, 0, 0, 0, 0, 0, 7, 12, 0,
 			}},
 	}
-	sampleHashes [][]byte // see init
+	sampleHashes []string // see init
 	sampleNames  []string // see init
 )
 
 // initialize the hashes and names from the sample puzzles
 func init() {
-	sampleHashes = make([][]byte, len(samplePuzzles))
+	sampleHashes = make([]string, len(samplePuzzles))
 	for i := range samplePuzzles {
 		hash, err := samplePuzzles[i].Hash()
 		if err != nil {
 			panic(fmt.Errorf("Can't happen! Sample summary %d is invalid!", i))
 		}
-		sampleHashes[i] = []byte(hash)
+		sampleHashes[i] = string(hash)
 	}
 	sampleNames = make([]string, len(samplePuzzles))
 	for i := range samplePuzzles {

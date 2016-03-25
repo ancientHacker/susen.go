@@ -205,7 +205,7 @@ func computeHash(geo string, vals []int) Signature {
 		bytes[i+glen] = byte(v)
 	}
 	hash := md5.Sum(bytes)
-	return hash[0:md5.Size]
+	return Signature(fmt.Sprintf("%X", hash[0:md5.Size]))
 }
 
 // summary returns the current summary of a puzzle.
@@ -451,14 +451,14 @@ zero Puzzle, you will get an error back.
 // A Signature is a content hash on a puzzle.  Two puzzles have
 // the same geometry and assigned values if and only if they have
 // the same signature.
-type Signature []byte
+type Signature string
 
 // Hash returns a Signature based on the puzzle's geometry and
 // content.  Two puzzles have the same Hash if and only if they
 // are identical.
 func (p *Puzzle) Hash() (Signature, error) {
 	if !p.isValid() {
-		return nil, argumentError(PuzzleAttribute, InvalidArgumentCondition, p)
+		return "", argumentError(PuzzleAttribute, InvalidArgumentCondition, p)
 	}
 	return p.hash(), nil
 }
@@ -468,10 +468,10 @@ func (p *Puzzle) Hash() (Signature, error) {
 // their puzzles are identical.
 func (s *Summary) Hash() (Signature, error) {
 	if s == nil {
-		return nil, argumentError(SummaryAttribute, InvalidArgumentCondition, s)
+		return "", argumentError(SummaryAttribute, InvalidArgumentCondition, s)
 	}
 	if slen := s.SideLength; s.Geometry == "" || slen == 0 || len(s.Values) != slen*slen {
-		return nil, argumentError(SummaryAttribute, InvalidArgumentCondition, s)
+		return "", argumentError(SummaryAttribute, InvalidArgumentCondition, s)
 	}
 	return s.hash(), nil
 }
