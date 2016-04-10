@@ -1,5 +1,5 @@
 -- drop the dependent tables first
-drop table sessionPuzzles;
+drop table sessionEntries;
 drop table solutions;
 -- then drop the base tables
 drop table sessions;

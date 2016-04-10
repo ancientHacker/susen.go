@@ -45,7 +45,7 @@ func EnsureData() error {
 	return nil
 }
 
-func ReinitializeData() error {
+func RemoveData() error {
 	// tear down existing database
 	version, err := SchemaVersion()
 	if err != nil {
@@ -56,19 +56,6 @@ func ReinitializeData() error {
 			return fmt.Errorf("Couldn't remove tables: %v", err)
 		}
 	}
-	if err := SchemaUp(); err != nil {
-		return fmt.Errorf("Couldn't install data schema: %v", err)
-	}
-	version, err = SchemaVersion()
-	if err != nil {
-		return fmt.Errorf("Couldn't get upgraded data schema version: %v", err)
-	}
-	if version == 0 {
-		return fmt.Errorf("Data schema still at version 0, shouldn't be.")
-	}
-	if err := DataUp(); err != nil {
-		return fmt.Errorf("Couldn't load data: %v", err)
-	}
 	return nil
 }
 
@@ -77,6 +64,13 @@ func ReinitializeAll() error {
 	if err := ClearCache(); err != nil {
 		return fmt.Errorf("Couldn't clear cache: %v", err)
 	}
-	// clear and reload database
-	return ReinitializeData()
+	// clear database
+	if err := RemoveData(); err != nil {
+		return fmt.Errorf("Couldn't clear database: %v", err)
+	}
+	// reload database
+	if err := EnsureData(); err != nil {
+		return fmt.Errorf("Couldn't load database: %v", err)
+	}
+	return nil
 }

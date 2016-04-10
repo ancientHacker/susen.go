@@ -19,15 +19,23 @@
 package main
 
 import (
-	"github.com/ancientHacker/susen.go/dbprep"
 	"os"
 	"path/filepath"
 	"testing"
 )
 
-func TestClearStorage(t *testing.T) {
+func TestDoit(t *testing.T) {
 	os.Setenv("DBPREP_PATH", filepath.Join("..", "..", "dbprep"))
-	if err := dbprep.ReinitializeAll(); err != nil {
-		t.Errorf("%v", err)
+	*clear = false
+	if err := doit(); err != nil {
+		t.Errorf("Failed to reinitialize: %v", err)
+	}
+	*clear = true
+	if err := doit(); err != nil {
+		t.Errorf("Failed to clear: %v", err)
+	}
+	*clear = false
+	if err := doit(); err != nil {
+		t.Errorf("Failed to initialize after clear: %v", err)
 	}
 }

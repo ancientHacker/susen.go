@@ -308,9 +308,9 @@ func insertSamples(tx *pgx.Tx) error {
 
 	// next save the session
 	_, err := tx.Exec(
-		"INSERT INTO sessions (sessionId, created, updated) "+
-			"VALUES ($1, $2, $3)",
-		SampleSessionName, now, now)
+		"INSERT INTO sessions (sessionId, created, updated, active) "+
+			"VALUES ($1, $2, $3, $4)",
+		SampleSessionName, now, now, sampleNames[0])
 	if err != nil {
 		return fmt.Errorf("Database error saving sample session: %v", err)
 	}
@@ -318,7 +318,7 @@ func insertSamples(tx *pgx.Tx) error {
 	// next save the session entries
 	for i := range samplePuzzles {
 		_, err := tx.Exec(
-			"INSERT INTO sessionPuzzles (sessionId, puzzleId, puzzleName, lastWorked) "+
+			"INSERT INTO sessionEntries (sessionId, puzzleId, puzzleName, lastView) "+
 				"VALUES ($1, $2, $3, $4)",
 			SampleSessionName, sampleHashes[i], sampleNames[i], now)
 		if err != nil {
@@ -333,7 +333,7 @@ func insertSamples(tx *pgx.Tx) error {
 func deleteSamples(tx *pgx.Tx) error {
 	// first remove the puzzle summaries from the database
 	_, err := tx.Exec(
-		"DELETE from sessionPuzzles where sessionId = $1", SampleSessionName)
+		"DELETE from sessionEntries where sessionId = $1", SampleSessionName)
 	if err != nil {
 		return fmt.Errorf("Database error deleting sample session: %v", err)
 	}

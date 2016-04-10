@@ -141,7 +141,7 @@ func TestEnsureData(t *testing.T) {
 	}
 }
 
-func TestReinitializeData(t *testing.T) {
+func TestRemoveData(t *testing.T) {
 	inVersion, err := SchemaVersion()
 	if err != nil {
 		t.Fatalf("Coun't get schema inVersion: %v", err)
@@ -149,21 +149,18 @@ func TestReinitializeData(t *testing.T) {
 	if inVersion != 0 {
 		t.Fatalf("Starting version was not 0: %v", inVersion)
 	}
-	if err := ReinitializeData(); err != nil {
+	if err := EnsureData(); err != nil {
+		t.Fatalf("Couldn't EnsureData: %v", err)
+	}
+	if err := RemoveData(); err != nil {
 		t.Errorf("%v", err)
 	}
 	outVersion, err := SchemaVersion()
 	if err != nil {
 		t.Fatalf("Couldn't get schema outVersion: %v", err)
 	}
-	if inVersion == outVersion {
-		t.Errorf("inVersion == outVersion: %v", inVersion)
-	}
-	if err := DataDown(); err != nil {
-		t.Errorf("Data down failed: %v", err)
-	}
-	if err := SchemaDown(); err != nil {
-		t.Errorf("Schema down failed: %v", err)
+	if outVersion != 0 {
+		t.Errorf("outVersion != 0: %v", outVersion)
 	}
 }
 

@@ -20,47 +20,41 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"github.com/ancientHacker/susen.go/dbprep"
 	"log"
+	"os"
 )
 
+var clear = flag.Bool("clear", false, "Clear but don't reload the data")
+
 func main() {
-	log.Printf("Removing existing data storage and cache...")
-	if err := clearStorage(); err != nil {
-		log.Fatalf("Couldn't clear storage: %v", err)
+	flag.Parse()
+	if flag.NArg() > 0 {
+		fmt.Fprintf(os.Stderr, "usage: %s [-clear]\n", os.Args[0])
+		flag.PrintDefaults()
+		log.Fatalf("Usage error.")
 	}
-	log.Printf("Database re-initialized.")
+	if err := doit(); err != nil {
+		log.Fatalf("Fatal error: %v", err)
+	}
 }
 
-func clearStorage() error {
-	// clear cache
+func doit() error {
+	log.Printf("Removing existing data storage and cache...")
 	if err := dbprep.ClearCache(); err != nil {
 		return fmt.Errorf("Couldn't clear cache: %v", err)
 	}
-
-	// tear down existing database
-	version, err := dbprep.SchemaVersion()
-	if err != nil {
-		return fmt.Errorf("Couldn't get initial data schema version: %v", err)
+	if err := dbprep.RemoveData(); err != nil {
+		return fmt.Errorf("Couldn't clear database storage: %v", err)
 	}
-	if version > 0 {
-		if err := dbprep.SchemaDown(); err != nil {
-			return fmt.Errorf("Couldn't remove database: %v", err)
+	if !*clear {
+		log.Printf("Intializing data storage...")
+		if err := dbprep.EnsureData(); err != nil {
+			return fmt.Errorf("Couldn't clear storage: %v", err)
 		}
 	}
-	if err := dbprep.SchemaUp(); err != nil {
-		return fmt.Errorf("Couldn't get data schema version: %v", err)
-	}
-	version, err = dbprep.SchemaVersion()
-	if err != nil {
-		return fmt.Errorf("Couldn't get upgraded data schema version: %v", err)
-	}
-	if version == 0 {
-		return fmt.Errorf("Database schema still at version 0, shouldn't be.")
-	}
-	if err := dbprep.DataUp(); err != nil {
-		return fmt.Errorf("Couldn't load base data: %v", err)
-	}
+	log.Printf("Done.")
 	return nil
 }
