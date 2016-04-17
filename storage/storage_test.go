@@ -19,53 +19,245 @@
 package storage
 
 import (
-	"bytes"
-	"log"
+	"fmt"
+	"github.com/ancientHacker/susen.go/dbprep"
+	"github.com/ancientHacker/susen.go/puzzle"
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 )
 
-type tLogger struct {
-	t   *testing.T
-	log bytes.Buffer
-}
-
-func (t *tLogger) Write(p []byte) (n int, e error) {
-	n, e = t.log.Write(p)
-	t.t.Log(string(p[:n-1]))
-	return
-}
-
-func setLog(t *testing.T) {
-	if !testing.Short() {
-		log.SetOutput(&tLogger{t: t})
+func TestMain(m *testing.M) {
+	os.Setenv("DBPREP_PATH", filepath.Join("..", "dbprep"))
+	if err := dbprep.ReinitializeAll(); err != nil {
+		panic(fmt.Errorf("Failed to reinitialize data at startup: %v", err))
 	}
+	defer func(code int) {
+		if code == 0 {
+			if err := dbprep.ReinitializeAll(); err != nil {
+				panic(fmt.Errorf("Failed to reinitialize data at teardown: %v", err))
+			}
+		}
+		os.Exit(code)
+	}(m.Run())
 }
 
 func TestConnect(t *testing.T) {
-	setLog(t)
 	os.Setenv("DBPREP_PATH", filepath.Join("..", "dbprep"))
-	if err := Connect(); err != nil {
+	if cid, dbid, err := Connect(); err != nil {
 		t.Errorf("Couldn't connect to storage: %v", err)
+	} else if cid != rdUrl || dbid != pgUrl {
+		t.Errorf("Connected to wrong cache (%s) or wrong database (%s)", cid, dbid)
 	}
 	Close()
 }
 
-func TestLoadCommon(t *testing.T) {
-	setLog(t)
+func TestSampleSession(t *testing.T) {
 	os.Setenv("DBPREP_PATH", filepath.Join("..", "dbprep"))
-	if err := Connect(); err != nil {
+	if _, _, err := Connect(); err != nil {
 		t.Fatalf("Couldn't connect to storage: %v", err)
 	}
-	sums1 := CommonSummaries()
-	if len(sums1) == 0 {
-		t.Errorf("Didn't get any common summaries.")
+	ss := loadSampleSession()
+	if len(ss.entries) == 0 {
+		t.Errorf("No sample session entries")
 	}
-	sums2 := CommonSummaries()
-	if reflect.ValueOf(sums2).Pointer() != reflect.ValueOf(sums1).Pointer() {
-		t.Errorf("Second call to CommonSummaries returned a different pointer than first.")
+	ts := &Session{sid: "Test Session 1", active: -1}
+	ts.initializeFromSample()
+	if len(ts.entries) != len(ss.entries) {
+		t.Fatalf("Test session has %d entries, should be %d", len(ts.entries), len(ss.entries))
+	}
+	if !reflect.DeepEqual(ts.entries, ss.entries) {
+		t.Errorf("Test session entries differ from sample session entries:")
+		for i := range ts.entries {
+			if !reflect.DeepEqual(ts.entries[i], ss.entries[i]) {
+				t.Errorf("Sample %d: Got: %+v, Expected:%+v",
+					i, *ts.entries[i], *ss.entries[i])
+			}
+		}
 	}
 	Close()
+}
+
+var (
+	sid                  = "test session with known name"
+	puzzle1Id, puzzle7Id string
+)
+
+func TestSessionOpsPhase1(t *testing.T) {
+	os.Setenv("DBPREP_PATH", filepath.Join("..", "dbprep"))
+	if _, _, err := Connect(); err != nil {
+		t.Fatalf("Couldn't connect to storage: %v", err)
+	}
+
+	// load a non-existent session, should be the sample
+	ts := LoadSession(sid)
+	if ts.active < 0 || ts.active >= len(ts.entries) {
+		t.Errorf("No active puzzle (%d)", ts.active)
+	}
+	if ts.entries[ts.active].PuzzleName != "sample-1" {
+		t.Errorf("Wrong active puzzle: %q", ts.entries[ts.active].PuzzleName)
+	}
+	puzzle1Id = ts.entries[ts.active].PuzzleId
+	// find and switch to sample-7 (rectangular)
+	for _, se := range ts.entries {
+		if se.PuzzleName == "sample-7" {
+			puzzle7Id = se.PuzzleId
+			ts.SelectPuzzle(se.PuzzleId)
+		}
+	}
+	if ts.entries[ts.active].PuzzleName != "sample-7" {
+		t.Errorf("Wrong selected puzzle: %q", ts.entries[ts.active].PuzzleName)
+	}
+	if len(ts.Info.Choices) > 0 {
+		t.Errorf("Sample puzzle 7 has %d choices", len(ts.Info.Choices))
+	}
+	choice0 := puzzle.Choice{Index: 1, Value: 2}
+	_, err := ts.Puzzle.Assign(choice0)
+	if err != nil {
+		t.Errorf("Failed first assign to sample-7: %v", err)
+	}
+	ts.AddStep(choice0)
+	choice1 := puzzle.Choice{Index: 6, Value: 3}
+	_, err = ts.Puzzle.Assign(choice1)
+	if err != nil {
+		t.Errorf("Failed second assign to sample-7: %v", err)
+	}
+	ts.AddStep(choice1)
+	if count := len(ts.entries[ts.active].Choices); count != 4 {
+		t.Errorf("Sample puzzle 7 has %d flattened choices", count)
+	}
+	sum1, err := ts.Puzzle.Summary()
+	if err != nil {
+		t.Fatalf("Failed to summarize sample puzzle 7: %v", err)
+	}
+	ts.SelectPuzzle(puzzle1Id)
+	if count := len(ts.entries[ts.active].Choices); count != 0 {
+		t.Errorf("Sample puzzle 1 has %d flattened choices", count)
+	}
+	ts.SelectPuzzle(puzzle7Id)
+	if count := len(ts.entries[ts.active].Choices); count != 4 {
+		t.Errorf("Sample puzzle 7 has %d flattened choices", count)
+	}
+	if len(ts.Info.Choices) != 2 {
+		t.Errorf("Sample puzzle 7 has %d choices", len(ts.Info.Choices))
+	}
+	sum2, err := ts.Puzzle.Summary()
+	if err != nil {
+		t.Fatalf("Failed to summarize second sample puzzle 7: %v", err)
+	}
+	if !reflect.DeepEqual(sum1, sum2) {
+		t.Errorf("Old and new puzzle 7 are different")
+	}
+}
+
+func TestSessionOpsPhase2(t *testing.T) {
+	os.Setenv("DBPREP_PATH", filepath.Join("..", "dbprep"))
+	if _, _, err := Connect(); err != nil {
+		t.Fatalf("Couldn't connect to storage: %v", err)
+	}
+
+	// the session from the first run
+	ts := LoadSession(sid)
+	if ts.active < 0 || ts.active >= len(ts.entries) {
+		t.Errorf("No active puzzle (%d)", ts.active)
+	}
+	if ts.entries[ts.active].PuzzleName != "sample-7" {
+		t.Errorf("Wrong selected puzzle: %q", ts.entries[ts.active].PuzzleName)
+	}
+	if len(ts.Info.Choices) != 2 {
+		t.Errorf("Sample puzzle 7 has %d choices", len(ts.Info.Choices))
+	}
+	ts.SelectPuzzle(puzzle1Id)
+	if count := len(ts.entries[ts.active].Choices); count != 0 {
+		t.Errorf("Sample puzzle 1 has %d flattened choices", count)
+	}
+	ts.SelectPuzzle(puzzle7Id)
+	if count := len(ts.entries[ts.active].Choices); count != 4 {
+		t.Errorf("Sample puzzle 7 has %d flattened choices", count)
+	}
+}
+
+func TestSessionOpsPhase3(t *testing.T) {
+	os.Setenv("DBPREP_PATH", filepath.Join("..", "dbprep"))
+	if _, _, err := Connect(); err != nil {
+		t.Fatalf("Couldn't connect to storage: %v", err)
+	}
+
+	// the session from the first run
+	ts := LoadSession(sid)
+	if ts.active < 0 || ts.active >= len(ts.entries) {
+		t.Errorf("No active puzzle (%d)", ts.active)
+	}
+	if ts.entries[ts.active].PuzzleName != "sample-7" {
+		t.Errorf("Wrong selected puzzle: %q", ts.entries[ts.active].PuzzleName)
+	}
+	if len(ts.Info.Choices) != 2 {
+		t.Errorf("Sample puzzle 7 has %d choices", len(ts.Info.Choices))
+	}
+	ts.RemoveStep()
+	if count := len(ts.entries[ts.active].Choices); count != 2 {
+		t.Errorf("After remove, there are %d flattened choices", count)
+	}
+	if len(ts.Info.Choices) != 1 {
+		t.Errorf("After remove, there are %d choices", len(ts.Info.Choices))
+	}
+	ts.RemoveAllSteps()
+	if count := len(ts.entries[ts.active].Choices); count != 0 {
+		t.Errorf("After remove, there are %d flattened choices", count)
+	}
+	if len(ts.Info.Choices) != 0 {
+		t.Errorf("After remove, there are %d choices", len(ts.Info.Choices))
+	}
+}
+
+func TestSessionOpsPhase4(t *testing.T) {
+	os.Setenv("DBPREP_PATH", filepath.Join("..", "dbprep"))
+	if _, _, err := Connect(); err != nil {
+		t.Fatalf("Couldn't connect to storage: %v", err)
+	}
+
+	// the session from the first run
+	ts := LoadSession(sid)
+	if ts.active < 0 || ts.active >= len(ts.entries) {
+		t.Errorf("No active puzzle (%d)", ts.active)
+	}
+	if ts.entries[ts.active].PuzzleName != "sample-7" {
+		t.Errorf("Wrong selected puzzle: %q", ts.entries[ts.active].PuzzleName)
+	}
+	if len(ts.Info.Choices) != 0 {
+		t.Errorf("Sample puzzle 7 has %d choices", len(ts.Info.Choices))
+	}
+	ts.SelectPuzzle(puzzle1Id)
+	if count := len(ts.entries[ts.active].Choices); count != 0 {
+		t.Errorf("Sample puzzle 1 has %d flattened choices", count)
+	}
+	ts.SelectPuzzle(puzzle7Id)
+	if count := len(ts.entries[ts.active].Choices); count != 0 {
+		t.Errorf("Sample puzzle 7 has %d flattened choices", count)
+	}
+}
+
+func TestSelectPuzzle(t *testing.T) {
+	os.Setenv("DBPREP_PATH", filepath.Join("..", "dbprep"))
+	if _, _, err := Connect(); err != nil {
+		t.Fatalf("Couldn't connect to storage: %v", err)
+	}
+
+	ts := LoadSession(sid)
+	ts.SelectPuzzle("SAMPLE-3")
+	if ts.Info.Name != "sample-3" {
+		t.Errorf("Failed to select uppercase puzzle name!")
+	}
+	ts.SelectPuzzle(strings.ToLower(ts.Info.PuzzleId))
+	if ts.Info.Name != "sample-3" {
+		t.Errorf("Failed to select lowercase puzzle id!")
+	}
+	defer func() {
+		if recover() == nil {
+			t.Errorf("Didn't panic on select of non-puzzle")
+		}
+	}()
+	ts.SelectPuzzle("this is not an actual puzzlen name or id!!")
 }

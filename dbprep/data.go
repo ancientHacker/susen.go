@@ -310,7 +310,7 @@ func insertSamples(tx *pgx.Tx) error {
 	_, err := tx.Exec(
 		"INSERT INTO sessions (sessionId, created, updated, active) "+
 			"VALUES ($1, $2, $3, $4)",
-		SampleSessionName, now, now, sampleNames[0])
+		SampleSessionName, now, now, sampleHashes[0])
 	if err != nil {
 		return fmt.Errorf("Database error saving sample session: %v", err)
 	}
