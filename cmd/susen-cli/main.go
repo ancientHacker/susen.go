@@ -20,13 +20,13 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"github.com/ancientHacker/susen.go/puzzle"
 	"github.com/ancientHacker/susen.go/storage"
 	"io"
 	"log"
 	"os"
-	"os/signal"
 	"sort"
 	"strconv"
 	"strings"
@@ -34,132 +34,56 @@ import (
 )
 
 func main() {
+	// log initialization
+	log.SetOutput(os.Stderr)
 	// storage initialization
-	if err := storage.Connect(); err != nil {
+	cacheId, databaseId, err := storage.Connect()
+	if err != nil {
 		log.Printf("Error during storage initialization: %v", err)
-		shutdown(startupFailureShutdown)
+		os.Exit(1)
 	}
 	defer storage.Close()
-
-	// catch signals
-	shutdownOnSignal()
+	log.Printf("Connected to cache at %q", cacheId)
+	log.Printf("Connected to database at %q", databaseId)
 
 	// serve
-	err := listener(os.Stdout, os.Stdin)
+	err = listener(os.Stdout, os.Stdin)
 	if err != nil {
 		log.Printf("CLI failure: %v", err)
-		shutdown(listenerFailureShutdown)
+		os.Exit(1)
 	}
+	os.Exit(0)
 }
 
 /*
 
-CLI listener
+sessions
 
 */
 
-type request struct {
-	inline  string
-	command string
-	args    []string
+type session struct {
+	sid string           // session ID
+	ss  *storage.Session // underlying storage session
 }
 
-// listener reads lines and dispatches them to handlers
-func listener(out *os.File, in *os.File) error {
-	// if we are on a terminal, we do prompting
-	// (see http://stackoverflow.com/questions/22744443/ for source)
-	prompt := false
-	if stat, _ := out.Stat(); (stat.Mode() & os.ModeCharDevice) != 0 {
-		prompt = true
-	}
-
-	input := make([]byte, 4096)
-	for {
-		if prompt {
-			fmt.Fprintf(out, "susen> ")
-		}
-		n, err := in.Read(input)
-		switch err {
-		case nil:
-			r := &request{inline: strings.Trim(string(input[:n]), " \t\r\n")}
-			args := strings.Split(r.inline, " ")
-			r.command = strings.ToLower(args[0])
-			switch r.command {
-			case "":
-				continue
-			case "quit":
-				fallthrough
-			case "exit":
-				return nil
-			}
-			for _, arg := range args[1:] {
-				if len(arg) > 0 {
-					r.args = append(r.args, strings.ToLower(arg))
-				}
-			}
-			dispatchCommand(out, r)
-		case io.EOF:
-			// ignore any input before the EOF
-			if prompt {
-				fmt.Fprintf(out, " (EOF)\n")
-			}
-			return nil
-		default:
-			if prompt {
-				fmt.Fprintf(out, " (read error)\n")
-			}
-			return err
-		}
-	}
+// working puzzle state
+func (s *session) puzzle() *puzzle.Puzzle {
+	return s.ss.Puzzle
 }
 
-// command dispatching
-type commandInfo struct {
-	command     string
-	argInfo     string
-	description string
-	handler     func(*userSession, *os.File, *request)
+// ID of working puzzle
+func (s *session) pid() string {
+	return s.ss.Info.PuzzleId
 }
 
-// the command dispatch info is sorted for easy usage printing,
-// and then hashed for rapid dispatching
-var (
-	dispatchInfo  []commandInfo
-	dispatchTable map[string]*commandInfo
-)
-
-func init() {
-	dispatchInfo = []commandInfo{
-		{"assign", "index value", "assign a value to a square", assignHandler},
-		{"session", "[sessionID]", "get/set session info", summaryHandler},
-		{"back", "", "go back one solution step", backHandler},
-		{"hints", "on|off", "show hints in puzzle state", hintsHandler},
-		{"markdown", "on|off", "format output in Markdown", markdownHandler},
-		{"reset", "[puzzleID]", "reset this or another puzzle", stateHandler},
-		{"state", "", "show current puzzle state", stateHandler},
-		{"summary", "", "show current session summary", summaryHandler},
-		{"list", "", "list available puzzles", listHandler},
-	}
-	dispatchTable = make(map[string]*commandInfo, len(dispatchInfo))
-	for i := range dispatchInfo {
-		dispatchTable[dispatchInfo[i].command] = &dispatchInfo[i]
-	}
+// name of working puzzle
+func (s *session) name() string {
+	return s.ss.Info.Name
 }
 
-func dispatchCommand(w *os.File, r *request) {
-	defer func() {
-		if err := recover(); err != nil {
-			errorHandler(err, w, r)
-		}
-	}()
-
-	session := sessionSelect(w, r)
-	ci := dispatchTable[r.command]
-	if ci == nil {
-		usageHandler(fmt.Sprintf("%q is not a known command", r.command), w, r)
-	} else {
-		ci.handler(session, w, r)
-	}
+// step count of working puzzle
+func (s *session) step() int {
+	return len(s.ss.Info.Choices) + 1
 }
 
 /*
@@ -168,122 +92,172 @@ request handlers
 
 */
 
-// client state
 var (
+	// client preferences
 	useMarkdown  = false
 	showBindings = true
 )
 
-func markdownHandler(session *userSession, w *os.File, r *request) {
-	if len(r.args) > 0 {
+func markdownHandler(s *session, w io.Writer, r *request) {
+	// check the args
+	if len(r.args) > 1 {
+		usageHandler(fmt.Sprintf("%s takes at most 1 argument", r.command), w, r)
+		return
+	}
+	// process the request
+	if len(r.args) == 1 {
 		switch r.args[0] {
 		case "on":
 			useMarkdown = true
-			stateHandler(session, w, r)
 		case "off":
 			useMarkdown = false
-			stateHandler(session, w, r)
 		default:
 			usageHandler(fmt.Sprintf("argument to %s must be 'on' or 'off'", r.command), w, r)
 		}
+	}
+	// provide feedback
+	if useMarkdown {
+		fmt.Fprintf(w, "Markdown is on\n")
 	} else {
-		if useMarkdown {
-			fmt.Fprintf(w, "Markdown is on\n")
-		} else {
-			fmt.Fprintf(w, "Markdown is off\n")
-		}
+		fmt.Fprintf(w, "Markdown is off\n")
 	}
 }
 
-func hintsHandler(session *userSession, w *os.File, r *request) {
-	if len(r.args) > 0 {
+func hintsHandler(s *session, w io.Writer, r *request) {
+	// check the args
+	if len(r.args) > 1 {
+		usageHandler(fmt.Sprintf("%s takes at most 1 argument", r.command), w, r)
+		return
+	}
+	// process the request
+	if len(r.args) == 1 {
 		switch r.args[0] {
 		case "on":
 			showBindings = true
-			stateHandler(session, w, r)
 		case "off":
 			showBindings = false
-			stateHandler(session, w, r)
 		default:
 			usageHandler(fmt.Sprintf("argument to %s must be 'on' or 'off'", r.command), w, r)
 		}
+	}
+	// provide feedback
+	if showBindings {
+		fmt.Fprintf(w, "Hints are on\n")
 	} else {
-		if showBindings {
-			fmt.Fprintf(w, "Hints are on\n")
-		} else {
-			fmt.Fprintf(w, "Hints are off\n")
-		}
+		fmt.Fprintf(w, "Hints are off\n")
 	}
 }
 
-func backHandler(session *userSession, w *os.File, r *request) {
-	session.RemoveStep()
-	stateHandler(session, w, r)
+func backHandler(s *session, w io.Writer, r *request) {
+	// check the args
+	if len(r.args) > 0 {
+		usageHandler(fmt.Sprintf("%s takes no arguments", r.command), w, r)
+		return
+	}
+	if s.step() > 1 {
+		s.ss.RemoveStep()
+		solveHandler(s, w, r)
+	} else {
+		fmt.Fprintf(w, "No choices to undo.\n")
+	}
 }
 
-func assignHandler(session *userSession, w *os.File, r *request) {
-	var choice puzzle.Choice
-	var err error
-
+func assignHandler(s *session, w io.Writer, r *request) {
+	// check the args
 	if len(r.args) != 2 {
 		usageHandler(fmt.Sprintf("%s requires two arguments", r.command), w, r)
 		return
 	}
 
-	// compute the index
+	// read the index part of the choice
+	var choice puzzle.Choice
+	var err error
 	idx := r.args[0]
-	if row := int(idx[0] - 'a'); row < 0 || row >= session.Summary.SideLength {
+	if row := int(idx[0] - 'a'); row < 0 || row >= s.ss.Info.SideLength {
 		usageHandler(fmt.Sprintf("%s index (%s) row is out of range", r.command, idx), w, r)
 		return
 	} else if col, err := strconv.Atoi(idx[1:]); err != nil {
 		usageHandler(fmt.Sprintf("%s index (%s) column is not a number", r.command, idx), w, r)
 		return
-	} else if col < 1 || col > session.Summary.SideLength {
+	} else if col < 1 || col > s.ss.Info.SideLength {
 		usageHandler(fmt.Sprintf("%s index (%s) column is out of range", r.command, idx), w, r)
 		return
 	} else {
-		choice.Index = (session.Summary.SideLength * row) + col
+		choice.Index = (s.ss.Info.SideLength * row) + col
 	}
 
-	// read the value
+	// read the value part of the choice
 	choice.Value, err = strconv.Atoi(r.args[1])
 	if err != nil {
 		usageHandler(fmt.Sprintf("%s value (%s)	must be a number", r.command, r.args[1]), w, r)
 		return
 	}
 
-	update, e := session.Puzzle.Assign(choice)
+	// do the assignment
+	update, e := s.puzzle().Assign(choice)
 	if e != nil {
-		fmt.Fprintf(w, "Assign failed: %v\n", e)
+		log.Printf("Assign of %+v at %s:%q step %d failed: %v",
+			choice, s.sid, s.name(), s.step(), e)
 	} else {
-		session.AddStep()
 		if update.Errors != nil {
-			log.Printf("Assign to %s:%q gave errors; step %d is unsolvable.",
-				session.SID, session.PID, session.Step)
-			fmt.Fprintf(w, "Assign succeeded but made puzzle unsolvable:\n")
+			log.Printf("Assign of %+v at %s:%q step %d made puzzle unsolvable.",
+				choice, s.sid, s.name(), s.step())
 		} else {
-			fmt.Fprintf(w, "Assign succeeded:\n")
+			log.Printf("Assign of %+v at %s:%q step %d left puzzle solvable",
+				choice, s.sid, s.name(), s.step())
 		}
-		stateHandler(session, w, r)
+		s.ss.AddStep(choice)
 	}
+
+	// provide feedback
+	r.args = nil
+	solveHandler(s, w, r)
 }
 
-func stateHandler(session *userSession, w *os.File, r *request) {
+func solveHandler(s *session, w io.Writer, r *request) {
+	// check the args
+	if len(r.args) > 1 {
+		usageHandler(fmt.Sprintf("%s takes at most 1 argument", r.command), w, r)
+		return
+	}
+	// if the user specified a puzzle, switch to it
+	if len(r.args) == 1 {
+		s.ss.SelectPuzzle(r.args[0])
+		log.Printf("Selected session %v puzzle %q at step %d.", s.sid, s.name(), s.step())
+	}
+	// if the user requested a reset, perform it
+	if r.command == "reset" {
+		s.ss.RemoveAllSteps()
+		log.Printf("Reset session %v puzzle %q to step %d", s.sid, s.name(), s.step())
+	}
+	// output the puzzle
 	if useMarkdown {
-		fmt.Fprintf(w, "%s%s", session.Puzzle.ValuesMarkdown(showBindings), session.Puzzle.ErrorsMarkdown())
+		fmt.Fprintf(w, "%s%s",
+			s.puzzle().ValuesMarkdown(showBindings),
+			s.puzzle().ErrorsMarkdown())
 	} else {
-		fmt.Fprintf(w, "%s%s", session.Puzzle.ValuesString(showBindings), session.Puzzle.ErrorsString())
+		fmt.Fprintf(w, "%s%s",
+			s.puzzle().ValuesString(showBindings),
+			s.puzzle().ErrorsString())
 	}
 }
 
-func summaryHandler(session *userSession, w *os.File, r *request) {
-	fmt.Fprintf(w, "Session %q solving puzzle %q on solution step %d\n",
-		session.SID, session.PID, session.Step)
-	sum, err := session.Puzzle.Summary()
+func homeHandler(s *session, w io.Writer, r *request) {
+	// check the args
+	if len(r.args) > 1 {
+		usageHandler(fmt.Sprintf("%s takes no arguments", r.command), w, r)
+		return
+	}
+	// output the current puzzle summary
+	fmt.Fprintf(w, "Session %q with current puzzle:\n", s.sid)
+	fmt.Fprintf(w, "  %-15s (id: %-15s) [%s, %dx%d, %d choices]\n",
+		s.ss.Info.Name, s.ss.Info.PuzzleId,
+		s.ss.Info.Geometry, s.ss.Info.SideLength, s.ss.Info.SideLength,
+		len(s.ss.Info.Choices))
+	sum, err := s.ss.Puzzle.Summary()
 	if err != nil {
 		panic(err)
 	}
-	fmt.Fprintf(w, "Geometry: %v; Side length: %v; ", sum.Geometry, sum.SideLength)
 	filled, empty := 0, 0
 	for _, val := range sum.Values {
 		if val == 0 {
@@ -292,32 +266,29 @@ func summaryHandler(session *userSession, w *os.File, r *request) {
 			filled++
 		}
 	}
-	fmt.Fprintf(w, "Assigned squares: %d; Empty squares: %d\n", filled, empty)
-}
-
-func listHandler(session *userSession, w *os.File, r *request) {
-	fmt.Fprintf(w, "Available puzzles are:\n")
-	names := []string{}
-	for k := range storage.CommonSummaries() {
-		names = append(names, k)
-	}
-	sort.Strings(names)
-	for _, n := range names {
-		fmt.Fprintf(w, "  %s\n", n)
+	fmt.Fprintf(w, "  Assigned squares: %d; Empty squares: %d\n", filled, empty)
+	fmt.Fprintf(w, "\nOther puzzles being solved (most recent first):\n")
+	// output the rest of the session puzzles
+	infos := s.ss.GetInactivePuzzles()
+	sort.Sort(storage.ByLatestView(infos))
+	for _, info := range infos {
+		fmt.Fprintf(w, "  %-15s (id: %-15s) [%s, %dx%d, %d choices]\n",
+			info.Name, info.PuzzleId,
+			info.Geometry, info.SideLength, info.SideLength,
+			len(info.Choices))
 	}
 }
 
-func usageHandler(msg string, w *os.File, r *request) {
-	fmt.Fprintf(w, "Error: %s\nUsage:\n", msg)
+func usageHandler(msg string, w io.Writer, r *request) {
+	fmt.Fprintf(os.Stderr, "Error: %s\nUsage:\n", msg)
 	for _, ci := range dispatchInfo {
-		fmt.Fprintf(w, "    %8s %-11s\t%s\n", ci.command, ci.argInfo, ci.description)
+		fmt.Fprintf(os.Stderr, "    %8s %-11s\t%s\n", ci.command, ci.argInfo, ci.description)
 	}
-	fmt.Fprintf(w, "  and 'quit' or EOF to exit.\n")
+	fmt.Fprintf(os.Stderr, "  and 'quit' or EOF to exit.\n")
 }
 
-func errorHandler(err interface{}, w *os.File, r *request) {
-	fmt.Fprintf(w, "Panic executing %q: %v\n", r, err)
-	log.Printf("Server error executing %q: %v\n", r, err)
+func errorHandler(err interface{}, w io.Writer, r *request) {
+	log.Printf("Panic executing %+q: %v", r, err)
 }
 
 /*
@@ -325,10 +296,6 @@ func errorHandler(err interface{}, w *os.File, r *request) {
 session handling
 
 */
-
-type userSession struct {
-	storage.Session
-}
 
 // cookie for the command line
 var defaultCookie string
@@ -339,7 +306,7 @@ var (
 
 // getCookie gets the session cookie, or sets a new one.  It
 // returns the session ID associated with the cookie.
-func getCookie(w *os.File, r *request) string {
+func getCookie(w io.Writer, r *request) string {
 	// look to see if the user is specifying a cookie
 	if r.command == "session" && len(r.args) > 0 {
 		defaultCookie = r.args[0]
@@ -359,102 +326,137 @@ func getCookie(w *os.File, r *request) string {
 }
 
 // sessionSelect: find or create the session for the current connection.
-func sessionSelect(w *os.File, r *request) *userSession {
+func sessionSelect(w io.Writer, r *request) *session {
 	id := getCookie(w, r)
-	// check to see if this is a force reset of the session
-	forceReset, resetID := r.command == "reset", ""
-	if forceReset && len(r.args) > 0 {
-		resetID = r.args[0]
-	}
-	// create an in-memory session with this cookie
-	session := &userSession{storage.Session{SID: id, Created: time.Now().Format(time.RFC3339)}}
-	// load session from storage if possible, otherwise just initialize it
-	if session.Lookup() {
-		log.Printf("Found session %v, puzzle %q, on step %d.", session.SID, session.PID, session.Step)
-		if forceReset {
-			session.StartPuzzle(resetID)
-		} else {
-			session.LoadStep()
-		}
-	} else if forceReset {
-		session.StartPuzzle(resetID)
-	} else {
-		session.StartPuzzle(storage.DefaultPuzzleID())
-	}
-	return session
+	return &session{sid: id, ss: storage.LoadSession(id)}
 }
 
 /*
 
-coordinate shutdown across goroutines and top-level server
+CLI listener
 
 */
 
-type shutdownCause int
+// bufsize (input read size) is a variable not a constant to
+// allow testing with different values
+var bufsize = 4096
 
-const (
-	unknownShutdown = iota
-	runtimeFailureShutdown
-	startupFailureShutdown
-	redisFailureShutdown
-	caughtSignalShutdown
-	listenerFailureShutdown
+type request struct {
+	inline  string
+	command string
+	args    []string
+}
+
+// listener reads lines and dispatches them to handlers
+func listener(out io.Writer, in io.Reader) error {
+	// if we are on a terminal, we do prompting
+	// (see http://stackoverflow.com/questions/22744443/ for source)
+	prompt := false
+	if infile, ok := in.(*os.File); ok {
+		if stat, _ := infile.Stat(); (stat.Mode() & os.ModeCharDevice) != 0 {
+			prompt = true
+		}
+	}
+
+	// buffer the input and process it line by line
+	input := new(bytes.Buffer)
+	buf, start := make([]byte, bufsize), 0
+	for {
+		if input.Len() == 0 {
+			if prompt {
+				if start != 0 {
+					fmt.Fprintf(out, "\nsusen> %s", buf[0:start])
+				} else {
+					fmt.Fprintf(out, "susen> ")
+				}
+			}
+			n, err := in.Read(buf[start:])
+			switch err {
+			case nil:
+				input.Write(buf[0 : start+n])
+				start = 0
+			case io.EOF:
+				if prompt {
+					fmt.Fprintf(out, " (EOF)\n")
+				}
+				return nil
+			default:
+				if prompt {
+					fmt.Fprintf(out, " (read error)\n")
+				}
+				return err
+			}
+		}
+		line, err := input.ReadString('\n')
+		if err != nil && len(line) != 0 {
+			// there's a partial line left in the buffer
+			start = copy(buf, []byte(line))
+			continue
+		}
+		r := &request{inline: strings.Trim(line, " \t\r\n")}
+		args := strings.Split(r.inline, " ")
+		r.command = strings.ToLower(args[0])
+		switch r.command {
+		case "":
+			continue
+		case "quit":
+			fallthrough
+		case "exit":
+			return nil
+		}
+		for _, arg := range args[1:] {
+			if len(arg) > 0 {
+				r.args = append(r.args, strings.ToLower(arg))
+			}
+		}
+		dispatchCommand(out, r)
+	}
+}
+
+// command dispatching
+type commandInfo struct {
+	command     string
+	argInfo     string
+	description string
+	handler     func(*session, io.Writer, *request)
+}
+
+// the command dispatch info is sorted for easy usage printing,
+// and then hashed for rapid dispatching
+var (
+	dispatchInfo  []commandInfo
+	dispatchTable map[string]*commandInfo
 )
 
-// for testing, allow alternate forms of shutdown
-var alternateShutdown func(reason shutdownCause)
-
-// shutdown: process exit with logging.
-func shutdown(reason shutdownCause) {
-	storage.Close()
-
-	// for testing: run alternateShutdown instead, if defined
-	if alternateShutdown != nil {
-		alternateShutdown(reason)
-		panic(reason) // shouldn't get here
+func init() {
+	dispatchInfo = []commandInfo{
+		{"assign", "index value", "assign a value to a square", assignHandler},
+		{"back", "", "go back one solution step", backHandler},
+		{"hints", "on|off", "show hints in puzzle state", hintsHandler},
+		{"home", "", "show current session summary", homeHandler},
+		{"markdown", "on|off", "format output in Markdown", markdownHandler},
+		{"reset", "[name]", "reset current or another puzzle", solveHandler},
+		{"session", "[sessionID]", "get/set session info", homeHandler},
+		{"solve", "[name]", "work on current or another puzzle", solveHandler},
 	}
-
-	// log reason for shutdown and exit
-	switch reason {
-	case unknownShutdown:
-		log.Fatal("Exiting: normal shutdown.")
-	case startupFailureShutdown:
-		log.Fatal("Exiting: initialization failure.")
-	case runtimeFailureShutdown:
-		log.Fatal("Exiting: runtime failure.")
-	case caughtSignalShutdown:
-		log.Fatal("Exiting: caught signal.")
-	case listenerFailureShutdown:
-		log.Fatal("Exiting: web server failed.")
-	case redisFailureShutdown:
-		log.Fatal("Exiting: redis failure.")
-	default:
-		log.Fatal("Exiting: unknown cause.")
+	dispatchTable = make(map[string]*commandInfo, len(dispatchInfo))
+	for i := range dispatchInfo {
+		dispatchTable[dispatchInfo[i].command] = &dispatchInfo[i]
 	}
 }
 
-// shutdownOnSignal: catch signals and exit.
-func shutdownOnSignal() {
-	// based on example in os.signal godoc
-	c := make(chan os.Signal, 1)
-	signal.Notify(c) // die on all signals
-
-	go func() {
-		s := <-c
-		log.Printf("Received OS-level signal: %v", s)
-		shutdown(caughtSignalShutdown)
+func dispatchCommand(w io.Writer, r *request) {
+	defer func() {
+		if err := recover(); err != nil {
+			errorHandler(err, w, r)
+		}
 	}()
-}
 
-/*
-
-various low-level utilities
-
-*/
-
-// apiEndpointUnknown: a pre-serialized JSON Error used when
-// someone calls a non-existent API endpoint.
-func apiEndpointUnknown(endpoint string) string {
-	return `{"scope": "1", "structure": "1", "condition": "1", "values": ["No such endpoint"], ` +
-		`"message": "No such endpoint: ` + endpoint + `"}`
+	s := sessionSelect(w, r)
+	ci := dispatchTable[r.command]
+	if ci == nil {
+		usageHandler(fmt.Sprintf("%q is not a known command", r.command), w, r)
+	} else {
+		ci.handler(s, w, r)
+	}
 }
