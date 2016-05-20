@@ -132,8 +132,8 @@ func rdExecute(body func(tx redis.Conn) error) {
 	}
 	// grab the mutex and execute the body
 	rdMutex.Lock()
+	defer rdMutex.Unlock()
 	defer func(err error) {
-		rdMutex.Unlock()
 		if err != nil {
 			panic(err)
 		}
@@ -148,8 +148,9 @@ persistence using Postgres
 
 // Postgres connection data
 var (
-	pgConn *pgx.Conn // open database, if any
-	pgUrl  string    // URL for the open connection
+	pgConn  *pgx.Conn  // open database, if any
+	pgUrl   string     // URL for the open connection
+	pgMutex sync.Mutex // prevent concurrent connection use
 )
 
 // pgInit - look up Redis info from the environment
@@ -206,7 +207,10 @@ func pgExecute(body func(tx *pgx.Tx) error) {
 		}()
 		return body(tx)
 	}
+
 	// get the transaction
+	pgMutex.Lock()
+	defer pgMutex.Unlock()
 	tx, err := pgConn.Begin()
 	if err != nil {
 		panic(fmt.Errorf("Can't open a transaction against database: %v", err))
