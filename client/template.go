@@ -22,9 +22,11 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/ancientHacker/susen.go/puzzle"
+	"github.com/ancientHacker/susen.go/storage"
 	"html/template"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 /*
@@ -41,7 +43,9 @@ var solverPageTemplate *template.Template
 // A templateSolverPage contains the values to fill the solver
 // page template.
 type templateSolverPage struct {
-	SessionID, PuzzleID       string
+	SessionID                 string
+	Info                      *storage.PuzzleInfo
+	Values                    []int
 	Title, TopHead            string
 	IconFile, CssFile, JsFile string
 	Puzzle                    templatePuzzle
@@ -70,15 +74,15 @@ func init() {
 // SolverPage executes the solver page template over the passed
 // session and puzzle info, and returns the solver page content as a
 // string.
-func SolverPage(sessionID string, puzzleID string, summary *puzzle.Summary) string {
+func SolverPage(sessionID string, info *storage.PuzzleInfo, values []int) string {
 	var tp templatePuzzle
 	var err error
-	if summary.Geometry == puzzle.StandardGeometryName {
-		tp, err = standardTemplatePuzzle(summary.Values)
-	} else if summary.Geometry == puzzle.RectangularGeometryName {
-		tp, err = rectangularTemplatePuzzle(summary.Values)
+	if info.Geometry == puzzle.StandardGeometryName {
+		tp, err = standardTemplatePuzzle(values)
+	} else if info.Geometry == puzzle.RectangularGeometryName {
+		tp, err = rectangularTemplatePuzzle(values)
 	} else {
-		err = fmt.Errorf("Can't generate puzzle grid for geometry %q", summary.Geometry)
+		err = fmt.Errorf("Can't generate puzzle grid for geometry %q", info.Geometry)
 	}
 	if err != nil {
 		return ErrorPage(err)
@@ -86,9 +90,9 @@ func SolverPage(sessionID string, puzzleID string, summary *puzzle.Summary) stri
 
 	tsp := templateSolverPage{
 		SessionID:         sessionID,
-		PuzzleID:          puzzleID,
+		Info:              info,
 		Title:             fmt.Sprintf("%s: Solver", brandName),
-		TopHead:           fmt.Sprintf("Puzzle Solver"),
+		TopHead:           fmt.Sprintf("Solving puzzle %s", strings.Title(info.Name)),
 		IconFile:          iconPath,
 		CssFile:           "/solver.css",
 		JsFile:            "/solver.js",
@@ -301,10 +305,11 @@ var homePageTemplate *template.Template
 // A templateHomePage contains the values to file the home
 // page template.
 type templateHomePage struct {
-	SessionID, PuzzleID       string
+	SessionID                 string
+	Current                   *storage.PuzzleInfo
 	Title, TopHead            string
 	IconFile, CssFile, JsFile string
-	PuzzleIDs                 []string
+	Others                    []*storage.PuzzleInfo
 	ApplicationFooter         string
 }
 
@@ -318,16 +323,16 @@ func init() {
 // session and puzzle info, and returns the home page content as
 // a string.  If there is an error, what's returned is the error
 // page content as a string.
-func HomePage(sessionID string, puzzleID string, puzzleIDs []string) string {
+func HomePage(sessionID string, this *storage.PuzzleInfo, others []*storage.PuzzleInfo) string {
 	tsp := templateHomePage{
 		SessionID:         sessionID,
-		PuzzleID:          puzzleID,
+		Current:           this,
 		Title:             fmt.Sprintf("%s: Home", brandName),
 		TopHead:           fmt.Sprintf("%s", brandName),
 		IconFile:          iconPath,
 		CssFile:           "/home.css",
 		JsFile:            "/home.js",
-		PuzzleIDs:         puzzleIDs,
+		Others:            others,
 		ApplicationFooter: applicationFooter(),
 	}
 

@@ -6,17 +6,35 @@
     <link rel="stylesheet" type="text/css" href="/home.css">
     <script src="/home.js"></script>
   </head>
-  <body sessionID="httpx-Test0" puzzleID="test-0" onload="initializePage()">
+  <body sessionID="httpx-Test0" puzzleID="test-0-id" onload="initializePage()">
     <h1>Sūsen</h1>
     <div class="home">
       <div class="left">
 	<div class="activity">
 	  <h3>Solve a Puzzle</h3>
 	  <p>Current puzzle: <a href="/solver/">test-0</a>
-	  <p>Start new puzzle:
-	    <a id="pseudo-puzzle-1" href="/reset/pseudo-puzzle-1">pseudo-puzzle-1</a>
-	    <a id="other-2" href="/reset/other-2">other-2</a>
-	    <a id="your-favorite" href="/reset/your-favorite">your-favorite</a></p>
+	    [square, 9x9,
+	    1 choices]
+	  </p>
+	  <p>Other puzzles:</p>
+	  <ul>
+	    <li>
+	      <a id="ps1" href="/select/ps1">pseudo-puzzle-1</a>
+	      [square, 9x9, 0 choices]
+	    </li>
+	    <li>
+	      <a id="ps2" href="/select/ps2">pseudo-puzzle-2</a>
+	      [square, 16x16, 1 choices]
+	    </li>
+	    <li>
+	      <a id="ps3" href="/select/ps3">pseudo-puzzle-3</a>
+	      [rectangular, 6x6, 2 choices]
+	    </li>
+	    <li>
+	      <a id="ps4" href="/select/ps4">pseudo-puzzle-4</a>
+	      [rectangular, 12x12, 3 choices]
+	    </li>
+	  </ul>
 	</div>
       </div>
       <div class="right">

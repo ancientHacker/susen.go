@@ -21,6 +21,7 @@ package client
 import (
 	"fmt"
 	"github.com/ancientHacker/susen.go/puzzle"
+	"github.com/ancientHacker/susen.go/storage"
 	"os"
 	"path/filepath"
 	"testing"
@@ -70,90 +71,109 @@ var (
 
 func TestErrorPage(t *testing.T) {
 	body := ErrorPage(fmt.Errorf("Test Error 0"))
-	if !sameAsResultFile(body, "TestErrorPage0.html") {
-		t.Errorf("Test Error 0: got unexpected result body:\n%v\n", body)
+	err := sameAsResultFile(body, "TestErrorPage0.html")
+	if err != "" {
+		t.Errorf("Test Error 0: got unexpected result body:\n%s:\n%v\n", err, body)
 	}
 }
 
 func TestHomePage(t *testing.T) {
-	session0, puzzle0 := "httpx-Test0", "test-0"
-	body := HomePage(session0, puzzle0, []string{"pseudo-puzzle-1", "other-2", "your-favorite"})
-	if !sameAsResultFile(body, "TestHomePage0.html") {
-		t.Errorf("Test Home 0: got unexpected result body:\n%v\n", body)
+	session0 := "httpx-Test0"
+	info0 := &storage.PuzzleInfo{
+		PuzzleId:   "test-0-id",
+		Name:       "test-0",
+		Geometry:   puzzle.StandardGeometryName,
+		SideLength: 9,
+		Choices:    []puzzle.Choice{{1, 1}},
+	}
+	others0 := []*storage.PuzzleInfo{
+		&storage.PuzzleInfo{
+			PuzzleId:   "ps1",
+			Name:       "pseudo-puzzle-1",
+			Geometry:   puzzle.StandardGeometryName,
+			SideLength: 9,
+			Choices:    nil,
+		},
+		&storage.PuzzleInfo{
+			PuzzleId:   "ps2",
+			Name:       "pseudo-puzzle-2",
+			Geometry:   puzzle.StandardGeometryName,
+			SideLength: 16,
+			Choices:    []puzzle.Choice{{2, 2}},
+		},
+		&storage.PuzzleInfo{
+			PuzzleId:   "ps3",
+			Name:       "pseudo-puzzle-3",
+			Geometry:   puzzle.RectangularGeometryName,
+			SideLength: 6,
+			Choices:    []puzzle.Choice{{2, 2}, {3, 3}},
+		},
+		&storage.PuzzleInfo{
+			PuzzleId:   "ps4",
+			Name:       "pseudo-puzzle-4",
+			Geometry:   puzzle.RectangularGeometryName,
+			SideLength: 12,
+			Choices:    []puzzle.Choice{{2, 2}, {3, 3}, {4, 4}},
+		},
+	}
+	body := HomePage(session0, info0, others0)
+	err := sameAsResultFile(body, "TestHomePage0.html")
+	if err != "" {
+		t.Errorf("Test Home 0: got unexpected result body:\n%s:\n%v\n", err, body)
 	}
 }
 
 func TestSolverPage(t *testing.T) {
-	p0, e := puzzle.New(&puzzle.Summary{
+	session0, info0 := "httpx-Test0", &storage.PuzzleInfo{
+		PuzzleId:   "test-0-id",
+		Name:       "test-0",
 		Geometry:   puzzle.StandardGeometryName,
 		SideLength: 4,
-		Values:     rotation4Puzzle1PartialValues,
-	})
-	if e != nil {
-		t.Fatalf("Failed to create p0: %v", e)
+		Choices:    []puzzle.Choice{{1, 1}},
 	}
-	session0, puzzle0 := "httpx-Test0", "test-0"
-	summary0, e := p0.Summary()
-	if e != nil {
-		t.Fatalf("Failed to get summary of p0: %v", e)
-	}
-	body0 := SolverPage(session0, puzzle0, summary0)
-	if !sameAsResultFile(body0, "TestSolverPage0.html") {
-		t.Errorf("Test Solver 0: got unexpected result body:\n%v\n", body0)
+	body0 := SolverPage(session0, info0, rotation4Puzzle1PartialValues)
+	err := sameAsResultFile(body0, "TestSolverPage0.html")
+	if err != "" {
+		t.Errorf("Test Solver 0: got unexpected result body:\n%s:\n%v\n", err, body0)
 	}
 
-	p1, e := puzzle.New(&puzzle.Summary{
+	session1, info1 := "httpx-Test1", &storage.PuzzleInfo{
+		PuzzleId:   "test-1-id",
+		Name:       "test-1",
 		Geometry:   puzzle.StandardGeometryName,
 		SideLength: 9,
-		Values:     oneStarValues,
-	})
-	if e != nil {
-		t.Fatalf("Failed to create p1: %v", e)
+		Choices:    []puzzle.Choice{{1, 1}},
 	}
-	session1, puzzle1 := "https-Test1", "test-1"
-	summary1, e := p1.Summary()
-	if e != nil {
-		t.Fatalf("Failed to get summary of p1: %v", e)
-	}
-	body1 := SolverPage(session1, puzzle1, summary1)
-	if !sameAsResultFile(body1, "TestSolverPage1.html") {
-		t.Errorf("Test Solver 1: got unexpected result body:\n%v\n", body1)
+	body1 := SolverPage(session1, info1, oneStarValues)
+	err = sameAsResultFile(body1, "TestSolverPage1.html")
+	if err != "" {
+		t.Errorf("Test Solver 1: got unexpected result body:\n%s:\n%v\n", err, body1)
 	}
 
-	p2, e := puzzle.New(&puzzle.Summary{
+	session2, info2 := "httpx-Test2", &storage.PuzzleInfo{
+		PuzzleId:   "test-2-id",
+		Name:       "test-2",
 		Geometry:   puzzle.RectangularGeometryName,
 		SideLength: 6,
-		Values:     Su6Difficult1Values,
-	})
-	if e != nil {
-		t.Fatalf("Failed to create p2: %v", e)
+		Choices:    []puzzle.Choice{{1, 1}},
 	}
-	session2, puzzle2 := "https-Test2", "test-2"
-	summary2, e := p2.Summary()
-	if e != nil {
-		t.Fatalf("Failed to get summary of p2: %v", e)
-	}
-	body2 := SolverPage(session2, puzzle2, summary2)
-	if !sameAsResultFile(body2, "TestSolverPage2.html") {
-		t.Errorf("Test Solver 2: got unexpected result body:\n%v\n", body2)
+	body2 := SolverPage(session2, info2, Su6Difficult1Values)
+	err = sameAsResultFile(body2, "TestSolverPage2.html")
+	if err != "" {
+		t.Errorf("Test Solver 2: got unexpected result body:\n%s:\n%v\n", err, body2)
 	}
 
-	p3, e := puzzle.New(&puzzle.Summary{
+	session3, info3 := "httpx-Test3", &storage.PuzzleInfo{
+		PuzzleId:   "test-3-id",
+		Name:       "test-3",
 		Geometry:   puzzle.RectangularGeometryName,
 		SideLength: 12,
-		Values:     SuDozen78097Values,
-	})
-	if e != nil {
-		t.Fatalf("Failed to create p3: %v", e)
+		Choices:    []puzzle.Choice{{1, 1}},
 	}
-	session3, puzzle3 := "https-Test3", "test-3"
-	summary3, e := p3.Summary()
-	if e != nil {
-		t.Fatalf("Failed to get summary of p3: %v", e)
-	}
-	body3 := SolverPage(session3, puzzle3, summary3)
-	if !sameAsResultFile(body3, "TestSolverPage3.html") {
-		t.Errorf("Test Solver 3: got unexpected result body:\n%v\n", body3)
+	body3 := SolverPage(session3, info3, SuDozen78097Values)
+	err = sameAsResultFile(body3, "TestSolverPage3.html")
+	if err != "" {
+		t.Errorf("Test Solver 3: got unexpected result body:\n%s:\n%v\n", err, body3)
 	}
 }
 
@@ -209,7 +229,7 @@ helpers
 
 */
 
-func sameAsResultFile(s, fname string) bool {
+func sameAsResultFile(s, fname string) (result string) {
 	path := filepath.Join(".", "testdata", fname)
 	f, err := os.Open(path)
 	if err != nil {
@@ -219,13 +239,29 @@ func sameAsResultFile(s, fname string) bool {
 	if err != nil {
 		panic(err)
 	}
-	if fi.Size() != int64(len(s)) {
-		return false
-	}
-	buf := make([]byte, len(s))
+	buf := make([]byte, fi.Size())
 	n, err := f.Read(buf)
-	if n != len(s) || err != nil {
+	if n != int(fi.Size()) || err != nil {
 		panic(fmt.Errorf("Read of %v bytes failed: %v read, %v", len(s), n, err))
 	}
-	return string(buf) == s
+	fs := string(buf)
+	mlen, flen, slen := len(fs), len(fs), len(s)
+	if slen > flen {
+		result = fmt.Sprintf("Result is %d bytes longer: %q\n", slen-flen, s[flen:])
+	} else if flen > slen {
+		mlen = slen
+		result = fmt.Sprintf("Result is missing %d bytes: %q\n", flen-slen, fs[slen:])
+	}
+	for i := 0; i < mlen; i++ {
+		if fs[i] != s[i] {
+			j := len(s) - i
+			if j > 30 {
+				j = 30
+			}
+			result += fmt.Sprintf("Result differs from expected at offset %d: %q vs. %q",
+				i, s[i:i+j], fs[i:i+j])
+			return
+		}
+	}
+	return
 }

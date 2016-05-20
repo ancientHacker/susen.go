@@ -6,7 +6,7 @@
     <link rel="stylesheet" type="text/css" href="{{.CssFile}}">
     <script src="{{.JsFile}}"></script>
   </head>
-  <body sessionID="{{.SessionID}}" puzzleID="{{.PuzzleID}}"
+  <body sessionID="{{.SessionID}}" puzzleID="{{.Info.PuzzleId}}"
 	onload="initializePage({{len .Puzzle}})" onclick="clickNowhere(event);">
     <h1>{{.TopHead}}</h1>
     <div class="puzzle">
@@ -42,7 +42,7 @@
 	  <div id="why" class="why" show="no" onclick="clickWhy(event)">Why?</div>
 	</div>
 	<div class="stepControl">
-	  <p>Working on: <strong>{{.PuzzleID}}</strong></p>
+	  <p>Working on: <strong>{{.Info.Name}}</strong></p>
 	  <p>
 	    <div class="stepButton" onclick="undoGuess()">Undo last guess</div>
 	    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
