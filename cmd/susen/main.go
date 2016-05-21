@@ -111,8 +111,12 @@ request handlers
 
 // endpoint regular expressions
 var (
-	apiEndpointRegexp    = regexp.MustCompile("^/+api/+([a-z]+)/*$")
-	selectEndpointRegexp = regexp.MustCompile("^/+(reset|select)/+([a-z0-9-]+)/*$")
+	apiEndpointPattern    = "^/+api/?"
+	solverEndpointPattern = "^/+solver/?"
+	homeEndpointPattern   = "^/+home/?"
+	selectEndpointPattern = "^/+(reset|select)/?"
+	apiEndpointRegexp     = regexp.MustCompile("^/+api/+([a-z]+)/*$")
+	selectEndpointRegexp  = regexp.MustCompile("^/+(reset|select)/+([a-zA-Z0-9-]+)/*$")
 )
 
 func serveHttp(w http.ResponseWriter, r *http.Request) {
@@ -142,12 +146,15 @@ func serveHttp(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *session) rootHandler(w http.ResponseWriter, r *http.Request) {
-	if test, _ := regexp.MatchString("^/+api/?", r.URL.Path); test {
+	if test, _ := regexp.MatchString(apiEndpointPattern, r.URL.Path); test {
 		s.apiHandler(w, r)
-	} else if test, _ = regexp.MatchString("^/+solver/?", r.URL.Path); test {
+	} else if test, _ = regexp.MatchString(solverEndpointPattern, r.URL.Path); test {
 		s.solverHandler(w, r)
-	} else if test, _ = regexp.MatchString("^/+home/?", r.URL.Path); test {
+	} else if test, _ = regexp.MatchString(homeEndpointPattern, r.URL.Path); test {
 		s.homeHandler(w, r)
+	} else if test, _ = regexp.MatchString(selectEndpointPattern, r.URL.Path); test {
+		http.Redirect(w, r, "/solver/", http.StatusFound)
+		log.Printf("Redirected to home page on request for %q", r.URL.Path)
 	} else {
 		http.Redirect(w, r, "/home/", http.StatusFound)
 		log.Printf("Redirected to home page on request for %q", r.URL.Path)
@@ -362,7 +369,7 @@ func (s *session) load(w http.ResponseWriter, r *http.Request) {
 
 	// reset the session if requested
 	matches := selectEndpointRegexp.FindStringSubmatch(r.URL.Path)
-	log.Printf("%s matches: %v", r.URL.Path, matches)
+	// log.Printf("%s matches: %v", r.URL.Path, matches)
 	if matches != nil {
 		if len(matches[2]) > 0 {
 			s.ss.SelectPuzzle(matches[2])
@@ -372,7 +379,6 @@ func (s *session) load(w http.ResponseWriter, r *http.Request) {
 			s.ss.RemoveAllSteps()
 			log.Printf("Reset session %v puzzle %q to step %d", s.sid, s.name(), s.step())
 		}
-		r.URL.Path = "/solver/"
 	}
 }
 

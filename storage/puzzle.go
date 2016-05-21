@@ -71,8 +71,9 @@ func (s *Session) RemoveStep() {
 	s.cacheUpdateEntry(s.active)
 	s.databaseUpdateEntry(s.active)
 	// update the state of the session and the step cache
-	s.Info.Choices = s.Info.Choices[0 : len(s.Info.Choices)-1]
 	s.removeStep()
+	s.loadLastStep()
+	s.Info.Choices = s.Info.Choices[0 : len(s.Info.Choices)-1]
 }
 
 // RemoveAllSteps: remove all the steps from the current puzzle
@@ -90,6 +91,7 @@ func (s *Session) RemoveAllSteps() {
 	s.databaseUpdateEntry(s.active)
 	// update the state of the step cache
 	s.loadActivePuzzle()
+	s.Info = s.makePuzzleInfo(s.active)
 }
 
 /*
