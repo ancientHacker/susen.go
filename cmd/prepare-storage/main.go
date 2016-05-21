@@ -24,15 +24,16 @@ import (
 	"fmt"
 	"github.com/ancientHacker/susen.go/dbprep"
 	"log"
-	"os"
 )
 
-var clear = flag.Bool("clear", false, "Clear but don't reload the data")
+var (
+	clear      = flag.Bool("clear", false, "Clear but don't reload the data")
+	initialize = flag.Bool("initialize", false, "Initialize but don't clear the data")
+)
 
 func main() {
 	flag.Parse()
 	if flag.NArg() > 0 {
-		fmt.Fprintf(os.Stderr, "usage: %s [-clear]\n", os.Args[0])
 		flag.PrintDefaults()
 		log.Fatalf("Usage error.")
 	}
@@ -46,8 +47,10 @@ func doit() error {
 	if err := dbprep.ClearCache(); err != nil {
 		return fmt.Errorf("Couldn't clear cache: %v", err)
 	}
-	if err := dbprep.RemoveData(); err != nil {
-		return fmt.Errorf("Couldn't clear database storage: %v", err)
+	if !*initialize {
+		if err := dbprep.RemoveData(); err != nil {
+			return fmt.Errorf("Couldn't clear database storage: %v", err)
+		}
 	}
 	if !*clear {
 		log.Printf("Intializing data storage...")
