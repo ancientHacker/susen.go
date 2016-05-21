@@ -19,6 +19,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"github.com/ancientHacker/susen.go/client"
 	"github.com/ancientHacker/susen.go/puzzle"
@@ -34,7 +35,22 @@ import (
 	"time"
 )
 
+// flags
+var (
+	debugLog = flag.Bool("d", true, "debugging info in log")
+)
+
 func main() {
+	// parse flags, if anything left over it's a usage problem
+	flag.Parse()
+	if flag.NArg() > 0 {
+		flag.PrintDefaults()
+		os.Exit(2)
+	}
+	if *debugLog {
+		log.Printf("-d specified: debug messages to log")
+	}
+
 	// client initialization
 	if err := client.VerifyResources(); err != nil {
 		log.Printf("Error during client initialization: %v", err)
@@ -369,7 +385,9 @@ func (s *session) load(w http.ResponseWriter, r *http.Request) {
 
 	// reset the session if requested
 	matches := selectEndpointRegexp.FindStringSubmatch(r.URL.Path)
-	// log.Printf("%s matches: %v", r.URL.Path, matches)
+	if *debugLog {
+		log.Printf("Session Load: URI %q matches: %v", r.URL.Path, matches)
+	}
 	if matches != nil {
 		if len(matches[2]) > 0 {
 			s.ss.SelectPuzzle(matches[2])
