@@ -69,6 +69,16 @@ var (
 	}
 )
 
+// compute the number of empty squares
+func countZeroes(vals []int) (count int) {
+	for _, v := range vals {
+		if v == 0 {
+			count++
+		}
+	}
+	return
+}
+
 func TestErrorPage(t *testing.T) {
 	body := ErrorPage(fmt.Errorf("Test Error 0"))
 	err := sameAsResultFile(body, "TestErrorPage0.html")
@@ -85,6 +95,7 @@ func TestHomePage(t *testing.T) {
 		Geometry:   puzzle.StandardGeometryName,
 		SideLength: 9,
 		Choices:    []puzzle.Choice{{1, 1}},
+		Remaining:  0,
 	}
 	others0 := []*storage.PuzzleInfo{
 		&storage.PuzzleInfo{
@@ -93,6 +104,7 @@ func TestHomePage(t *testing.T) {
 			Geometry:   puzzle.StandardGeometryName,
 			SideLength: 9,
 			Choices:    nil,
+			Remaining:  1,
 		},
 		&storage.PuzzleInfo{
 			PuzzleId:   "ps2",
@@ -100,6 +112,7 @@ func TestHomePage(t *testing.T) {
 			Geometry:   puzzle.StandardGeometryName,
 			SideLength: 16,
 			Choices:    []puzzle.Choice{{2, 2}},
+			Remaining:  2,
 		},
 		&storage.PuzzleInfo{
 			PuzzleId:   "ps3",
@@ -107,6 +120,7 @@ func TestHomePage(t *testing.T) {
 			Geometry:   puzzle.RectangularGeometryName,
 			SideLength: 6,
 			Choices:    []puzzle.Choice{{2, 2}, {3, 3}},
+			Remaining:  3,
 		},
 		&storage.PuzzleInfo{
 			PuzzleId:   "ps4",
@@ -114,6 +128,7 @@ func TestHomePage(t *testing.T) {
 			Geometry:   puzzle.RectangularGeometryName,
 			SideLength: 12,
 			Choices:    []puzzle.Choice{{2, 2}, {3, 3}, {4, 4}},
+			Remaining:  4,
 		},
 	}
 	body := HomePage(session0, info0, others0)
@@ -130,6 +145,7 @@ func TestSolverPage(t *testing.T) {
 		Geometry:   puzzle.StandardGeometryName,
 		SideLength: 4,
 		Choices:    []puzzle.Choice{{1, 1}},
+		Remaining:  countZeroes(rotation4Puzzle1PartialValues) - 1,
 	}
 	body0 := SolverPage(session0, info0, rotation4Puzzle1PartialValues)
 	err := sameAsResultFile(body0, "TestSolverPage0.html")
@@ -142,7 +158,8 @@ func TestSolverPage(t *testing.T) {
 		Name:       "test-1",
 		Geometry:   puzzle.StandardGeometryName,
 		SideLength: 9,
-		Choices:    []puzzle.Choice{{1, 1}},
+		Choices:    []puzzle.Choice{{1, 1}, {2, 2}},
+		Remaining:  countZeroes(oneStarValues) - 2,
 	}
 	body1 := SolverPage(session1, info1, oneStarValues)
 	err = sameAsResultFile(body1, "TestSolverPage1.html")
@@ -155,7 +172,8 @@ func TestSolverPage(t *testing.T) {
 		Name:       "test-2",
 		Geometry:   puzzle.RectangularGeometryName,
 		SideLength: 6,
-		Choices:    []puzzle.Choice{{1, 1}},
+		Choices:    []puzzle.Choice{{1, 1}, {2, 2}, {3, 3}},
+		Remaining:  countZeroes(Su6Difficult1Values) - 3,
 	}
 	body2 := SolverPage(session2, info2, Su6Difficult1Values)
 	err = sameAsResultFile(body2, "TestSolverPage2.html")
@@ -168,7 +186,8 @@ func TestSolverPage(t *testing.T) {
 		Name:       "test-3",
 		Geometry:   puzzle.RectangularGeometryName,
 		SideLength: 12,
-		Choices:    []puzzle.Choice{{1, 1}},
+		Choices:    []puzzle.Choice{{1, 1}, {2, 2}, {3, 3}, {4, 4}},
+		Remaining:  countZeroes(SuDozen78097Values) - 4,
 	}
 	body3 := SolverPage(session3, info3, SuDozen78097Values)
 	err = sameAsResultFile(body3, "TestSolverPage3.html")

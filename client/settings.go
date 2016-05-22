@@ -21,6 +21,7 @@ package client
 import (
 	"fmt"
 	"html/template"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
@@ -109,21 +110,19 @@ func findTemplateDirectory() string {
 	return defaultTemplateDirectory
 }
 
-// loadedTemplates is the cache of already-parsed templates
-var loadedTemplates = make(map[string]*template.Template)
-
-// loadPageTemplate does what you would expect: give it the
-// template name, and it will find and parse the template file
-// and return the resulting template.
-func loadPageTemplate(name string) (*template.Template, error) {
-	if tmpl, ok := loadedTemplates[name]; ok {
-		return tmpl, nil
-	}
+// parsePageTemplate takes an empty template, finds the template
+// Page file associated with the teamplate's name, and parses
+// that file's content into the template.
+func parsePageTemplate(tmpl *template.Template) (*template.Template, error) {
+	name := tmpl.Name()
 	fp := filepath.Join(findTemplateDirectory(), name+templatePageSuffix)
-	tmpl, err := template.ParseFiles(fp)
+	text, err := ioutil.ReadFile(fp)
 	if err != nil {
 		return nil, err
 	}
-	loadedTemplates[name] = tmpl
+	tmpl, err = tmpl.Parse(string(text))
+	if err != nil {
+		return nil, err
+	}
 	return tmpl, nil
 }

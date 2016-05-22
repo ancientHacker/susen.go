@@ -54,7 +54,7 @@ func (s *Session) AddStep(choice puzzle.Choice) {
 	s.databaseUpdateEntry(s.active)
 	// update the state of the session and the step cache
 	s.addStep()
-	s.Info.Choices = append(s.Info.Choices, choice)
+	s.Info = s.makePuzzleInfo(s.active)
 }
 
 // RemoveStep: remove the last step and restore the prior step in
@@ -73,7 +73,7 @@ func (s *Session) RemoveStep() {
 	// update the state of the session and the step cache
 	s.removeStep()
 	s.loadLastStep()
-	s.Info.Choices = s.Info.Choices[0 : len(s.Info.Choices)-1]
+	s.Info = s.makePuzzleInfo(s.active)
 }
 
 // RemoveAllSteps: remove all the steps from the current puzzle
@@ -109,6 +109,7 @@ type PuzzleInfo struct {
 	Geometry   string          // puzzle geometry
 	SideLength int             // puzzle size
 	Choices    []puzzle.Choice // choices made for this puzzle
+	Remaining  int             // number of remaining choices to make
 	LastView   time.Time       // time when the puzzle was last viewed
 }
 
@@ -126,8 +127,19 @@ func (s *Session) makePuzzleInfo(index int) *PuzzleInfo {
 		Geometry:   pe.Geometry,
 		SideLength: int(pe.SideLength),
 		Choices:    choices,
+		Remaining:  countZeroes(pe.Values) - len(choices),
 		LastView:   se.LastView,
 	}
+}
+
+// compute the number of empty squares
+func countZeroes(vals []int32) (count int) {
+	for _, v := range vals {
+		if v == 0 {
+			count++
+		}
+	}
+	return
 }
 
 // sorting of info sequences by puzzle name

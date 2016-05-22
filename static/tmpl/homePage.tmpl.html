@@ -14,13 +14,14 @@
 	  <h3>Solve a Puzzle</h3>
 	  <p>Current puzzle: <a href="/solver/">{{.Current.Name}}</a>
 	    [{{.Current.Geometry}}, {{.Current.SideLength}}x{{.Current.SideLength}},
-	    {{len .Current.Choices}} choices]
+	    {{len .Current.Choices}} squares solved, {{.Current.Remaining}} remaining]
 	  </p>
 	  <p>Other puzzles:</p>
 	  <ul>{{range .Others}}
 	    <li>
 	      <a id="{{.PuzzleId}}" href="/select/{{.PuzzleId}}">{{.Name}}</a>
-	      [{{.Geometry}}, {{.SideLength}}x{{.SideLength}}, {{len .Choices}} choices]
+	      [{{.Geometry}}, {{.SideLength}}x{{.SideLength}},
+	       {{len .Choices}} squares solved, {{.Remaining}} remaining]
 	    </li>{{end}}
 	  </ul>
 	</div>
