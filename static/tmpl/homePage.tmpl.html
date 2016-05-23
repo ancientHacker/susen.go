@@ -12,18 +12,29 @@
       <div class="left">
 	<div class="activity">
 	  <h3>Solve a Puzzle</h3>
-	  <p>Current puzzle: <a href="/solver/">{{.Current.Name}}</a>
-	    [{{.Current.Geometry}}, {{.Current.SideLength}}x{{.Current.SideLength}},
-	    {{len .Current.Choices}} squares solved, {{.Current.Remaining}} remaining]
-	  </p>
-	  <p>Other puzzles:</p>
-	  <ul>{{range .Others}}
+	  <p>Current puzzle:</p>
+	  <ul>
+	    <li><a href="/solver/">{{.Current.Name}}</a>
+	      [{{.Current.Geometry}}, {{.Current.SideLength}}x{{.Current.SideLength}},
+	      {{len .Current.Choices}} squares solved, {{.Current.Remaining}} remaining]
+	    </li>
+	  </ul>
+	  {{if .Worked}}<p>Puzzles you've worked on:</p>
+	  <ul>{{range .Worked}}
 	    <li>
 	      <a id="{{.PuzzleId}}" href="/select/{{.PuzzleId}}">{{.Name}}</a>
 	      [{{.Geometry}}, {{.SideLength}}x{{.SideLength}},
 	       {{len .Choices}} squares solved, {{.Remaining}} remaining]
 	    </li>{{end}}
-	  </ul>
+	  </ul>{{end}}
+	  {{if .Unworked}}<p>Other available puzzles:</p>
+	  <ul>{{range .Unworked}}
+	    <li>
+	      <a id="{{.PuzzleId}}" href="/select/{{.PuzzleId}}">{{.Name}}</a>
+	      [{{.Geometry}}, {{.SideLength}}x{{.SideLength}},
+	       {{len .Choices}} squares solved, {{.Remaining}} remaining]
+	    </li>{{end}}
+	  </ul>{{end}}
 	</div>
       </div>
       <div class="right">

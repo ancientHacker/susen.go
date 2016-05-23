@@ -24,7 +24,9 @@ import (
 	"github.com/ancientHacker/susen.go/storage"
 	"os"
 	"path/filepath"
+	"sort"
 	"testing"
+	"time"
 )
 
 var (
@@ -105,6 +107,7 @@ func TestHomePage(t *testing.T) {
 			SideLength: 9,
 			Choices:    nil,
 			Remaining:  1,
+			LastView:   time.Now(),
 		},
 		&storage.PuzzleInfo{
 			PuzzleId:   "ps2",
@@ -113,6 +116,7 @@ func TestHomePage(t *testing.T) {
 			SideLength: 16,
 			Choices:    []puzzle.Choice{{2, 2}},
 			Remaining:  2,
+			LastView:   time.Now().Add(-time.Second),
 		},
 		&storage.PuzzleInfo{
 			PuzzleId:   "ps3",
@@ -121,6 +125,7 @@ func TestHomePage(t *testing.T) {
 			SideLength: 6,
 			Choices:    []puzzle.Choice{{2, 2}, {3, 3}},
 			Remaining:  3,
+			LastView:   time.Now().Add(-time.Hour),
 		},
 		&storage.PuzzleInfo{
 			PuzzleId:   "ps4",
@@ -129,8 +134,10 @@ func TestHomePage(t *testing.T) {
 			SideLength: 12,
 			Choices:    []puzzle.Choice{{2, 2}, {3, 3}, {4, 4}},
 			Remaining:  4,
+			LastView:   time.Now().Add(-time.Minute),
 		},
 	}
+	sort.Sort(storage.ByLatestSolutionView(others0))
 	body := HomePage(session0, info0, others0)
 	err := sameAsResultFile(body, "TestHomePage0.html")
 	if err != "" {

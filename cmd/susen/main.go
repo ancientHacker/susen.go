@@ -37,7 +37,7 @@ import (
 
 // flags
 var (
-	debugLog = flag.Bool("d", true, "debugging info in log")
+	debugLog = flag.Bool("d", false, "debugging info in log")
 )
 
 func main() {
@@ -47,8 +47,11 @@ func main() {
 		flag.PrintDefaults()
 		os.Exit(2)
 	}
+	if len(os.Getenv("DEBUG")) > 0 {
+		*debugLog = true
+	}
 	if *debugLog {
-		log.Printf("-d specified: debug messages to log")
+		log.Printf("Debug log messages turned on.")
 	}
 
 	// client initialization
@@ -274,7 +277,7 @@ func (s *session) solverHandler(w http.ResponseWriter, r *http.Request) {
 
 func (s *session) homeHandler(w http.ResponseWriter, r *http.Request) {
 	infos := s.ss.GetInactivePuzzles()
-	sort.Sort(storage.ByLatestView(infos))
+	sort.Sort(storage.ByLatestSolutionView(infos))
 	body := client.HomePage(s.sid, s.ss.Info, infos)
 	hs := w.Header()
 	hs.Add("Content-Type", "text/html; charset=utf-8")

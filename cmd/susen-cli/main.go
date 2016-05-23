@@ -250,32 +250,21 @@ func homeHandler(s *session, w io.Writer, r *request) {
 	}
 	// output the current puzzle summary
 	fmt.Fprintf(w, "Session %q with current puzzle:\n", s.sid)
-	fmt.Fprintf(w, "  %-15s (id: %-15s) [%s, %dx%d, %d choices]\n",
-		s.ss.Info.Name, s.ss.Info.PuzzleId,
+	fmt.Fprintf(w, "  %s [%s, %dx%d] (id: %s)\n\tSolved: %d; Remaining: %d\n",
+		s.ss.Info.Name,
 		s.ss.Info.Geometry, s.ss.Info.SideLength, s.ss.Info.SideLength,
-		len(s.ss.Info.Choices))
-	sum, err := s.ss.Puzzle.Summary()
-	if err != nil {
-		panic(err)
-	}
-	filled, empty := 0, 0
-	for _, val := range sum.Values {
-		if val == 0 {
-			empty++
-		} else {
-			filled++
-		}
-	}
-	fmt.Fprintf(w, "  Assigned squares: %d; Empty squares: %d\n", filled, empty)
-	fmt.Fprintf(w, "\nOther puzzles being solved (most recent first):\n")
+		s.ss.Info.PuzzleId,
+		len(s.ss.Info.Choices), s.ss.Info.Remaining)
+	fmt.Fprintf(w, "\nOther puzzles (being solved first, most recent first):\n")
 	// output the rest of the session puzzles
 	infos := s.ss.GetInactivePuzzles()
-	sort.Sort(storage.ByLatestView(infos))
+	sort.Sort(storage.ByLatestSolutionView(infos))
 	for _, info := range infos {
-		fmt.Fprintf(w, "  %-15s (id: %-15s) [%s, %dx%d, %d choices]\n",
-			info.Name, info.PuzzleId,
+		fmt.Fprintf(w, "  %s [%s, %dx%d] (id: %s)\n\tSolved: %d; Remaining: %d\n",
+			info.Name,
 			info.Geometry, info.SideLength, info.SideLength,
-			len(info.Choices))
+			info.PuzzleId,
+			len(info.Choices), info.Remaining)
 	}
 }
 

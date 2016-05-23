@@ -315,7 +315,7 @@ type templateHomePage struct {
 	Current                   *storage.PuzzleInfo
 	Title, TopHead            string
 	IconFile, CssFile, JsFile string
-	Others                    []*storage.PuzzleInfo
+	Worked, Unworked          []*storage.PuzzleInfo
 	ApplicationFooter         string
 }
 
@@ -330,7 +330,15 @@ func init() {
 // a string.  If there is an error, what's returned is the error
 // page content as a string.
 func HomePage(sessionID string, this *storage.PuzzleInfo, others []*storage.PuzzleInfo) string {
-	var err error
+	// separate the worked puzzles from the non-worked puzzles
+	worked, unworked := others, []*storage.PuzzleInfo{}
+	for i := range others {
+		if len(others[i].Choices) == 0 {
+			worked = others[:i]
+			unworked = others[i:]
+			break
+		}
+	}
 	thp := templateHomePage{
 		SessionID:         sessionID,
 		Current:           this,
@@ -339,10 +347,12 @@ func HomePage(sessionID string, this *storage.PuzzleInfo, others []*storage.Puzz
 		IconFile:          iconPath,
 		CssFile:           "/home.css",
 		JsFile:            "/home.js",
-		Others:            others,
+		Worked:            worked,
+		Unworked:          unworked,
 		ApplicationFooter: applicationFooter(),
 	}
 
+	var err error
 	if homePageTemplate == nil {
 		tmpl := template.New("home")
 		if homePageTemplate, err = parsePageTemplate(tmpl); err != nil {

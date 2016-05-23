@@ -156,6 +156,17 @@ func (pi ByLatestView) Len() int           { return len(pi) }
 func (pi ByLatestView) Swap(i, j int)      { pi[i], pi[j] = pi[j], pi[i] }
 func (pi ByLatestView) Less(i, j int) bool { return pi[i].LastView.After(pi[j].LastView) }
 
+// sorting of info sequences by attempted solution & last viewed time
+type ByLatestSolutionView []*PuzzleInfo
+
+func (pi ByLatestSolutionView) Len() int      { return len(pi) }
+func (pi ByLatestSolutionView) Swap(i, j int) { pi[i], pi[j] = pi[j], pi[i] }
+func (pi ByLatestSolutionView) Less(i, j int) bool {
+	return !(len(pi[i].Choices) == 0 && len(pi[j].Choices) > 0) &&
+		((len(pi[i].Choices) > 0 && len(pi[j].Choices) == 0) ||
+			pi[i].LastView.After(pi[j].LastView))
+}
+
 /*
 
 puzzle entries
