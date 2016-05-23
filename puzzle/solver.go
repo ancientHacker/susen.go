@@ -1,5 +1,5 @@
 // susen.go - a web-based Sudoku game and teaching tool.
-// Copyright (C) 2015 Daniel C. Brotsky.
+// Copyright (C) 2015-2016 Daniel C. Brotsky.
 //
 // This program is free software; you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
@@ -81,13 +81,13 @@ step 4.
 
 */
 
-// A choice is a puzzle, a square to choose, the choice to try
-// first in that square, and the next choices to try after that.
+// A choice records a point where Ariadne makes a choice
 type choice struct {
 	puz    *Puzzle
-	cindex int
-	cvalue int
-	cnext  intset
+	cindex int    // where the choice was made
+	ccount int    // how many branchings there are
+	cvalue int    // which branch was taken
+	cnext  intset // the branches left to try
 }
 
 // A thread is a stack of choices
@@ -113,10 +113,15 @@ func solve(p *Puzzle, t thread) (*Puzzle, thread) {
 	}
 }
 
-// Solutions finds all solutions to a given puzzle.  The
-// puzzle is copied first, so it's not altered during the
-// solutions process
+// allSolutions finds all solutions to a given puzzle.  The
+// puzzle is not altered.
 func (p *Puzzle) allSolutions() []Solution {
+	// first see if there are no choices needed
+	if vals, rating := rateNoChoices(p.copy()); vals != nil {
+		return []Solution{{Values: vals, Rating: rating}}
+	}
+
+	// choices needed: do Ariadne's thread
 	var solutions []Solution
 	var t thread
 	for p, t = solve(p.copy(), t); len(p.errors) == 0; p, t = solve(p, t) {
@@ -218,6 +223,7 @@ func pushChoice(p *Puzzle, t thread) (*Puzzle, thread) {
 	c := choice{
 		puz:    p.copy(),
 		cindex: cindex,
+		ccount: ccount,
 		cvalue: p.squares[cindex].pvals[0],
 		cnext:  newIntsetCopy(p.squares[cindex].pvals[1:]),
 	}
@@ -231,14 +237,104 @@ func pushChoice(p *Puzzle, t thread) (*Puzzle, thread) {
 }
 
 // newSolution constructs a solution from a solved puzzle and its
-// solving thread.
+// solving thread.  The thread must have at least one choice.
 func newSolution(p *Puzzle, t thread) Solution {
 	S := Solution{Values: p.allValues()}
-	if len(t) > 0 {
-		S.Choices = make([]Choice, len(t))
-		for i := range t {
-			S.Choices[i].Index, S.Choices[i].Value = t[i].cindex, t[i].cvalue
-		}
+	S.Choices = make([]Choice, len(t))
+	counts := make([]int, len(t))
+	for i := range t {
+		S.Choices[i].Index, S.Choices[i].Value = t[i].cindex, t[i].cvalue
+		counts[i] = t[i].ccount
 	}
+	S.Rating = rateChoices(counts)
 	return S
+}
+
+/*
+
+Rate solutions.
+
+If a puzzle can be filled in just by filling in single-values
+squares, then it's a 1-star.  If it can be filled in just by
+filling in bound squares, then it's a 2-star.
+
+*/
+
+// rate the choices that went into a solution.  If it requires
+// only a single 2-valued choice, then it's a three-star.  If it
+// requires two 2-valued choices, or a single 3-valued choice,
+// then it's a 4-star.  If it requires more than two choices,
+// then it's a 5-star.
+func rateChoices(counts []int) int {
+	switch len(counts) {
+	case 1:
+		if counts[0] > 2 {
+			return 4
+		} else {
+			return 3
+		}
+	case 2:
+		if counts[0] > 2 || counts[1] > 2 {
+			return 5
+		} else {
+			return 4
+		}
+	default:
+		return 5
+	}
+}
+
+// rateNoChoices checks to see if the puzzle does not require a
+// choice.  If so, it returns the solved puzzle values and a
+// rating of 1 or 2 (depending on how many bound squares the
+// solver had to find.).  If not, it returns nil and 0.
+//
+// The solving happens so as to minimize the number of bound squares:
+// 1. Do all single-valued squares.
+// 2. If you find a bound-valued square, fill it and go back to 1.
+// 3. If the puzzle is solved, return the ratio.  If not, return 0.
+func rateNoChoices(p *Puzzle) ([]int, int) {
+	totalBound, totalSingle := 0, 0
+	for {
+		bound, single := 0, 0
+		for i := 1; i <= p.mapping.scount; i++ {
+			if p.squares[i].aval == 0 {
+				if len(p.squares[i].pvals) == 1 {
+					single++
+					p.assign(i, p.squares[i].pvals[0])
+				}
+			}
+		}
+		totalSingle += single
+		if single > 0 {
+			continue
+		}
+		for i := 1; i <= p.mapping.scount; i++ {
+			if p.squares[i].aval == 0 {
+				if p.squares[i].bval != 0 {
+					bound++
+					p.assign(i, p.squares[i].bval)
+					break
+				}
+			}
+		}
+		totalBound += bound
+		if bound > 0 {
+			continue
+		}
+		if len(p.errors) > 0 { // should never happend, but be cautious
+			return nil, 0
+		}
+		for i := 1; i <= p.mapping.scount; i++ {
+			if p.squares[i].aval == 0 {
+				return nil, 0
+			}
+		}
+		break
+	}
+	if totalBound < p.mapping.sidelen/2 {
+		return p.allValues(), 1
+	} else {
+		return p.allValues(), 2
+	}
 }

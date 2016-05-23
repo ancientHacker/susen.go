@@ -4,7 +4,6 @@
     "scripts": {
     },
     "env": {
-	"REDISTOGO_ENV": "dev",
 	"APPLICATION_ENV": "dev",
 	"HEROKU_APP_NAME": {
 	    "required": true
@@ -21,6 +20,7 @@
     },
     "addons": [
 	"papertrail",
-	"redistogo"
+	"redistogo",
+	"heroku-postgresql"
     ]
 }

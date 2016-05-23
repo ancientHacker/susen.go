@@ -1,5 +1,5 @@
 // susen.go - a web-based Sudoku game and teaching tool.
-// Copyright (C) 2015 Daniel C. Brotsky.
+// Copyright (C) 2015-2016 Daniel C. Brotsky.
 //
 // This program is free software; you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
@@ -22,9 +22,11 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/ancientHacker/susen.go/puzzle"
+	"github.com/ancientHacker/susen.go/storage"
 	"html/template"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 /*
@@ -34,14 +36,15 @@ solver pages
 */
 
 // The solverPageTemplate contains the template for a solver
-// page.  It's initialized when needed; see the definition of
-// findSolverPageTemplate for template location details.
+// page.  It's initialized when needed.
 var solverPageTemplate *template.Template
 
 // A templateSolverPage contains the values to fill the solver
 // page template.
 type templateSolverPage struct {
-	SessionID, PuzzleID       string
+	SessionID                 string
+	Info                      *storage.PuzzleInfo
+	Values                    []int
 	Title, TopHead            string
 	IconFile, CssFile, JsFile string
 	Puzzle                    templatePuzzle
@@ -70,15 +73,15 @@ func init() {
 // SolverPage executes the solver page template over the passed
 // session and puzzle info, and returns the solver page content as a
 // string.
-func SolverPage(sessionID string, puzzleID string, summary *puzzle.Summary) string {
+func SolverPage(sessionID string, info *storage.PuzzleInfo, values []int) string {
 	var tp templatePuzzle
 	var err error
-	if summary.Geometry == puzzle.StandardGeometryName {
-		tp, err = standardTemplatePuzzle(summary.Values)
-	} else if summary.Geometry == puzzle.RectangularGeometryName {
-		tp, err = rectangularTemplatePuzzle(summary.Values)
+	if info.Geometry == puzzle.StandardGeometryName {
+		tp, err = standardTemplatePuzzle(values)
+	} else if info.Geometry == puzzle.RectangularGeometryName {
+		tp, err = rectangularTemplatePuzzle(values)
 	} else {
-		err = fmt.Errorf("Can't generate puzzle grid for geometry %q", summary.Geometry)
+		err = fmt.Errorf("Can't generate puzzle grid for geometry %q", info.Geometry)
 	}
 	if err != nil {
 		return ErrorPage(err)
@@ -86,9 +89,9 @@ func SolverPage(sessionID string, puzzleID string, summary *puzzle.Summary) stri
 
 	tsp := templateSolverPage{
 		SessionID:         sessionID,
-		PuzzleID:          puzzleID,
+		Info:              info,
 		Title:             fmt.Sprintf("%s: Solver", brandName),
-		TopHead:           fmt.Sprintf("Puzzle Solver"),
+		TopHead:           fmt.Sprintf("Solving puzzle %s", strings.Title(info.Name)),
 		IconFile:          iconPath,
 		CssFile:           "/solver.css",
 		JsFile:            "/solver.js",
@@ -96,12 +99,14 @@ func SolverPage(sessionID string, puzzleID string, summary *puzzle.Summary) stri
 		ApplicationFooter: applicationFooter(),
 	}
 
-	tmpl, err := loadPageTemplate("solver")
-	if err != nil {
-		return ErrorPage(fmt.Errorf("Couldn't load the %q template: %v", "solver", err))
+	if solverPageTemplate == nil {
+		tmpl := template.New("solver")
+		if solverPageTemplate, err = parsePageTemplate(tmpl); err != nil {
+			return ErrorPage(fmt.Errorf("Couldn't load the %q template: %v", "solver", err))
+		}
 	}
 	buf := new(bytes.Buffer)
-	err = tmpl.Execute(buf, tsp)
+	err = solverPageTemplate.Execute(buf, tsp)
 	if err != nil {
 		return ErrorPage(err)
 	}
@@ -255,6 +260,10 @@ error pages
 
 */
 
+// The errorPageTemplate contains the template for a error
+// page.  It's initialized when needed.
+var errorPageTemplate *template.Template
+
 // A templateErrorPage contains the values to fill the error page
 // template.
 type templateErrorPage struct {
@@ -265,6 +274,7 @@ type templateErrorPage struct {
 
 // return error page content
 func ErrorPage(e error) string {
+	var err error
 	tep := templateErrorPage{
 		Title:             fmt.Sprintf("%s: Error", brandName),
 		TopHead:           fmt.Sprintf("Unexpected Server Error"),
@@ -274,13 +284,14 @@ func ErrorPage(e error) string {
 		ApplicationFooter: applicationFooter(),
 	}
 
-	tmpl, err := loadPageTemplate("error")
-	if err != nil {
-		return fmt.Sprintf("Couldn't load the %q template: %v", "error", err)
+	if errorPageTemplate == nil {
+		tmpl := template.New("error")
+		if errorPageTemplate, err = parsePageTemplate(tmpl); err != nil {
+			return fmt.Sprintf("Couldn't load the %q template: %v", "error", err)
+		}
 	}
-
 	buf := new(bytes.Buffer)
-	err = tmpl.Execute(buf, tep)
+	err = errorPageTemplate.Execute(buf, tep)
 	if err != nil {
 		return fmt.Sprintf("A templating error has occurred: %v", err)
 	}
@@ -294,17 +305,17 @@ home page
 */
 
 // The homePageTemplate contains the template for a home
-// page.  It's initialized when needed; see the definition of
-// findHomePageTemplate for template location details.
+// page.  It's initialized when needed.
 var homePageTemplate *template.Template
 
 // A templateHomePage contains the values to file the home
 // page template.
 type templateHomePage struct {
-	SessionID, PuzzleID       string
+	SessionID                 string
+	Current                   *storage.PuzzleInfo
 	Title, TopHead            string
 	IconFile, CssFile, JsFile string
-	PuzzleIDs                 []string
+	Worked, Unworked          []*storage.PuzzleInfo
 	ApplicationFooter         string
 }
 
@@ -318,25 +329,38 @@ func init() {
 // session and puzzle info, and returns the home page content as
 // a string.  If there is an error, what's returned is the error
 // page content as a string.
-func HomePage(sessionID string, puzzleID string, puzzleIDs []string) string {
-	tsp := templateHomePage{
+func HomePage(sessionID string, this *storage.PuzzleInfo, others []*storage.PuzzleInfo) string {
+	// separate the worked puzzles from the non-worked puzzles
+	worked, unworked := others, []*storage.PuzzleInfo{}
+	for i := range others {
+		if len(others[i].Choices) == 0 {
+			worked = others[:i]
+			unworked = others[i:]
+			break
+		}
+	}
+	thp := templateHomePage{
 		SessionID:         sessionID,
-		PuzzleID:          puzzleID,
+		Current:           this,
 		Title:             fmt.Sprintf("%s: Home", brandName),
 		TopHead:           fmt.Sprintf("%s", brandName),
 		IconFile:          iconPath,
 		CssFile:           "/home.css",
 		JsFile:            "/home.js",
-		PuzzleIDs:         puzzleIDs,
+		Worked:            worked,
+		Unworked:          unworked,
 		ApplicationFooter: applicationFooter(),
 	}
 
-	tmpl, err := loadPageTemplate("home")
-	if err != nil {
-		return ErrorPage(fmt.Errorf("Couldn't load the %q template: %v", "home", err))
+	var err error
+	if homePageTemplate == nil {
+		tmpl := template.New("home")
+		if homePageTemplate, err = parsePageTemplate(tmpl); err != nil {
+			return ErrorPage(fmt.Errorf("Couldn't load the %q template: %v", "home", err))
+		}
 	}
 	buf := new(bytes.Buffer)
-	err = tmpl.Execute(buf, tsp)
+	err = homePageTemplate.Execute(buf, thp)
 	if err != nil {
 		return ErrorPage(err)
 	}

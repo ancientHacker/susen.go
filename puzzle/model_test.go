@@ -1,5 +1,5 @@
 // susen.go - a web-based Sudoku game and teaching tool.
-// Copyright (C) 2015 Daniel C. Brotsky.
+// Copyright (C) 2015-2016 Daniel C. Brotsky.
 //
 // This program is free software; you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
@@ -2798,6 +2798,69 @@ Puzzle Operations
 
 */
 
+type hashTestcase struct {
+	metadata map[string]string
+	geo      string
+	sidelen  int
+	sig      Signature
+}
+
+func TestHash(t *testing.T) {
+	testcases := []hashTestcase{
+		hashTestcase{
+			map[string]string{"name": "square 4x4"},
+			StandardGeometryName, 4,
+			Signature("24199A7132DCAA84E699B350C94B9A07"),
+		},
+		hashTestcase{
+			map[string]string{"name": "square 9x9"},
+			StandardGeometryName, 9,
+			Signature("BACADD859FBC9911F234CD53C7254165"),
+		},
+		hashTestcase{
+			map[string]string{"name": "square 16x16"},
+			StandardGeometryName, 16,
+			Signature("6EF610D6A5B45A01625731D3BDDC40B8"),
+		},
+		hashTestcase{
+			map[string]string{"name": "rectangle 6x6"},
+			RectangularGeometryName, 6,
+			Signature("7E3DCE11DBF37A3878A7CA849D1F0588"),
+		},
+		hashTestcase{
+			map[string]string{"name": "rectangle 12x12"},
+			RectangularGeometryName, 12,
+			Signature("B4EE441FAC734874358E879BAECF4D71"),
+		},
+		hashTestcase{
+			map[string]string{"name": "rectangle 20x20"},
+			RectangularGeometryName, 20,
+			Signature("AD9452449B972134BF458697A65C52E1"),
+		},
+	}
+	for _, tc := range testcases {
+		s := &Summary{
+			Metadata:   tc.metadata,
+			Geometry:   tc.geo,
+			SideLength: tc.sidelen,
+			Values:     make([]int, tc.sidelen*tc.sidelen),
+		}
+		p, e := New(s)
+		if e != nil {
+			t.Fatalf("%s puzzle creation failed: %s", tc.metadata["name"], e.Error())
+		}
+		shash := s.hash()
+		phash := p.hash()
+		if !reflect.DeepEqual(shash, phash) {
+			t.Errorf("%s summary hash (%v) doesn't match puzzle hash (%v)",
+				tc.metadata["name"], shash, phash)
+		}
+		if !reflect.DeepEqual(shash, tc.sig) {
+			t.Errorf("%s has was %v, expected %v", tc.metadata["name"], shash, tc.sig)
+		}
+	}
+}
+
 type summaryTestcase struct {
 	metadata map[string]string
 	vals     []int
@@ -3357,21 +3420,46 @@ func TestExternalNil(t *testing.T) {
 
 	var err error
 	for i, p := range testcases {
+		_, err = p.Hash()
+		if err == nil || err.(Error).Condition != InvalidArgumentCondition {
+			t.Errorf("case %v Hash: No error or incorrect condition on invalid puzzle: %v",
+				i, err)
+		}
 		_, err = p.Summary()
 		if err == nil || err.(Error).Condition != InvalidArgumentCondition {
-			t.Errorf("case %v Summary: No error or incorrect condition on invalid puzzle: %v", i, err)
+			t.Errorf("case %v Summary: No error or incorrect condition on invalid puzzle: %v",
+				i, err)
 		}
 		_, err = p.State()
 		if err == nil || err.(Error).Condition != InvalidArgumentCondition {
-			t.Errorf("case %v State: No error or incorrect condition on invalid puzzle: %v", i, err)
+			t.Errorf("case %v State: No error or incorrect condition on invalid puzzle: %v",
+				i, err)
 		}
 		_, err = p.Assign(Choice{1, 1})
 		if err == nil || err.(Error).Condition != InvalidArgumentCondition {
-			t.Errorf("case %v Assign: No error or incorrect condition on invalid puzzle: %v", i, err)
+			t.Errorf("case %v Assign: No error or incorrect condition on invalid puzzle: %v",
+				i, err)
 		}
 		_, err = p.Copy()
 		if err == nil || err.(Error).Condition != InvalidArgumentCondition {
-			t.Errorf("case %v Copy: No error or incorrect condition on invalid puzzle: %v", i, err)
+			t.Errorf("case %v Copy: No error or incorrect condition on invalid puzzle: %v",
+				i, err)
+		}
+	}
+
+	// test Hash on bad summaries
+	sumcases := []*Summary{
+		nil,
+		&Summary{},
+		&Summary{Geometry: "Square"},
+		&Summary{Geometry: "Square", SideLength: 12},
+		&Summary{Geometry: "Square", SideLength: 12, Values: make([]int, 100)},
+	}
+	for i, s := range sumcases {
+		_, err = s.Hash()
+		if err == nil || err.(Error).Condition != InvalidArgumentCondition {
+			t.Errorf("case %v Hash: No error or incorrect condition on invalid summary: %v",
+				i, err)
 		}
 	}
 }

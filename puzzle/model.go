@@ -1,5 +1,5 @@
 // susen.go - a web-based Sudoku game and teaching tool.
-// Copyright (C) 2015 Daniel C. Brotsky.
+// Copyright (C) 2015-2016 Daniel C. Brotsky.
 //
 // This program is free software; you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
@@ -60,6 +60,7 @@
 package puzzle
 
 import (
+	"crypto/md5"
 	"fmt"
 )
 
@@ -179,6 +180,32 @@ func (p *Puzzle) allErrors(verbose bool) []Error {
 		}
 	}
 	return errs
+}
+
+// hash returns the current hash of a puzzle.
+func (p *Puzzle) hash() Signature {
+	return computeHash(p.mapping.geometry, p.allValues())
+}
+
+// hash also works on summaries.
+func (s *Summary) hash() Signature {
+	return computeHash(s.Geometry, s.Values)
+}
+
+// do the actual hashing work.  We hash the geometry name and the
+// values in case there are two different geometries that can use
+// the same value.
+func computeHash(geo string, vals []int) Signature {
+	glen, vlen := len(geo), len(vals)
+	bytes := make([]byte, glen+vlen)
+	for i, c := range geo {
+		bytes[i] = byte(c)
+	}
+	for i, v := range vals {
+		bytes[i+glen] = byte(v)
+	}
+	hash := md5.Sum(bytes)
+	return Signature(fmt.Sprintf("%X", hash[0:md5.Size]))
 }
 
 // summary returns the current summary of a puzzle.
@@ -402,7 +429,8 @@ type Content struct {
 
 // A Solution is a filled-in puzzle (expressed as its values)
 // plus the sequence of choices for empty squares that were made
-// to get there.  Solutions tend to have far fewer choices than
+// to get there and a rating (1-5) of how difficult the puzzle
+// was to solve.  Solutions tend to have far fewer choices than
 // originally empty squares, because most of the empty squares in
 // most puzzles have their values forced (bound) by puzzle
 // structure.  These bound values are present only in the solved
@@ -410,6 +438,7 @@ type Content struct {
 type Solution struct {
 	Values  []int    `json:"values"`
 	Choices []Choice `json:"choices,omitempty"`
+	Rating  int      `json:"rating"`
 }
 
 /*
@@ -418,6 +447,34 @@ Public operations on Puzzles: if you call these with a nil or
 zero Puzzle, you will get an error back.
 
 */
+
+// A Signature is a content hash on a puzzle.  Two puzzles have
+// the same geometry and assigned values if and only if they have
+// the same signature.
+type Signature string
+
+// Hash returns a Signature based on the puzzle's geometry and
+// content.  Two puzzles have the same Hash if and only if they
+// are identical.
+func (p *Puzzle) Hash() (Signature, error) {
+	if !p.isValid() {
+		return "", argumentError(PuzzleAttribute, InvalidArgumentCondition, p)
+	}
+	return p.hash(), nil
+}
+
+// Hash returns a Signature based on the puzzle's geometry and
+// content.  Two signatures have the same Hash if and only if
+// their puzzles are identical.
+func (s *Summary) Hash() (Signature, error) {
+	if s == nil {
+		return "", argumentError(SummaryAttribute, InvalidArgumentCondition, s)
+	}
+	if slen := s.SideLength; s.Geometry == "" || slen == 0 || len(s.Values) != slen*slen {
+		return "", argumentError(SummaryAttribute, InvalidArgumentCondition, s)
+	}
+	return s.hash(), nil
+}
 
 // Summary returns the current summary of the puzzle.
 func (p *Puzzle) Summary() (*Summary, error) {
@@ -438,11 +495,11 @@ func (p *Puzzle) State() (*Content, error) {
 	return p.state(), nil
 }
 
-// Assign a choice to a puzzle, returning an Content for the
-// puzzle.  If the puzzle is already unsolvable, the target
-// square is already assigned, or the assigned index or value are
-// out of range, the puzzle isn't updated and an Error is
-// returned.
+// Assign a choice to a puzzle, returning an update to the
+// puzzle's State.  If the puzzle is already unsolvable, the
+// target square is already assigned, or the assigned index or
+// value are out of range, the puzzle isn't updated and an Error
+// is returned.
 func (p *Puzzle) Assign(choice Choice) (*Content, error) {
 	if !p.isValid() {
 		return nil, argumentError(PuzzleAttribute, InvalidArgumentCondition, p)

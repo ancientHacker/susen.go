@@ -1,5 +1,5 @@
 // susen.go - a web-based Sudoku game and teaching tool.
-// Copyright (C) 2015 Daniel C. Brotsky.
+// Copyright (C) 2015-2016 Daniel C. Brotsky.
 //
 // This program is free software; you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
@@ -106,49 +106,42 @@ template lookup
 */
 
 func TestTemplateLookup(t *testing.T) {
-	defer func() {
-		loadedTemplates = make(map[string]*template.Template)
-	}()
+	var err error
 
-	tmpl1, err := loadPageTemplate("error")
+	_, err = parsePageTemplate(template.New("error"))
 	if err != nil {
 		t.Fatalf("Failed to load error template: %v", err)
 	}
-	tmpl2, err := loadPageTemplate("error")
-	if err != nil || tmpl2 != tmpl1 {
-		t.Errorf("Second load of error template didn't use cache! (%v, %v)", tmpl2, tmpl1)
-	}
-	tmpl1, err = loadPageTemplate("solver")
+
+	_, err = parsePageTemplate(template.New("solver"))
 	if err != nil {
 		t.Fatalf("Failed to load solver template: %v", err)
 	}
-	tmpl2, err = loadPageTemplate("solver")
-	if err != nil || tmpl2 != tmpl1 {
-		t.Errorf("Second load of solver template didn't use cache! (%v, %v)", tmpl2, tmpl1)
+
+	_, err = parsePageTemplate(template.New("home"))
+	if err != nil {
+		t.Fatalf("Failed to load home template: %v", err)
 	}
 }
 
 func TestTemplateEnvVarOverride(t *testing.T) {
-	defer func() {
-		loadedTemplates = make(map[string]*template.Template)
-		os.Unsetenv(defaultTemplateDirectoryEnvVar)
-	}()
-
 	// first check that we fail with the wrong directory
 	os.Setenv(defaultTemplateDirectoryEnvVar, filepath.Join("nosuchdir"))
-	_, err := loadPageTemplate("error")
+	_, err := parsePageTemplate(template.New("error"))
 	if err == nil {
 		t.Fatalf("Load with OS env directory %v", os.Getenv(defaultTemplateDirectoryEnvVar))
 	}
+
 	// now reset to the testdata directory and try a test load
 	os.Setenv(defaultTemplateDirectoryEnvVar, "testdata")
-	_, err = loadPageTemplate("test")
+	_, err = parsePageTemplate(template.New("test"))
 	if err != nil {
 		t.Fatalf("Failed to load test template: %v", err)
 	}
+
 	// now unset the environment to use the default
 	os.Unsetenv(defaultTemplateDirectoryEnvVar)
-	_, err = loadPageTemplate("error")
+	_, err = parsePageTemplate(template.New("error"))
 	if err != nil {
 		t.Fatalf("Failed to load error template: %v", err)
 	}
